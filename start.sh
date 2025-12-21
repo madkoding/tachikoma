@@ -1,0 +1,100 @@
+#!/bin/bash
+# =============================================================================
+# NEURO-OS Start Script
+# =============================================================================
+# Starts all NEURO-OS services in the correct order.
+# Run with: ./start.sh
+# =============================================================================
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+print_header() {
+    echo -e "\n${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${NC} ${BLUE}$1${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}\n"
+}
+
+print_step() {
+    echo -e "${GREEN}▶${NC} $1"
+}
+
+print_header "Starting NEURO-OS"
+
+# Check if .env exists
+if [ ! -f .env ]; then
+    echo -e "${RED}Error: .env file not found. Run ./setup.sh first.${NC}"
+    exit 1
+fi
+
+# Start Docker services
+print_step "Starting Docker services..."
+docker-compose up -d surrealdb searxng ollama
+
+# Wait for services
+print_step "Waiting for services to be ready..."
+sleep 5
+
+# Start backend in background
+print_step "Starting backend..."
+cd neuro-backend
+cargo run --release &
+BACKEND_PID=$!
+cd ..
+
+# Wait for backend
+sleep 3
+
+# Start User UI in background
+print_step "Starting User UI..."
+cd neuro-ui
+npm run dev &
+UI_PID=$!
+cd ..
+
+# Start Admin UI in background
+print_step "Starting Admin UI..."
+cd neuro-admin
+npm run dev &
+ADMIN_PID=$!
+cd ..
+
+echo -e "
+${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}
+${GREEN}║${NC}              ${CYAN}NEURO-OS is running!${NC}                           ${GREEN}║${NC}
+${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}
+
+${CYAN}Services:${NC}
+  • User UI:    ${YELLOW}http://localhost:5173${NC}
+  • Admin UI:   ${YELLOW}http://localhost:5174${NC}
+  • Backend:    ${YELLOW}http://localhost:3000${NC}
+
+${CYAN}Process IDs:${NC}
+  • Backend:  $BACKEND_PID
+  • User UI:  $UI_PID
+  • Admin UI: $ADMIN_PID
+
+${CYAN}Press Ctrl+C to stop all services${NC}
+"
+
+# Trap Ctrl+C to cleanup
+cleanup() {
+    echo -e "\n${YELLOW}Stopping services...${NC}"
+    kill $BACKEND_PID 2>/dev/null || true
+    kill $UI_PID 2>/dev/null || true
+    kill $ADMIN_PID 2>/dev/null || true
+    echo -e "${GREEN}All services stopped.${NC}"
+    exit 0
+}
+
+trap cleanup SIGINT SIGTERM
+
+# Wait for any process to exit
+wait
