@@ -1,0 +1,64 @@
+# =============================================================================
+# Searxng Settings Configuration
+# =============================================================================
+# This file configures the Searxng metasearch engine for NEURO-OS.
+# Optimized for API usage by AI agents.
+# =============================================================================
+
+use_default_settings: true
+
+general:
+  instance_name: "NEURO-OS Search"
+  debug: false
+  enable_metrics: false
+
+search:
+  safe_search: 0
+  autocomplete: "google"
+  default_lang: "en"
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "neuroos_searx_secret"
+  bind_address: "0.0.0.0"
+  port: 8080
+  limiter: false
+  image_proxy: false
+
+ui:
+  static_use_hash: true
+  default_theme: simple
+  results_on_new_tab: false
+
+# Enable JSON output for API consumption
+outgoing:
+  request_timeout: 10.0
+  useragent_suffix: "NEURO-OS/1.0"
+
+engines:
+  - name: google
+    engine: google
+    shortcut: g
+    disabled: false
+    
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false
+    
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wiki
+    disabled: false
+    
+  - name: github
+    engine: github
+    shortcut: gh
+    disabled: false
+    
+  - name: stackoverflow
+    engine: stackoverflow
+    shortcut: so
+    disabled: false

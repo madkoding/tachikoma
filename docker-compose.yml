@@ -1,0 +1,181 @@
+# =============================================================================
+# NEURO-OS Docker Compose Configuration
+# =============================================================================
+# This file orchestrates all services required for the NEURO-OS AI ecosystem.
+# Services include: SurrealDB (Graph + Vector DB), Searxng (Web Search),
+# Rust Backend API, User UI, and Admin UI.
+# =============================================================================
+
+version: '3.9'
+
+services:
+  # ===========================================================================
+  # SurrealDB - Graph Database with Vector Search Capabilities
+  # ===========================================================================
+  # SurrealDB serves as our primary database for storing "memories" as graph
+  # nodes with vector embeddings for semantic search (GraphRAG pattern).
+  # ===========================================================================
+  surrealdb:
+    image: surrealdb/surrealdb:latest
+    container_name: neuro-surrealdb
+    restart: unless-stopped
+    command: start --auth --strict --log trace file:/data/neuro.db
+    environment:
+      - SURREAL_USER=${SURREAL_USER:-root}
+      - SURREAL_PASS=${SURREAL_PASS:-neuroos_secret_2024}
+    volumes:
+      - surrealdb_data:/data
+    ports:
+      - "8000:8000"
+    networks:
+      - neuro-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ===========================================================================
+  # Searxng - Privacy-Respecting Metasearch Engine
+  # ===========================================================================
+  # Provides web search capabilities for the AI agents without tracking.
+  # Used by the search_web() agent tool for information retrieval.
+  # ===========================================================================
+  searxng:
+    image: searxng/searxng:latest
+    container_name: neuro-searxng
+    restart: unless-stopped
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080
+      - SEARXNG_SECRET=${SEARXNG_SECRET:-neuroos_searx_secret}
+    volumes:
+      - ./config/searxng:/etc/searxng:rw
+    ports:
+      - "8080:8080"
+    networks:
+      - neuro-network
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+
+  # ===========================================================================
+  # Ollama - Local LLM Inference Server
+  # ===========================================================================
+  # Provides local AI inference capabilities. The ModelManager selects
+  # appropriate models (3B, 7B, 14B) based on available VRAM.
+  # ===========================================================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: neuro-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - neuro-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # ===========================================================================
+  # NEURO-OS Backend - Rust Axum REST API
+  # ===========================================================================
+  # The central orchestrator that coordinates all AI agents, manages memories,
+  # and serves the REST API for both User and Admin UIs.
+  # ===========================================================================
+  neuro-backend:
+    build:
+      context: ./neuro-backend
+      dockerfile: Dockerfile
+    container_name: neuro-backend
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=info,neuro_backend=debug
+      - DATABASE_URL=ws://surrealdb:8000
+      - DATABASE_NS=neuro
+      - DATABASE_DB=memories
+      - DATABASE_USER=${SURREAL_USER:-root}
+      - DATABASE_PASS=${SURREAL_PASS:-neuroos_secret_2024}
+      - OLLAMA_URL=http://ollama:11434
+      - SEARXNG_URL=http://searxng:8080
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=3000
+    ports:
+      - "3000:3000"
+    networks:
+      - neuro-network
+    depends_on:
+      surrealdb:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      searxng:
+        condition: service_started
+
+  # ===========================================================================
+  # User UI - React Chat Interface
+  # ===========================================================================
+  # A modern chat interface with i18n support (ES/EN) for interacting
+  # with the NEURO-OS AI system.
+  # ===========================================================================
+  user-ui:
+    build:
+      context: ./user-ui
+      dockerfile: Dockerfile
+    container_name: neuro-user-ui
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    ports:
+      - "5173:80"
+    networks:
+      - neuro-network
+    depends_on:
+      - neuro-backend
+
+  # ===========================================================================
+  # Admin UI - React Graph Visualization Dashboard
+  # ===========================================================================
+  # A dedicated dashboard for visualizing, editing, and managing
+  # the memory graph network (CRUD operations on nodes).
+  # ===========================================================================
+  admin-ui:
+    build:
+      context: ./admin-ui
+      dockerfile: Dockerfile
+    container_name: neuro-admin-ui
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    ports:
+      - "5174:80"
+    networks:
+      - neuro-network
+    depends_on:
+      - neuro-backend
+
+# =============================================================================
+# Networks Configuration
+# =============================================================================
+networks:
+  neuro-network:
+    driver: bridge
+    name: neuro-os-network
+
+# =============================================================================
+# Volumes Configuration
+# =============================================================================
+volumes:
+  surrealdb_data:
+    name: neuro-surrealdb-data
+  ollama_data:
+    name: neuro-ollama-data
