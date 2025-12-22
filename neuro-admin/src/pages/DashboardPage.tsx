@@ -115,8 +115,8 @@ export default function DashboardPage() {
                   stroke="#0a0e14"
                   strokeWidth={2}
                 >
-                  {memoryTypeData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={CYBER_COLORS[index % CYBER_COLORS.length]} />
+                  {memoryTypeData.map((entry, index) => (
+                    <Cell key={entry.name} fill={CYBER_COLORS[index % CYBER_COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip 
