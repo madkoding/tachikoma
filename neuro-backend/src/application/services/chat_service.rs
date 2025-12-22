@@ -4,8 +4,7 @@
 
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::RwLock;
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, error};
 use uuid::Uuid;
 
 use crate::application::services::{
@@ -19,16 +18,19 @@ use crate::domain::{
     ports::llm_provider::LlmProvider,
     value_objects::model_tier::ModelTier,
 };
+use crate::infrastructure::database::SurrealDbRepository;
 
 /// =============================================================================
 /// ChatService - Chat Conversation Management
 /// =============================================================================
 pub struct ChatService {
+    #[allow(dead_code)]
     agent_orchestrator: Arc<AgentOrchestrator>,
     memory_service: Arc<MemoryService>,
+    #[allow(dead_code)]
     model_manager: Arc<ModelManager>,
     llm_provider: Arc<dyn LlmProvider>,
-    conversations: RwLock<std::collections::HashMap<Uuid, Conversation>>,
+    repository: Arc<SurrealDbRepository>,
     system_prompt: String,
 }
 
@@ -38,13 +40,14 @@ impl ChatService {
         memory_service: Arc<MemoryService>,
         model_manager: Arc<ModelManager>,
         llm_provider: Arc<dyn LlmProvider>,
+        repository: Arc<SurrealDbRepository>,
     ) -> Self {
         Self {
             agent_orchestrator,
             memory_service,
             model_manager,
             llm_provider,
-            conversations: RwLock::new(std::collections::HashMap::new()),
+            repository,
             system_prompt: Self::default_system_prompt(),
         }
     }
@@ -132,27 +135,55 @@ Be helpful, accurate, and concise."#.to_string()
         user_message: ChatMessage,
         assistant_message: ChatMessage,
     ) {
-        let mut conversations = self.conversations.write().await;
-        let conversation = conversations
-            .entry(conversation_id)
-            .or_insert_with(Conversation::new);
-        conversation.add_message(user_message);
-        conversation.add_message(assistant_message);
+        // Get or create conversation
+        let mut conversation = self.repository
+            .get_conversation(conversation_id)
+            .await
+            .unwrap_or(None)
+            .unwrap_or_else(|| {
+                let mut conv = Conversation::new();
+                conv.id = conversation_id;
+                // Generate title from first message
+                conv.title = Some(user_message.content.chars().take(50).collect::<String>());
+                conv
+            });
+
+        conversation.add_message(user_message.clone());
+        conversation.add_message(assistant_message.clone());
+
+        // Save conversation
+        if let Err(e) = self.repository.save_conversation(&conversation).await {
+            tracing::error!(error = %e, "Failed to save conversation");
+        }
+
+        // Save messages
+        if let Err(e) = self.repository.save_message(&user_message).await {
+            tracing::error!(error = %e, "Failed to save user message");
+        }
+        if let Err(e) = self.repository.save_message(&assistant_message).await {
+            tracing::error!(error = %e, "Failed to save assistant message");
+        }
     }
 
     pub async fn get_conversation(&self, conversation_id: Uuid) -> Option<Conversation> {
-        let conversations = self.conversations.read().await;
-        conversations.get(&conversation_id).cloned()
+        self.repository
+            .get_conversation(conversation_id)
+            .await
+            .unwrap_or(None)
     }
 
     pub async fn list_conversations(&self) -> Vec<(Uuid, Option<String>, chrono::DateTime<chrono::Utc>)> {
-        let conversations = self.conversations.read().await;
-        conversations.values().map(|c| (c.id, c.title.clone(), c.updated_at)).collect()
+        self.repository
+            .list_conversations()
+            .await
+            .unwrap_or_default()
     }
 
     pub async fn delete_conversation(&self, conversation_id: Uuid) -> bool {
-        let mut conversations = self.conversations.write().await;
-        conversations.remove(&conversation_id).is_some()
+        self.repository
+            .delete_conversation(conversation_id)
+            .await
+            .unwrap_or(false)
     }
 
     /// =========================================================================

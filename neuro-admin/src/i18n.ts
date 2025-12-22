@@ -12,7 +12,7 @@ const resources = {
         settings: 'Settings',
       },
       dashboard: {
-        title: 'TACHIKOMA // DASHBOARD',
+        title: '// PANEL',
         subtitle: 'NEURAL NETWORK STATUS',
         totalMemories: 'Total Memories',
         totalRelations: 'Total Relations',
@@ -100,7 +100,7 @@ const resources = {
         settings: 'Configuración',
       },
       dashboard: {
-        title: 'TACHIKOMA // PANEL',
+        title: '// PANEL',
         subtitle: 'ESTADO DE LA RED NEURAL',
         totalMemories: 'Total Memorias',
         totalRelations: 'Total Relaciones',

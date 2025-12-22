@@ -1,11 +1,9 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { useEffect } from 'react';
 import ChatPage from './pages/ChatPage';
 import { useThemeStore } from './stores/themeStore';
 
 function App() {
-  const { t } = useTranslation();
   const { theme } = useThemeStore();
 
   // Apply theme to document

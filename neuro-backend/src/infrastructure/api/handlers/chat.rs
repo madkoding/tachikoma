@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::domain::entities::chat::ChatRequest;
 use crate::infrastructure::api::dto::{
-    ChatMessageRequest, ChatMessageResponse, ConversationDto, ErrorResponse, MemoryDto,
+    ChatMessageRequest, ChatMessageResponse, ConversationDto, ConversationWithMessagesDto, ChatMessageDto, ErrorResponse,
 };
 use crate::AppState;
 
@@ -89,13 +89,25 @@ pub async fn stream_message(
 pub async fn get_conversation(
     State(state): State<Arc<AppState>>,
     Path(conversation_id): Path<Uuid>,
-) -> Result<Json<ConversationDto>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<ConversationWithMessagesDto>, (StatusCode, Json<ErrorResponse>)> {
     match state.chat_service.get_conversation(conversation_id).await {
         Some(conversation) => {
-            Ok(Json(ConversationDto {
+            let messages: Vec<ChatMessageDto> = conversation.messages.iter().map(|m| {
+                ChatMessageDto {
+                    id: m.id,
+                    role: format!("{:?}", m.role).to_lowercase(),
+                    content: m.content.clone(),
+                    model: m.metadata.model.clone(),
+                    tokens_prompt: m.metadata.token_count.map(|t| t as u64),
+                    tokens_completion: m.metadata.token_count.map(|t| t as u64),
+                    created_at: m.created_at.to_rfc3339(),
+                }
+            }).collect();
+
+            Ok(Json(ConversationWithMessagesDto {
                 id: conversation.id,
                 title: conversation.title.unwrap_or_else(|| "Untitled".to_string()),
-                message_count: conversation.messages.len(),
+                messages,
                 created_at: conversation.created_at.to_rfc3339(),
                 updated_at: conversation.updated_at.to_rfc3339(),
             }))

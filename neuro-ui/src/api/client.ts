@@ -59,6 +59,24 @@ export interface ConversationDto {
   updated_at: string;
 }
 
+export interface ConversationWithMessagesDto {
+  id: string;
+  title: string;
+  messages: ChatMessageDto[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessageDto {
+  id: string;
+  role: string;
+  content: string;
+  model?: string;
+  tokens_prompt?: number;
+  tokens_completion?: number;
+  created_at: string;
+}
+
 export interface HealthResponse {
   status: string;
   services: {
@@ -82,8 +100,8 @@ export const chatApi = {
     return response.data;
   },
 
-  getConversation: async (id: string): Promise<ConversationDto> => {
-    const response = await api.get<ConversationDto>(`/chat/conversations/${id}`);
+  getConversation: async (id: string): Promise<ConversationWithMessagesDto> => {
+    const response = await api.get<ConversationWithMessagesDto>(`/chat/conversations/${id}`);
     return response.data;
   },
 

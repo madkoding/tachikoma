@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useChatStore, Message } from '../stores/chatStore';
+import { useChatStore, Message, Conversation } from '../stores/chatStore';
 import { chatApi } from '../api/client';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
@@ -13,6 +13,7 @@ export default function ChatPage() {
   const { t } = useTranslation();
   const { conversationId } = useParams<{ conversationId?: string }>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
   
   const {
     conversations,
@@ -21,16 +22,67 @@ export default function ChatPage() {
     setCurrentConversation,
     addMessage,
     addConversation,
+    setConversations,
     setLoading,
     setError,
   } = useChatStore();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // Load conversations from server on mount
+  const loadConversations = useCallback(async () => {
+    try {
+      const serverConversations = await chatApi.getConversations();
+      const loadedConversations: Conversation[] = serverConversations.map(conv => ({
+        id: conv.id,
+        title: conv.title,
+        messages: [],
+        createdAt: new Date(conv.created_at),
+        updatedAt: new Date(conv.updated_at),
+      }));
+      setConversations(loadedConversations);
+    } catch (error) {
+      console.error('Failed to load conversations:', error);
+    }
+  }, [setConversations]);
+
+  // Load conversations on mount
+  useEffect(() => {
+    if (!initialLoadDone) {
+      loadConversations();
+      setInitialLoadDone(true);
+    }
+  }, [initialLoadDone, loadConversations]);
+
   // Get current conversation
   const currentConversation = conversations.find(
     (c) => c.id === currentConversationId
   );
+
+  // Load conversation messages when selecting a conversation
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (currentConversationId && currentConversation && currentConversation.messages.length === 0) {
+        try {
+          const conv = await chatApi.getConversation(currentConversationId);
+          const messages: Message[] = conv.messages.map(m => ({
+            id: m.id,
+            role: m.role as 'user' | 'assistant' | 'system',
+            content: m.content,
+            createdAt: new Date(m.created_at),
+            model: m.model,
+            tokensPrompt: m.tokens_prompt,
+            tokensCompletion: m.tokens_completion,
+          }));
+          // Update the conversation in store with messages
+          useChatStore.getState().updateConversation(currentConversationId, { messages });
+        } catch (error) {
+          console.error('Failed to load conversation messages:', error);
+        }
+      }
+    };
+    loadMessages();
+  }, [currentConversationId, currentConversation]);
 
   // Set current conversation from URL
   useEffect(() => {

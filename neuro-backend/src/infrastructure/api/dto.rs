@@ -65,6 +65,43 @@ pub struct ConversationDto {
     pub updated_at: String,
 }
 
+/// Full conversation with messages
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConversationWithMessagesDto {
+    /// Conversation ID
+    pub id: Uuid,
+    /// Conversation title
+    pub title: String,
+    /// Messages in the conversation
+    pub messages: Vec<ChatMessageDto>,
+    /// Created timestamp
+    pub created_at: String,
+    /// Last updated timestamp
+    pub updated_at: String,
+}
+
+/// Chat message DTO
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatMessageDto {
+    /// Message ID
+    pub id: Uuid,
+    /// Message role (user, assistant, system)
+    pub role: String,
+    /// Message content
+    pub content: String,
+    /// Model used (for assistant messages)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Tokens in prompt
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tokens_prompt: Option<u64>,
+    /// Tokens in completion
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tokens_completion: Option<u64>,
+    /// Created timestamp
+    pub created_at: String,
+}
+
 /// =============================================================================
 /// Memory DTOs
 /// =============================================================================

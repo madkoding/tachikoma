@@ -389,3 +389,214 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
         (dot / (norm_a * norm_b)) as f64
     }
 }
+
+// =============================================================================
+// Conversation Repository Methods
+// =============================================================================
+
+use crate::domain::entities::chat::{Conversation, ChatMessage, MessageRole, MessageMetadata};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ConversationRecord {
+    id: String,
+    title: Option<String>,
+    created_at: Datetime,
+    updated_at: Datetime,
+    archived: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ChatMessageRecord {
+    id: String,
+    conversation_id: String,
+    role: String,
+    content: String,
+    metadata: serde_json::Value,
+    created_at: Datetime,
+}
+
+impl SurrealDbRepository {
+    /// Save a conversation to the database
+    pub async fn save_conversation(&self, conversation: &Conversation) -> Result<(), DomainError> {
+        let sql = r#"
+            CREATE type::thing('conversation', $id) SET
+                title = $title,
+                created_at = $created_at,
+                updated_at = $updated_at,
+                archived = $archived
+            ON DUPLICATE KEY UPDATE
+                title = $title,
+                updated_at = $updated_at,
+                archived = $archived
+        "#;
+
+        self.pool.client()
+            .query(sql)
+            .bind(("id", conversation.id.to_string()))
+            .bind(("title", conversation.title.clone()))
+            .bind(("created_at", Datetime::from(conversation.created_at)))
+            .bind(("updated_at", Datetime::from(conversation.updated_at)))
+            .bind(("archived", conversation.archived))
+            .await
+            .map_err(|e| DomainError::database(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Save a chat message to the database
+    pub async fn save_message(&self, message: &ChatMessage) -> Result<(), DomainError> {
+        let sql = r#"
+            CREATE type::thing('chat_message', $id) SET
+                conversation_id = $conversation_id,
+                role = $role,
+                content = $content,
+                metadata = $metadata,
+                created_at = $created_at
+        "#;
+
+        let role = match message.role {
+            MessageRole::User => "user",
+            MessageRole::Assistant => "assistant",
+            MessageRole::System => "system",
+            MessageRole::Tool => "tool",
+        };
+
+        self.pool.client()
+            .query(sql)
+            .bind(("id", message.id.to_string()))
+            .bind(("conversation_id", message.conversation_id.to_string()))
+            .bind(("role", role))
+            .bind(("content", message.content.clone()))
+            .bind(("metadata", serde_json::to_value(&message.metadata).unwrap_or_default()))
+            .bind(("created_at", Datetime::from(message.created_at)))
+            .await
+            .map_err(|e| DomainError::database(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Get a conversation by ID with its messages
+    pub async fn get_conversation(&self, id: Uuid) -> Result<Option<Conversation>, DomainError> {
+        // Get conversation record
+        let sql = "SELECT meta::id(id) as id, title, created_at, updated_at, archived FROM type::thing('conversation', $id)";
+        
+        let mut response = self.pool.client()
+            .query(sql)
+            .bind(("id", id.to_string()))
+            .await
+            .map_err(|e| DomainError::database(e.to_string()))?;
+
+        let records: Vec<ConversationRecord> = response.take(0)
+            .map_err(|e| DomainError::database(e.to_string()))?;
+
+        let record = match records.into_iter().next() {
+            Some(r) => r,
+            None => return Ok(None),
+        };
+
+        // Get messages for this conversation
+        let messages = self.get_messages_for_conversation(id).await?;
+
+        use chrono::{DateTime, Utc};
+        let created_at: DateTime<Utc> = record.created_at.0.into();
+        let updated_at: DateTime<Utc> = record.updated_at.0.into();
+
+        Ok(Some(Conversation {
+            id: Uuid::parse_str(&record.id).map_err(|e| DomainError::database(e.to_string()))?,
+            title: record.title,
+            messages,
+            created_at,
+            updated_at,
+            archived: record.archived,
+        }))
+    }
+
+    /// Get all messages for a conversation
+    async fn get_messages_for_conversation(&self, conversation_id: Uuid) -> Result<Vec<ChatMessage>, DomainError> {
+        let sql = r#"
+            SELECT meta::id(id) as id, conversation_id, role, content, metadata, created_at 
+            FROM chat_message 
+            WHERE conversation_id = $conversation_id 
+            ORDER BY created_at ASC
+        "#;
+
+        let mut response = self.pool.client()
+            .query(sql)
+            .bind(("conversation_id", conversation_id.to_string()))
+            .await
+            .map_err(|e| DomainError::database(e.to_string()))?;
+
+        let records: Vec<ChatMessageRecord> = response.take(0)
+            .map_err(|e| DomainError::database(e.to_string()))?;
+
+        let mut messages = Vec::new();
+        for record in records {
+            use chrono::{DateTime, Utc};
+            let created_at: DateTime<Utc> = record.created_at.0.into();
+            
+            let role = match record.role.as_str() {
+                "user" => MessageRole::User,
+                "assistant" => MessageRole::Assistant,
+                "system" => MessageRole::System,
+                "tool" => MessageRole::Tool,
+                _ => MessageRole::User,
+            };
+
+            let metadata: MessageMetadata = serde_json::from_value(record.metadata).unwrap_or_default();
+
+            messages.push(ChatMessage {
+                id: Uuid::parse_str(&record.id).map_err(|e| DomainError::database(e.to_string()))?,
+                conversation_id: Uuid::parse_str(&record.conversation_id).map_err(|e| DomainError::database(e.to_string()))?,
+                role,
+                content: record.content,
+                metadata,
+                created_at,
+            });
+        }
+
+        Ok(messages)
+    }
+
+    /// List all conversations (without messages)
+    pub async fn list_conversations(&self) -> Result<Vec<(Uuid, Option<String>, chrono::DateTime<chrono::Utc>)>, DomainError> {
+        let sql = "SELECT meta::id(id) as id, title, updated_at FROM conversation ORDER BY updated_at DESC";
+
+        let mut response = self.pool.client()
+            .query(sql)
+            .await
+            .map_err(|e| DomainError::database(e.to_string()))?;
+
+        let records: Vec<ConversationRecord> = response.take(0)
+            .map_err(|e| DomainError::database(e.to_string()))?;
+
+        let mut result = Vec::new();
+        for record in records {
+            use chrono::{DateTime, Utc};
+            let updated_at: DateTime<Utc> = record.updated_at.0.into();
+            let id = Uuid::parse_str(&record.id).map_err(|e| DomainError::database(e.to_string()))?;
+            result.push((id, record.title, updated_at));
+        }
+
+        Ok(result)
+    }
+
+    /// Delete a conversation and its messages
+    pub async fn delete_conversation(&self, id: Uuid) -> Result<bool, DomainError> {
+        // Delete messages first
+        self.pool.client()
+            .query("DELETE chat_message WHERE conversation_id = $id")
+            .bind(("id", id.to_string()))
+            .await
+            .map_err(|e| DomainError::database(e.to_string()))?;
+
+        // Delete conversation
+        self.pool.client()
+            .query("DELETE type::thing('conversation', $id)")
+            .bind(("id", id.to_string()))
+            .await
+            .map_err(|e| DomainError::database(e.to_string()))?;
+
+        Ok(true)
+    }
+}
+

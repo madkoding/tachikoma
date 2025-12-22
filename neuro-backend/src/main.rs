@@ -160,8 +160,8 @@ async fn main() -> Result<()> {
     // Create memory repository
     // -------------------------------------------------------------------------
     info!("📦 Initializing memory repository...");
-    let memory_repository: Arc<dyn MemoryRepository + Send + Sync> = 
-        Arc::new(SurrealDbRepository::new(database_pool.clone()));
+    let surreal_repository = Arc::new(SurrealDbRepository::new(database_pool.clone()));
+    let memory_repository: Arc<dyn MemoryRepository + Send + Sync> = surreal_repository.clone();
     info!("✅ Memory repository ready");
 
     // -------------------------------------------------------------------------
@@ -189,6 +189,7 @@ async fn main() -> Result<()> {
         memory_service.clone(),
         model_manager.clone(),
         llm_provider.clone(),
+        surreal_repository.clone(),
     ));
 
     info!("✅ Application services ready");
