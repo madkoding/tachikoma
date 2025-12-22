@@ -412,6 +412,7 @@ impl ErrorResponse {
     }
 
     /// Add details to error
+    #[allow(dead_code)]
     pub fn with_details(mut self, details: serde_json::Value) -> Self {
         self.details = Some(details);
         self

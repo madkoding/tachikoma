@@ -17,10 +17,3 @@
 //! =============================================================================
 
 pub mod services;
-
-pub use services::{
-    chat_service::ChatService,
-    memory_service::MemoryService,
-    agent_orchestrator::AgentOrchestrator,
-    model_manager::ModelManager,
-};

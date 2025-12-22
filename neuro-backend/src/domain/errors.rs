@@ -361,6 +361,7 @@ impl From<anyhow::Error> for DomainError {
 /// =============================================================================
 /// Standard format for error responses in the REST API.
 /// =============================================================================
+#[allow(dead_code)]
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct ErrorResponse {
     /// Error type/code
@@ -378,6 +379,7 @@ pub struct ErrorResponse {
 
 impl ErrorResponse {
     /// Create an error response from a DomainError
+    #[allow(dead_code)]
     pub fn from_domain_error(err: &DomainError, request_id: Option<String>) -> Self {
         Self {
             error: error_code(err),
@@ -390,6 +392,7 @@ impl ErrorResponse {
 }
 
 /// Get error code string for a DomainError
+#[allow(dead_code)]
 fn error_code(err: &DomainError) -> String {
     match err {
         DomainError::DatabaseError { .. } => "DATABASE_ERROR",

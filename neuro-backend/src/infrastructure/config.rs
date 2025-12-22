@@ -70,9 +70,11 @@ pub struct ServerConfig {
     pub port: u16,
     
     /// Request timeout in seconds
+    #[allow(dead_code)]
     pub request_timeout_secs: u64,
     
     /// Maximum request body size in bytes
+    #[allow(dead_code)]
     pub max_body_size: usize,
 }
 

@@ -11,7 +11,7 @@ use axum::{
 };
 use serde::Deserialize;
 use std::sync::Arc;
-use tracing::{debug, error, instrument};
+use tracing::{error, instrument};
 use uuid::Uuid;
 
 use crate::domain::ports::memory_repository::RelationDirection;

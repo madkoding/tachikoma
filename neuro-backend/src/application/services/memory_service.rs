@@ -753,7 +753,7 @@ Merged result (just the merged text, nothing else):"#,
         include_related: bool,
     ) -> Result<Vec<MemoryNode>, DomainError> {
         // Start with semantic search
-        let mut results = self.search(query, max_memories).await?;
+        let results = self.search(query, max_memories).await?;
 
         if include_related && !results.is_empty() {
             // Get related memories for top results

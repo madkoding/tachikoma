@@ -10,7 +10,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use tracing::{info, Span};
+use tracing::info;
 use std::time::Instant;
 
 /// =============================================================================

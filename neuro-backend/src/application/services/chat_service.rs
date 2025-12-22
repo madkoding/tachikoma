@@ -424,6 +424,7 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         prompt
     }
 
+    #[allow(dead_code)]
     fn build_prompt(&self, user_message: &str, memories: &[(crate::domain::entities::memory::MemoryNode, f64)]) -> String {
         self.build_prompt_with_tools(user_message, memories, &[])
     }

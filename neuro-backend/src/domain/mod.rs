@@ -18,12 +18,3 @@ pub mod ports;
 pub mod value_objects;
 
 // Re-export commonly used types for convenience
-pub use entities::{memory::MemoryNode, chat::ChatMessage, agent::AgentTask};
-pub use value_objects::{relation::Relation, model_tier::ModelTier};
-pub use ports::{
-    memory_repository::MemoryRepository,
-    llm_provider::LlmProvider,
-    search_provider::SearchProvider,
-    command_executor::CommandExecutor,
-};
-pub use errors::DomainError;

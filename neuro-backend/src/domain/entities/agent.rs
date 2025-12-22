@@ -23,6 +23,7 @@ use uuid::Uuid;
 /// * `RecallMemory` - Retrieve relevant memories
 /// * `CodeGeneration` - Generate or modify code
 /// =============================================================================
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentTask {
     /// Unique identifier for the task
@@ -53,6 +54,7 @@ pub struct AgentTask {
     pub model_tier: Option<String>,
 }
 
+#[allow(dead_code)]
 impl AgentTask {
     /// =========================================================================
     /// Create a new agent task

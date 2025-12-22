@@ -58,6 +58,7 @@ pub struct SynthesizeRequest {
     pub speed: f32,
 }
 
+#[allow(dead_code)]
 fn default_speed() -> f32 {
     1.0
 }
@@ -69,8 +70,10 @@ fn default_speed() -> f32 {
 pub struct VoiceSynthesisRequest {
     pub text: String,
     #[serde(default)]
+    #[allow(dead_code)]
     pub streaming: bool,
     #[serde(default = "default_voice")]
+    #[allow(dead_code)]
     pub voice: String,
 }
 

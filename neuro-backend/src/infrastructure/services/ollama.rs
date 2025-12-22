@@ -132,6 +132,7 @@ impl OllamaClient {
     }
 
     /// Get the default model name
+    #[allow(dead_code)]
     pub fn default_model(&self) -> &str {
         &self.config.default_model
     }
@@ -150,11 +151,13 @@ impl OllamaClient {
     }
 
     /// Get the embedding model name
+    #[allow(dead_code)]
     pub fn embedding_model(&self) -> &str {
         &self.config.embedding_model
     }
 
     /// Generate streaming response - returns byte stream for SSE
+    #[allow(dead_code)]
     pub async fn generate_stream_response(
         &self,
         prompt: &str,

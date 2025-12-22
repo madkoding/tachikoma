@@ -26,6 +26,7 @@ pub struct ListMemoriesParams {
     #[serde(default = "default_per_page")]
     pub per_page: usize,
     #[serde(default)]
+    #[allow(dead_code)]
     pub memory_type: Option<String>,
 }
 

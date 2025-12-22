@@ -5,7 +5,7 @@
 //! =============================================================================
 
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::domain::{
     errors::DomainError,
