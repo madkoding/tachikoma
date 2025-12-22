@@ -94,7 +94,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
     queueLength: 0,
   });
 
-  const [config, setConfigState] = useState<VoiceConfig>({
+  const [config, setConfigValue] = useState<VoiceConfig>({
     ...DEFAULT_CONFIG,
     ...initialConfig,
   });
@@ -115,7 +115,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
     if (!audioContextRef.current) {
       // Use appropriate sample rate based on format
       const sampleRate = USE_OPUS ? OPUS_SAMPLE_RATE : SAMPLE_RATE;
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
+      audioContextRef.current = new (globalThis.AudioContext || (globalThis as any).webkitAudioContext)({
         sampleRate: sampleRate,
       });
 
@@ -178,6 +178,35 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
   // Audio Decoding (WAV and OGG/Opus)
   // ==========================================================================
 
+  // Fallback manual WAV parsing when Web Audio API fails
+  const parseWavManually = useCallback((audioData: ArrayBuffer, audioContext: AudioContext): AudioBuffer => {
+    const view = new DataView(audioData);
+    const numChannels = view.getUint16(22, true);
+    const sampleRate = view.getUint32(24, true);
+    const bitsPerSample = view.getUint16(34, true);
+    
+    // Find data chunk
+    const dataOffset = 44; // Standard WAV header size
+    const dataLength = (audioData.byteLength - dataOffset);
+    const numSamples = dataLength / (numChannels * (bitsPerSample / 8));
+    
+    const buffer = audioContext.createBuffer(numChannels, numSamples, sampleRate);
+    
+    for (let channel = 0; channel < numChannels; channel++) {
+      const channelData = buffer.getChannelData(channel);
+      for (let i = 0; i < numSamples; i++) {
+        const offset = dataOffset + (i * numChannels + channel) * (bitsPerSample / 8);
+        if (bitsPerSample === 16) {
+          channelData[i] = view.getInt16(offset, true) / 32768;
+        } else if (bitsPerSample === 32) {
+          channelData[i] = view.getFloat32(offset, true);
+        }
+      }
+    }
+    
+    return buffer;
+  }, []);
+
   const decodeAudioToBuffer = useCallback(async (audioData: ArrayBuffer, format: 'wav' | 'opus'): Promise<AudioBuffer> => {
     const audioContext = initAudioContext();
     
@@ -193,31 +222,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
       // Fallback: Manual WAV parsing for simple PCM data (only works for WAV)
       if (format === 'wav') {
         try {
-          const view = new DataView(audioData);
-          const numChannels = view.getUint16(22, true);
-          const sampleRate = view.getUint32(24, true);
-          const bitsPerSample = view.getUint16(34, true);
-          
-          // Find data chunk
-          let dataOffset = 44; // Standard WAV header size
-          const dataLength = (audioData.byteLength - dataOffset);
-          const numSamples = dataLength / (numChannels * (bitsPerSample / 8));
-          
-          const buffer = audioContext.createBuffer(numChannels, numSamples, sampleRate);
-          
-          for (let channel = 0; channel < numChannels; channel++) {
-            const channelData = buffer.getChannelData(channel);
-            for (let i = 0; i < numSamples; i++) {
-              const offset = dataOffset + (i * numChannels + channel) * (bitsPerSample / 8);
-              if (bitsPerSample === 16) {
-                channelData[i] = view.getInt16(offset, true) / 32768;
-              } else if (bitsPerSample === 32) {
-                channelData[i] = view.getFloat32(offset, true);
-              }
-            }
-          }
-          
-          return buffer;
+          return parseWavManually(audioData, audioContext);
         } catch (fallbackError) {
           console.error('Fallback WAV decoding also failed:', fallbackError);
           throw new Error('Failed to decode audio data');
@@ -226,7 +231,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
       
       throw new Error(`Failed to decode ${format.toUpperCase()} audio data`);
     }
-  }, [initAudioContext]);
+  }, [initAudioContext, parseWavManually]);
 
   // ==========================================================================
   // Check Availability
@@ -255,6 +260,59 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
   // Speak (Synthesize and Play) - Streaming version
   // ==========================================================================
 
+  // Helper: Decode base64 audio data to Uint8Array
+  const decodeBase64Audio = useCallback((base64Data: string): Uint8Array => {
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.codePointAt(i) || 0;
+    }
+    return bytes;
+  }, []);
+
+  // Helper: Process SSE audio chunk
+  const processAudioChunk = useCallback(async (data: any, audioFormat: 'wav' | 'opus') => {
+    if (data.type === 'audio' && data.data) {
+      const bytes = decodeBase64Audio(data.data);
+      const audioBuffer = await decodeAudioToBuffer(bytes.buffer, audioFormat);
+      audioQueueRef.current.push(audioBuffer);
+      setState(prev => ({ 
+        ...prev, 
+        queueLength: audioQueueRef.current.length,
+        isLoading: false 
+      }));
+      processQueue();
+    } else if (data.type === 'done') {
+      setState(prev => ({ ...prev, isLoading: false }));
+    }
+  }, [decodeBase64Audio, decodeAudioToBuffer, processQueue]);
+
+  // Helper: Process SSE stream
+  const processSSEStream = useCallback(async (reader: ReadableStreamDefaultReader<Uint8Array>, audioFormat: 'wav' | 'opus') => {
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            await processAudioChunk(data, audioFormat);
+          } catch (e) {
+            console.error('Failed to parse SSE data:', e);
+          }
+        }
+      }
+    }
+  }, [processAudioChunk]);
+
   const speak = useCallback(async (text: string): Promise<void> => {
     if (!config.enabled || !text.trim()) {
       return;
@@ -266,7 +324,6 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
     }
 
     abortControllerRef.current = new AbortController();
-
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
@@ -282,9 +339,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
       // Use streaming endpoint for real-time playback
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: text,
           voice: config.voice,
@@ -306,51 +361,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
         throw new Error('No response body');
       }
 
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              
-              if (data.type === 'audio' && data.data) {
-                // Decode base64 audio
-                const binaryString = atob(data.data);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                  bytes[i] = binaryString.charCodeAt(i);
-                }
-
-                // Decode audio (WAV or OGG/Opus) and add to queue
-                const audioBuffer = await decodeAudioToBuffer(bytes.buffer, audioFormat);
-                audioQueueRef.current.push(audioBuffer);
-                setState(prev => ({ 
-                  ...prev, 
-                  queueLength: audioQueueRef.current.length,
-                  isLoading: false 
-                }));
-
-                // Start playing immediately
-                processQueue();
-              } else if (data.type === 'done') {
-                setState(prev => ({ ...prev, isLoading: false }));
-              }
-            } catch (e) {
-              console.error('Failed to parse SSE data:', e);
-            }
-          }
-        }
-      }
-
+      await processSSEStream(reader, audioFormat);
       setState(prev => ({ ...prev, isLoading: false }));
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -365,7 +376,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
         error: error.message || 'Voice synthesis failed',
       }));
     }
-  }, [config.enabled, config.voice, config.speed, initAudioContext, decodeAudioToBuffer, processQueue]);
+  }, [config.enabled, config.voice, config.speed, initAudioContext, processSSEStream]);
 
   // ==========================================================================
   // Playback Controls
@@ -415,7 +426,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
   // ==========================================================================
 
   const setConfig = useCallback((newConfig: Partial<VoiceConfig>) => {
-    setConfigState(prev => {
+    setConfigValue(prev => {
       const updated = { ...prev, ...newConfig };
 
       // Update volume immediately if changed
@@ -445,7 +456,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setConfigState(prev => ({ ...prev, ...parsed }));
+        setConfigValue(prev => ({ ...prev, ...parsed }));
       } catch (e) {
         console.error('Failed to load voice config:', e);
       }

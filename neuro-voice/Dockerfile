@@ -50,15 +50,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Download Piper TTS with CUDA support
-# Using the GPU-enabled version for NVIDIA acceleration
+# Download Piper TTS with CUDA support and Spanish voice model
 RUN wget -q https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz \
     && tar -xzf piper_linux_x86_64.tar.gz \
     && rm piper_linux_x86_64.tar.gz \
-    && chmod +x /app/piper/piper
-
-# Create models directory and download Spanish voice
-RUN mkdir -p /app/models \
+    && chmod +x /app/piper/piper \
+    && mkdir -p /app/models \
     && cd /app/models \
     && wget -q https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_MX/claude/high/es_MX-claude-high.onnx \
     && wget -q https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_MX/claude/high/es_MX-claude-high.onnx.json
