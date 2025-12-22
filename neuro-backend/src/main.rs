@@ -55,7 +55,7 @@ use crate::infrastructure::{
     api::{create_router, handlers::system::init_start_time},
     config::Config,
     database::{DatabasePool, SurrealDbRepository},
-    services::{OllamaClient, SafeCommandExecutor, SearxngClient},
+    services::{OllamaClient, SafeCommandExecutor, SearxngClient, VoiceEngine, VoiceConfig},
 };
 
 /// =============================================================================
@@ -79,6 +79,8 @@ pub struct AppState {
     pub chat_service: Arc<ChatService>,
     /// Model manager
     pub model_manager: Arc<ModelManager>,
+    /// Voice engine for TTS synthesis
+    pub voice_engine: Arc<VoiceEngine>,
 }
 
 /// =============================================================================
@@ -195,6 +197,22 @@ async fn main() -> Result<()> {
     info!("✅ Application services ready");
 
     // -------------------------------------------------------------------------
+    // Initialize Voice Engine (Kokoro-82M TTS)
+    // -------------------------------------------------------------------------
+    info!("🎤 Initializing Voice Engine...");
+    let voice_config = VoiceConfig::default();
+    let voice_engine = Arc::new(VoiceEngine::new(voice_config));
+    
+    // Initialize in background (non-blocking)
+    let ve_clone = voice_engine.clone();
+    tokio::spawn(async move {
+        if let Err(e) = ve_clone.initialize().await {
+            tracing::warn!("Voice engine initialization failed: {}. TTS will be disabled.", e);
+        }
+    });
+    info!("✅ Voice Engine initialized (or disabled if model not found)");
+
+    // -------------------------------------------------------------------------
     // Create application state
     // -------------------------------------------------------------------------
     let app_state = Arc::new(AppState {
@@ -205,6 +223,7 @@ async fn main() -> Result<()> {
         memory_service,
         chat_service,
         model_manager,
+        voice_engine,
     });
 
     // -------------------------------------------------------------------------
@@ -225,6 +244,7 @@ async fn main() -> Result<()> {
     info!("   - Memory:  GET  /api/memories");
     info!("   - Graph:   GET  /api/admin/graph/stats");
     info!("   - Search:  POST /api/agent/search");
+    info!("   - Voice:   POST /api/voice/synthesize");
 
     axum::serve(listener, app).await?;
 

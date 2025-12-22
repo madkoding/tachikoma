@@ -50,6 +50,17 @@ run_docker() {
 print_step "Starting Docker services..."
 run_docker compose up -d surrealdb searxng ollama
 
+# Build and start Voice Service container
+print_step "Starting Voice Service..."
+if ! run_docker images | grep -q "neuro-voice"; then
+    echo -e "  ${YELLOW}Building Voice Service image (first time only)...${NC}"
+    run_docker build -t neuro-voice ./voice-service
+fi
+run_docker stop neuro-voice 2>/dev/null || true
+run_docker rm neuro-voice 2>/dev/null || true
+run_docker run -d --gpus all --name neuro-voice --network neuro-os-network -p 8100:8100 neuro-voice
+echo -e "  ${GREEN}Voice Service started with GPU support!${NC}"
+
 # Wait for SurrealDB to be ready
 print_step "Waiting for SurrealDB to be ready..."
 MAX_RETRIES=30
@@ -82,6 +93,10 @@ echo -e "${GREEN}  Ollama is ready!${NC}"
 # Start backend in background
 print_step "Starting backend..."
 cd neuro-backend
+
+# Voice service URL (Docker container)
+export VOICE_SERVICE_URL="http://127.0.0.1:8100"
+
 DATABASE_URL="ws://127.0.0.1:8000" \
 DATABASE_USER="root" \
 DATABASE_PASS="neuroos_secret_2024" \
@@ -119,6 +134,7 @@ ${CYAN}Services:${NC}
   • User UI:    ${YELLOW}http://localhost:5173${NC}
   • Admin UI:   ${YELLOW}http://localhost:5174${NC}
   • Backend:    ${YELLOW}http://localhost:3000${NC}
+  • Voice API:  ${YELLOW}http://localhost:8100${NC}
 
 ${CYAN}Process IDs:${NC}
   • Backend:  $BACKEND_PID
@@ -134,6 +150,7 @@ cleanup() {
     kill $BACKEND_PID 2>/dev/null || true
     kill $UI_PID 2>/dev/null || true
     kill $ADMIN_PID 2>/dev/null || true
+    run_docker stop neuro-voice 2>/dev/null || true
     echo -e "${GREEN}All services stopped.${NC}"
     exit 0
 }

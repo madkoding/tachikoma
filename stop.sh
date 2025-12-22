@@ -26,6 +26,11 @@ echo -e "${YELLOW}▶${NC} Stopping frontend dev servers..."
 pkill -f "vite" 2>/dev/null || true
 pkill -f "esbuild" 2>/dev/null || true
 
+# Stop Voice Service container
+echo -e "${YELLOW}▶${NC} Stopping Voice Service..."
+docker stop neuro-voice 2>/dev/null || true
+docker rm neuro-voice 2>/dev/null || true
+
 # Stop Docker services (don't use sudo - user should be in docker group)
 echo -e "${YELLOW}▶${NC} Stopping Docker containers..."
 docker compose down 2>/dev/null || true

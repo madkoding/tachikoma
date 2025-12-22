@@ -80,6 +80,29 @@ services:
               capabilities: [gpu]
 
   # ===========================================================================
+  # Voice Service - Kokoro TTS API
+  # ===========================================================================
+  # Text-to-speech synthesis using Kokoro-82M model. Provides voice
+  # synthesis capabilities for the AI assistant.
+  # ===========================================================================
+  voice-service:
+    build:
+      context: ./voice-service
+      dockerfile: Dockerfile
+    container_name: neuro-voice
+    restart: unless-stopped
+    ports:
+      - "8100:8100"
+    networks:
+      - neuro-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ===========================================================================
   # NEURO-OS Backend - Rust Axum REST API
   # ===========================================================================
   # The central orchestrator that coordinates all AI agents, manages memories,

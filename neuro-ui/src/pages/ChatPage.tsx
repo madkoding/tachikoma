@@ -8,12 +8,17 @@ import ChatInput from '../components/ChatInput';
 import Sidebar from '../components/Sidebar';
 import TypingIndicator from '../components/TypingIndicator';
 import WelcomeScreen from '../components/WelcomeScreen';
+import { useVoiceStream } from '../hooks/useVoiceStream';
 
 export default function ChatPage() {
   const { t } = useTranslation();
   const { conversationId } = useParams<{ conversationId?: string }>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  
+  // Voice synthesis hook
+  const { state: voiceState, config: voiceConfig, speak, stop: stopVoice, setConfig: setVoiceConfig } = useVoiceStream();
+  const lastSpokenMessageRef = useRef<string | null>(null);
   
   const {
     conversations,
@@ -62,7 +67,7 @@ export default function ChatPage() {
   // Load conversation messages when selecting a conversation
   useEffect(() => {
     const loadMessages = async () => {
-      if (currentConversationId && currentConversation && currentConversation.messages.length === 0) {
+      if (currentConversationId && currentConversation?.messages.length === 0) {
         try {
           const conv = await chatApi.getConversation(currentConversationId);
           const messages: Message[] = conv.messages.map(m => ({
@@ -150,6 +155,10 @@ export default function ChatPage() {
       },
       // On complete - update with final metadata
       (response: StreamCompleteResponse) => {
+        const finalMessage = useChatStore.getState().conversations
+          .find(c => c.id === convId)?.messages
+          .find(m => m.id === assistantMessageId);
+        
         useChatStore.getState().updateMessage(convId, assistantMessageId, (msg) => ({
           ...msg,
           id: response.message_id,
@@ -158,6 +167,16 @@ export default function ChatPage() {
           tokensCompletion: response.tokens_completion,
           processingTimeMs: response.processing_time_ms,
         }));
+        
+        // Auto-speak the response if voice is enabled
+        if (voiceConfig.enabled && voiceConfig.autoPlay && finalMessage?.content) {
+          // Only speak if we haven't spoken this message yet
+          if (lastSpokenMessageRef.current !== finalMessage.id) {
+            lastSpokenMessageRef.current = finalMessage.id;
+            speak(finalMessage.content);
+          }
+        }
+        
         setLoading(false);
       },
       // On error
@@ -189,7 +208,57 @@ export default function ChatPage() {
           <h1 className="font-semibold truncate text-cyber-cyan font-mono text-sm">
             {currentConversation?.title || t('header.defaultTitle')}
           </h1>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-3">
+            {/* Voice Controls */}
+            {voiceState.isAvailable && (
+              <div className="flex items-center gap-2">
+                {/* Voice toggle */}
+                <button
+                  onClick={() => setVoiceConfig({ enabled: !voiceConfig.enabled })}
+                  className={`p-1.5 rounded transition-colors ${
+                    voiceConfig.enabled 
+                      ? 'text-cyber-cyan bg-cyber-cyan/10 hover:bg-cyber-cyan/20' 
+                      : 'text-cyber-text/40 hover:text-cyber-text/60 hover:bg-cyber-surface'
+                  }`}
+                  title={voiceConfig.enabled ? 'Disable voice' : 'Enable voice'}
+                >
+                  {voiceConfig.enabled ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                    </svg>
+                  )}
+                </button>
+                
+                {/* Stop button (when playing) */}
+                {(voiceState.isPlaying || voiceState.isLoading) && (
+                  <button
+                    onClick={stopVoice}
+                    className="p-1.5 rounded text-cyber-pink bg-cyber-pink/10 hover:bg-cyber-pink/20 transition-colors"
+                    title="Stop voice"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <rect x="6" y="6" width="12" height="12" rx="1" />
+                    </svg>
+                  </button>
+                )}
+                
+                {/* Speaking indicator */}
+                {voiceState.isPlaying && (
+                  <div className="flex items-center gap-1">
+                    <div className="w-1 h-3 bg-cyber-cyan rounded-full animate-pulse"></div>
+                    <div className="w-1 h-4 bg-cyber-cyan rounded-full animate-pulse" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-1 h-2 bg-cyber-cyan rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Connection status */}
             <span className="w-2 h-2 rounded-full bg-cyber-green animate-pulse shadow-[0_0_10px_#00ff88]"></span>
             <span className="text-xs text-cyber-green font-mono">{t('status.online')}</span>
           </div>

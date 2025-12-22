@@ -45,6 +45,11 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/chat/conversations/:id", get(handlers::get_conversation))
         .route("/chat/conversations/:id", delete(handlers::delete_conversation))
         
+        // Voice Synthesis
+        .route("/voice/status", get(handlers::voice_status))
+        .route("/voice/synthesize", post(handlers::synthesize_voice))
+        .route("/voice/stream", post(handlers::stream_voice))
+        
         // Memories
         .route("/memories", get(handlers::list_memories))
         .route("/memories", post(handlers::create_memory))

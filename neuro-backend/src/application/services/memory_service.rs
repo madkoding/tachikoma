@@ -98,8 +98,17 @@ impl MemoryService {
     /// 
     /// # Returns
     /// 
-    /// * `Ok(MemoryNode)` - The created memory with ID and embedding
+    /// * `Ok(MemoryNode)` - The created or merged memory with ID and embedding
     /// * `Err(DomainError)` - If creation fails
+    /// 
+    /// # Behavior
+    /// 
+    /// This function implements smart memory deduplication:
+    /// 1. Generates embedding for the new content
+    /// 2. Searches for similar existing memories (similarity > 0.50)
+    /// 3. Uses LLM to determine if memories should be merged
+    /// 4. If related memory exists, merges the new information into it
+    /// 5. If no related memory exists, creates a new one
     /// =========================================================================
     #[instrument(skip(self, content), fields(content_len = content.len()))]
     pub async fn create_memory(
@@ -118,7 +127,91 @@ impl MemoryService {
         let vector = self.llm_provider.embed(&content).await?;
         info!("Embedding generated with {} dimensions", vector.len());
 
-        // Create memory node
+        // Search for similar existing memories (low threshold to find candidates)
+        let similar_memories = self.repository
+            .semantic_search(vector.clone(), 10, 0.30)
+            .await?;
+        
+        info!("Found {} similar memories with threshold 0.30", similar_memories.len());
+
+        // Filter by same memory type
+        let candidates: Vec<_> = similar_memories
+            .into_iter()
+            .filter(|(m, _)| m.memory_type == memory_type)
+            .collect();
+        
+        info!("After filtering by type: {} candidates", candidates.len());
+
+        // Determine if we should merge based on similarity and LLM analysis
+        if !candidates.is_empty() {
+            // Get the most similar candidate
+            let (best_match, best_similarity) = candidates
+                .iter()
+                .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                .unwrap();
+            
+            info!("Best match similarity: {:.2}", best_similarity);
+            
+            // High similarity (>0.60) = automatic merge without asking LLM
+            // This catches cases like "Me gusta el morado" and "También me gusta el verde"
+            let should_merge = if *best_similarity > 0.60 {
+                info!("High similarity ({:.2}), auto-merging", best_similarity);
+                true
+            } else {
+                // Medium similarity (0.30-0.60) = ask LLM
+                info!("Medium similarity ({:.2}), asking LLM", best_similarity);
+                self.should_merge_memories(&content, &best_match.content).await.unwrap_or(false)
+            };
+            
+            if should_merge {
+                let existing_memory = best_match.clone();
+                let similarity = *best_similarity;
+                info!(
+                    existing_id = %existing_memory.id,
+                    similarity = %similarity,
+                    "Memories should be merged"
+                );
+
+                // Merge the content - combine old and new information
+                let merged_content = self.merge_memory_content(
+                    &existing_memory.content,
+                    &content,
+                ).await?;
+
+                // Only update if content actually changed
+                if merged_content != existing_memory.content {
+                    // Re-generate embedding for merged content
+                    let merged_vector = self.llm_provider.embed(&merged_content).await?;
+                    
+                    // Update the existing memory
+                    let mut updated_memory = existing_memory.clone();
+                    updated_memory.content = merged_content;
+                    updated_memory.vector = merged_vector;
+                    updated_memory.updated_at = chrono::Utc::now();
+                    updated_memory.access_count += 1;
+                    
+                    // Merge metadata if provided
+                    if let Some(new_meta) = metadata {
+                        // Merge tags
+                        for tag in new_meta.tags {
+                            if !updated_memory.metadata.tags.contains(&tag) {
+                                updated_memory.metadata.tags.push(tag);
+                            }
+                        }
+                    }
+
+                    let result = self.repository.update(updated_memory).await?;
+                    info!(memory_id = %result.id, "Memory merged and updated successfully");
+                    return Ok(result);
+                } else {
+                    // Content is essentially the same, just return the existing memory
+                    info!(memory_id = %existing_memory.id, "Memory content unchanged, skipping duplicate");
+                    return Ok(existing_memory);
+                }
+            }
+        }
+
+        // No related memory found, create new one
         let memory = if let Some(meta) = metadata {
             MemoryNode::with_metadata(content, vector, memory_type, meta)
         } else {
@@ -133,6 +226,83 @@ impl MemoryService {
         info!(memory_id = %created.id, "Memory created successfully");
 
         Ok(created)
+    }
+
+    /// =========================================================================
+    /// Find Memory to Merge using LLM
+    /// =========================================================================
+    /// Uses the LLM to intelligently determine if the new content should be
+    /// merged with any existing memory candidate.
+    /// =========================================================================
+    /// =========================================================================
+    /// Simple LLM check for medium-similarity cases
+    /// =========================================================================
+    async fn should_merge_memories(
+        &self,
+        new_content: &str,
+        existing_content: &str,
+    ) -> Result<bool, DomainError> {
+        let prompt = format!(
+            r#"¿Estas dos frases tratan del MISMO TEMA o están relacionadas?
+
+FRASE 1: "{}"
+FRASE 2: "{}"
+
+Responde SOLO "SI" o "NO"."#,
+            new_content,
+            existing_content
+        );
+
+        let response = self.llm_provider.generate(&prompt, None).await?;
+        let response_text = response.content.trim().to_uppercase();
+        
+        info!("LLM merge check response: '{}'", response_text);
+        
+        // Check if response contains "SI" or "SÍ"
+        let should_merge = response_text.contains("SI") || response_text.contains("SÍ");
+        info!("Should merge: {}", should_merge);
+        
+        Ok(should_merge)
+    }
+
+    /// =========================================================================
+    /// Merge memory content using LLM
+    /// =========================================================================
+    /// Combines existing memory content with new information intelligently.
+    /// Uses the LLM to merge related information without duplication.
+    /// =========================================================================
+    async fn merge_memory_content(
+        &self,
+        existing_content: &str,
+        new_content: &str,
+    ) -> Result<String, DomainError> {
+        let merge_prompt = format!(
+            r#"Merge these two related pieces of information into a single, coherent statement.
+Combine all unique information without repetition.
+Keep the result concise and natural.
+
+Existing information: "{}"
+New information: "{}"
+
+Merged result (just the merged text, nothing else):"#,
+            existing_content, new_content
+        );
+
+        let result = self.llm_provider
+            .generate(&merge_prompt, None)
+            .await?;
+
+        // Clean up the response
+        let merged = result.content.trim().trim_matches('"').to_string();
+        
+        info!(
+            existing = %existing_content,
+            new = %new_content,
+            merged = %merged,
+            "Memory content merged"
+        );
+
+        Ok(merged)
     }
 
     /// =========================================================================
