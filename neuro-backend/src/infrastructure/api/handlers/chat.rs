@@ -77,7 +77,7 @@ pub async fn stream_message(
     let conversation_id = request.conversation_id.unwrap_or_else(Uuid::new_v4);
     let message = request.message.clone();
     
-    // Get memory context
+    // Get services
     let memory_service = state.memory_service.clone();
     let chat_service = state.chat_service.clone();
     
@@ -88,27 +88,68 @@ pub async fn stream_message(
     tokio::spawn(async move {
         let start = Instant::now();
         
+        // Get conversation history
+        let conversation = chat_service.get_conversation(conversation_id).await;
+        
         // Get relevant memory context
         let context_memories = memory_service.search(&message, 5).await.unwrap_or_default();
         let memory_ids: Vec<Uuid> = context_memories.iter().map(|(m, _)| m.id).collect();
         
-        // Build prompt with context
-        let mut prompt = "You are Tachikoma, an intelligent AI assistant created by madKoding.\nYou have access to long-term memory and can remember past conversations.\nBe helpful, accurate, and concise. Respond in the same language as the user.\n\n".to_string();
+        // Build system prompt
+        let mut system_prompt = "Eres Tachikoma, un asistente de IA amigable y conversacional creado por madKoding. \
+Tu personalidad es curiosa, empática y natural. Mantén conversaciones fluidas y recuerda el contexto de lo que el usuario te ha dicho. \
+Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.".to_string();
         
+        // Add memory context to system prompt if available
         if !context_memories.is_empty() {
-            prompt.push_str("Relevant context from memory:\n");
+            system_prompt.push_str("\n\nTienes acceso a estos recuerdos relevantes del usuario:\n");
             for (memory, score) in context_memories.iter().take(3) {
-                prompt.push_str(&format!("- [relevance: {:.2}] {}\n", score, memory.content));
+                if *score > 0.3 {
+                    system_prompt.push_str(&format!("- {}\n", memory.content));
+                }
             }
-            prompt.push_str("\n");
         }
         
-        prompt.push_str(&format!("User: {}", message));
+        // Build messages array for Ollama
+        let mut ollama_messages: Vec<serde_json::Value> = vec![
+            serde_json::json!({
+                "role": "system",
+                "content": system_prompt
+            })
+        ];
         
-        // Select model (use default for now)
+        // Add conversation history (last 10 messages to avoid context overflow)
+        if let Some(conv) = conversation {
+            let history_messages: Vec<_> = conv.messages.iter()
+                .rev()
+                .take(10)
+                .rev()
+                .collect();
+            
+            for msg in history_messages {
+                let role = match msg.role {
+                    crate::domain::entities::chat::MessageRole::User => "user",
+                    crate::domain::entities::chat::MessageRole::Assistant => "assistant",
+                    crate::domain::entities::chat::MessageRole::System => "system",
+                    crate::domain::entities::chat::MessageRole::Tool => "assistant",
+                };
+                ollama_messages.push(serde_json::json!({
+                    "role": role,
+                    "content": msg.content
+                }));
+            }
+        }
+        
+        // Add current user message
+        ollama_messages.push(serde_json::json!({
+            "role": "user",
+            "content": message
+        }));
+        
+        // Select model
         let model = chat_service.select_model_for_task(&message);
         
-        // Send initial event with conversation info
+        // Send initial event
         let init_data = serde_json::json!({
             "type": "start",
             "conversation_id": conversation_id,
@@ -122,13 +163,10 @@ pub async fn stream_message(
         
         let ollama_request = serde_json::json!({
             "model": model,
-            "messages": [{
-                "role": "user",
-                "content": prompt
-            }],
+            "messages": ollama_messages,
             "stream": true,
             "options": {
-                "temperature": 0.7,
+                "temperature": 0.8,
                 "num_predict": 2048
             }
         });
@@ -148,7 +186,6 @@ pub async fn stream_message(
                     while let Some(chunk_result) = futures_util::StreamExt::next(&mut stream).await {
                         match chunk_result {
                             Ok(chunk) => {
-                                // Parse NDJSON from Ollama
                                 if let Ok(text) = std::str::from_utf8(&chunk) {
                                     for line in text.lines() {
                                         if line.is_empty() { continue; }
@@ -166,7 +203,6 @@ pub async fn stream_message(
                                                 }
                                             }
                                             
-                                            // Check if done and get token counts
                                             if json.get("done").and_then(|d| d.as_bool()).unwrap_or(false) {
                                                 prompt_tokens = json.get("prompt_eval_count").and_then(|c| c.as_u64()).unwrap_or(0);
                                                 completion_tokens = json.get("eval_count").and_then(|c| c.as_u64()).unwrap_or(0);
@@ -182,7 +218,7 @@ pub async fn stream_message(
                         }
                     }
                     
-                    // Save conversation to database
+                    // Save to database
                     let user_message = ChatMessage::user(conversation_id, message);
                     let mut assistant_message = ChatMessage::assistant(conversation_id, full_content.clone());
                     assistant_message.metadata = MessageMetadata {
@@ -197,7 +233,7 @@ pub async fn stream_message(
                     
                     chat_service.update_conversation_direct(conversation_id, user_message, assistant_message.clone()).await;
                     
-                    // Send final event with complete info
+                    // Send final event
                     let final_data = serde_json::json!({
                         "type": "done",
                         "conversation_id": conversation_id,
