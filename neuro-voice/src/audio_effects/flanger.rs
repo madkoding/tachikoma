@@ -28,7 +28,7 @@ pub fn apply_flanger(
 
     let feedback = feedback.clamp(0.0, 0.95);
 
-    for i in 0..len {
+    for (i, _) in audio.iter().enumerate().take(len) {
         let t = i as f32 / sample_rate_f;
         let lfo = (2.0 * PI * rate * t).sin() * 0.5 + 0.5;
         let delay_samples = min_delay_samples as f32 + lfo * delay_range * depth.clamp(0.0, 1.0);

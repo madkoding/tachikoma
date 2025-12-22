@@ -327,7 +327,7 @@ pub async fn synthesize_stream(
             format!("data: {}\n\n", serde_json::to_string(&event).unwrap())
         }));
 
-    let body = Body::from_stream(stream.map(|s| Ok::<_, Infallible>(s)));
+    let body = Body::from_stream(stream.map(Ok::<_, Infallible>));
 
     Response::builder()
         .status(StatusCode::OK)
@@ -432,7 +432,7 @@ pub async fn synthesize_opus_stream(
             format!("data: {}\n\n", serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string()))
         }));
 
-    let body = Body::from_stream(stream.map(|s| Ok::<_, Infallible>(s)));
+    let body = Body::from_stream(stream.map(Ok::<_, Infallible>));
 
     Response::builder()
         .status(StatusCode::OK)

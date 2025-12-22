@@ -93,6 +93,7 @@ fn autocorr_pitch_hz(frame: &[f32], sample_rate: u32) -> (f32, f32) {
 }
 
 #[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
 pub fn apply_vocoder(
     audio: &[f32],
     sample_rate: u32,

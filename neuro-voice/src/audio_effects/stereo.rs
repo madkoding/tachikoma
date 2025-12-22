@@ -56,12 +56,12 @@ pub fn mono_to_stereo_dual_voice(
     // Calculate swap envelope (smooth crossfade between channels)
     let swap_period = (SAMPLE_RATE as f32 / swap_rate_hz) as usize;
     
-    for i in 0..len {
+    for (i, _) in mono.iter().enumerate().take(len) {
         // Original sample
         let original = mono[i];
         
         // Delayed + detuned sample (with bounds check)
-        let delayed_idx = if i >= delay_samples { i - delay_samples } else { 0 };
+        let delayed_idx = i.saturating_sub(delay_samples);
         let detuned_sample = detuned[delayed_idx];
         
         // Calculate crossfade position (0.0 to 1.0, oscillating)
@@ -92,7 +92,7 @@ pub fn mono_to_stereo_haas(mono: &[f32], delay_ms: f32) -> StereoBuffer {
         stereo.left[i] = mono[i];
         
         // Right: delayed (creates width perception)
-        let delayed_idx = if i >= delay_samples { i - delay_samples } else { 0 };
+        let delayed_idx = i.saturating_sub(delay_samples);
         stereo.right[i] = mono[delayed_idx];
     }
     
@@ -109,7 +109,7 @@ pub fn mono_to_stereo_autopan(
     let len = mono.len();
     let mut stereo = StereoBuffer::new(len);
     
-    for i in 0..len {
+    for (i, _) in mono.iter().enumerate().take(len) {
         // Calculate pan position (-1 to +1)
         let t = i as f32 / SAMPLE_RATE as f32;
         let pan_position = (t * pan_rate_hz * std::f32::consts::PI * 2.0).sin() * pan_depth;

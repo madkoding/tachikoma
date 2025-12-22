@@ -16,7 +16,7 @@ pub fn apply_chorus(audio: &[f32], sample_rate: u32, wet: f32, num_voices: usize
         let phase_offset = voice_idx as f32 * 2.0 * PI / num_voices as f32;
 
         let base_delay_samples = (sample_rate_f * base_delay_ms / 1000.0) as usize;
-        let depth_samples = (sample_rate_f * depth_ms / 1000.0) as f32;
+        let depth_samples = sample_rate_f * depth_ms / 1000.0;
 
         for i in 0..len {
             let t = i as f32 / sample_rate_f;

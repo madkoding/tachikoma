@@ -8,6 +8,7 @@ fn db_to_lin(db: f32) -> f32 {
 /// Simple de-esser: extracts 4-8k-ish band, applies gain reduction, mixes back.
 /// reduction_db is positive (e.g. 6.0 means up to -6 dB).
 #[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
 pub fn apply_deesser(
     audio: &[f32],
     center_hz: f32,

@@ -67,15 +67,15 @@ pub fn apply_robot_effect_chain(
     let mut out = vec![0.0f32; out_len];
 
     // Agregar dry (voz original) desde el inicio
-    for i in 0..dry.len() {
-        out[i] += dry[i] * 0.55; // 55% voz original
+    for (i, &dry_sample) in dry.iter().enumerate() {
+        out[i] += dry_sample * 0.55; // 55% voz original
     }
     
     // Agregar wet (voz procesada) con delay de 30ms
-    for i in 0..wet.len() {
+    for (i, &wet_sample) in wet.iter().enumerate() {
         let out_idx = i + delay_samples;
         if out_idx < out_len {
-            out[out_idx] += wet[i] * 0.45; // 45% voz procesada con delay
+            out[out_idx] += wet_sample * 0.45; // 45% voz procesada con delay
         }
     }
 
