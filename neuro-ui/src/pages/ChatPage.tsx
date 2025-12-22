@@ -303,9 +303,18 @@ export default function ChatPage() {
             <WelcomeScreen />
           ) : (
             <>
-              {currentConversation.messages.map((message) => (
-                <ChatMessage key={message.id} message={message} />
-              ))}
+              {currentConversation.messages.map((message, index) => {
+                // The last assistant message during loading is streaming
+                const isLastMessage = index === currentConversation.messages.length - 1;
+                const isStreamingMessage = isLoading && isLastMessage && message.role === 'assistant';
+                return (
+                  <ChatMessage 
+                    key={message.id} 
+                    message={message} 
+                    isStreaming={isStreamingMessage}
+                  />
+                );
+              })}
               {isLoading && <TypingIndicator />}
             </>
           )}

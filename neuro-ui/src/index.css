@@ -249,3 +249,70 @@ body {
 .prose h1, .prose h2, .prose h3, .prose h4 {
   color: var(--cyber-cyan);
 }
+
+/* ============================================
+   STREAMING TEXT ANIMATION
+   Smooth glow effect for incoming text
+   ============================================ */
+
+/* Glow fade animation for new characters */
+@keyframes glowFade {
+  0% {
+    text-shadow: 
+      0 0 10px rgba(0, 255, 255, 1),
+      0 0 20px rgba(0, 255, 255, 0.8),
+      0 0 30px rgba(0, 255, 255, 0.6),
+      0 0 40px rgba(0, 255, 255, 0.4);
+    color: #ffffff;
+  }
+  100% {
+    text-shadow: none;
+    color: inherit;
+  }
+}
+
+/* Line glow for code blocks */
+@keyframes codeLineGlow {
+  0% {
+    background: rgba(0, 255, 255, 0.15);
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+/* Individual character glow class */
+.streaming-glow {
+  animation: glowFade 300ms ease-out forwards;
+}
+
+/* New character animation */
+.new-char {
+  animation: glowFade 300ms ease-out forwards;
+}
+
+/* New line animation (for code) */
+.new-line {
+  animation: codeLineGlow 300ms ease-out forwards;
+  display: block;
+  border-radius: 2px;
+  padding: 0 4px;
+  margin: 0 -4px;
+}
+
+/* Message content streaming animation - blinking cursor */
+.message-streaming .prose > *:last-child::after {
+  content: '▊';
+  animation: cursorBlink 1s step-end infinite;
+  color: var(--cyber-cyan);
+  margin-left: 2px;
+  font-weight: normal;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
