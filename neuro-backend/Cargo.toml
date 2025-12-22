@@ -65,21 +65,12 @@ futures-util = "0.3"
 once_cell = "1.19"
 dotenvy = "0.15"
 tokio-stream = "0.1"
+async-stream = "0.3"
 
 # =============================================================================
 # Command Execution (for safe local executor)
 # =============================================================================
 shell-words = "1.1"
-
-# =============================================================================
-# Voice Synthesis - Kokoro TTS with ONNX Runtime
-# =============================================================================
-ort = { version = "2.0.0-rc.9", features = ["load-dynamic"] }
-ndarray = "0.16"
-hound = "3.5"
-byteorder = "1.5"
-async-stream = "0.3"
-zip = { version = "2.2", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 tokio-test = "0.4"

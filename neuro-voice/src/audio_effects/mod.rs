@@ -9,16 +9,8 @@ pub const SAMPLE_RATE: u32 = 44100;
 #[allow(dead_code)]
 pub const PIPER_SAMPLE_RATE: u32 = 22050;
 
-mod filters;
-mod compressor;
-mod deesser;
 mod pitch_shift;
-mod formant;
-mod vocoder;
 mod chorus;
-mod flanger;
-mod ring;
-mod distortion;
 mod reverb;
 mod limiter;
 mod chain;
