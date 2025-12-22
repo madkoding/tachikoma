@@ -53,8 +53,9 @@ impl ChatService {
     }
 
     fn default_system_prompt() -> String {
-        r#"You are NEURO-OS, an intelligent AI assistant with access to long-term memory.
-Be helpful, accurate, and concise."#.to_string()
+        r#"You are Tachikoma, an intelligent AI assistant created by madKoding.
+You have access to long-term memory and can remember past conversations.
+Be helpful, accurate, and concise. Respond in the same language as the user."#.to_string()
     }
 
     /// Process a chat request
@@ -88,6 +89,9 @@ Be helpful, accurate, and concise."#.to_string()
             model: Some(result.model),
             context_memory_ids: memory_ids.clone(),
             generation_time_ms: Some(start.elapsed().as_millis() as u64),
+            prompt_tokens: Some(result.prompt_tokens),
+            completion_tokens: Some(result.completion_tokens),
+            token_count: Some((result.prompt_tokens + result.completion_tokens) as u32),
             ..Default::default()
         };
 
@@ -129,7 +133,18 @@ Be helpful, accurate, and concise."#.to_string()
         prompt
     }
 
+    /// Update conversation - internal method
     async fn update_conversation(
+        &self,
+        conversation_id: Uuid,
+        user_message: ChatMessage,
+        assistant_message: ChatMessage,
+    ) {
+        self.update_conversation_direct(conversation_id, user_message, assistant_message).await;
+    }
+
+    /// Update conversation directly - public for streaming handler
+    pub async fn update_conversation_direct(
         &self,
         conversation_id: Uuid,
         user_message: ChatMessage,
@@ -194,7 +209,7 @@ Be helpful, accurate, and concise."#.to_string()
     /// - Standard (qwen2.5-coder:7b): General coding, moderate complexity
     /// - Heavy (qwen2.5-coder:14b): Complex coding, deep reasoning
     /// =========================================================================
-    fn select_model_for_task(&self, message: &str) -> String {
+    pub fn select_model_for_task(&self, message: &str) -> String {
         let msg_lower = message.to_lowercase();
         let msg_len = message.len();
 

@@ -159,8 +159,14 @@ pub struct MessageMetadata {
     /// Model used to generate the response (for assistant messages)
     pub model: Option<String>,
 
-    /// Token count for the message
+    /// Token count for the message (legacy, sum of prompt + completion)
     pub token_count: Option<u32>,
+
+    /// Number of tokens in the prompt
+    pub prompt_tokens: Option<u64>,
+
+    /// Number of tokens in the completion
+    pub completion_tokens: Option<u64>,
 
     /// Generation time in milliseconds
     pub generation_time_ms: Option<u64>,

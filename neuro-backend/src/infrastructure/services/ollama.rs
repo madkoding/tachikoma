@@ -137,6 +137,49 @@ impl OllamaClient {
     pub fn embedding_model(&self) -> &str {
         &self.config.embedding_model
     }
+
+    /// Generate streaming response - returns byte stream for SSE
+    pub async fn generate_stream_response(
+        &self,
+        prompt: &str,
+        model: Option<&str>,
+    ) -> Result<reqwest::Response, DomainError> {
+        let model_name = model.unwrap_or(&self.config.default_model);
+
+        let request = OllamaChatRequest {
+            model: model_name.to_string(),
+            messages: vec![OllamaChatMessage {
+                role: "user".to_string(),
+                content: prompt.to_string(),
+            }],
+            stream: true,
+            options: Some(OllamaOptions {
+                temperature: Some(0.7),
+                num_predict: Some(2048),
+            }),
+        };
+
+        let url = self.api_url("api/chat");
+        debug!(url = %url, model = %model_name, "Sending streaming chat request");
+
+        let response = self.client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| DomainError::llm_error(format!("Stream request failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body: String = response.text().await.unwrap_or_default();
+            return Err(DomainError::llm_error(format!(
+                "Ollama API error: {} - {}",
+                status, body
+            )));
+        }
+
+        Ok(response)
+    }
 }
 
 #[async_trait]

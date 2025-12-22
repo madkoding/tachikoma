@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useChatStore, Message, Conversation } from '../stores/chatStore';
-import { chatApi } from '../api/client';
+import { chatApi, StreamCompleteResponse } from '../api/client';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
 import Sidebar from '../components/Sidebar';
@@ -124,30 +124,48 @@ export default function ChatPage() {
     setLoading(true);
     setError(null);
 
-    try {
-      const response = await chatApi.sendMessage({
+    // Create placeholder for assistant message that will be updated during streaming
+    const assistantMessageId = crypto.randomUUID();
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: '',
+      createdAt: new Date(),
+    };
+    addMessage(convId, assistantMessage);
+
+    // Use streaming API
+    chatApi.sendMessageStream(
+      {
         message: content,
         conversation_id: convId,
-      });
-
-      // Add assistant message
-      const assistantMessage: Message = {
-        id: response.message_id,
-        role: 'assistant',
-        content: response.content,
-        createdAt: new Date(),
-        model: response.model,
-        tokensPrompt: response.tokens_prompt,
-        tokensCompletion: response.tokens_completion,
-      };
-      addMessage(convId, assistantMessage);
-    } catch (error: unknown) {
-      console.error('Failed to send message:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
+        stream: true,
+      },
+      // On chunk - update message content
+      (chunk: string) => {
+        useChatStore.getState().updateMessage(convId, assistantMessageId, (msg) => ({
+          ...msg,
+          content: msg.content + chunk,
+        }));
+      },
+      // On complete - update with final metadata
+      (response: StreamCompleteResponse) => {
+        useChatStore.getState().updateMessage(convId, assistantMessageId, (msg) => ({
+          ...msg,
+          id: response.message_id,
+          model: response.model,
+          tokensPrompt: response.tokens_prompt,
+          tokensCompletion: response.tokens_completion,
+        }));
+        setLoading(false);
+      },
+      // On error
+      (error: string) => {
+        console.error('Streaming error:', error);
+        setError(error);
+        setLoading(false);
+      }
+    );
   };
 
   return (

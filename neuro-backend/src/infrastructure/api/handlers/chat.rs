@@ -8,14 +8,15 @@ use axum::{
     response::sse::{Event, Sse},
     Json,
 };
-use futures_util::stream::{self, Stream};
+use futures_util::stream::Stream;
 use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::{debug, error, instrument};
 use uuid::Uuid;
+use tokio_stream::wrappers::ReceiverStream;
 
-use crate::domain::entities::chat::ChatRequest;
+use crate::domain::entities::chat::{ChatRequest, ChatMessage, MessageMetadata};
 use crate::infrastructure::api::dto::{
     ChatMessageRequest, ChatMessageResponse, ConversationDto, ConversationWithMessagesDto, ChatMessageDto, ErrorResponse,
 };
@@ -51,8 +52,8 @@ pub async fn send_message(
                 conversation_id: response.conversation_id,
                 message_id: response.message.id,
                 model: response.message.metadata.model.unwrap_or_default(),
-                tokens_prompt: response.message.metadata.token_count.unwrap_or(0) as u64,
-                tokens_completion: response.message.metadata.token_count.unwrap_or(0) as u64,
+                tokens_prompt: response.message.metadata.prompt_tokens.unwrap_or(0),
+                tokens_completion: response.message.metadata.completion_tokens.unwrap_or(0),
                 processing_time_ms: processing_time.as_millis() as u64,
                 extracted_memories: Vec::new(),
             }))
@@ -68,20 +69,164 @@ pub async fn send_message(
 }
 
 /// POST /api/chat/stream
-#[instrument(skip(_state, request))]
+#[instrument(skip(state, request))]
 pub async fn stream_message(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Json(request): Json<ChatMessageRequest>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let conversation_id = request.conversation_id.unwrap_or_else(Uuid::new_v4);
+    let message = request.message.clone();
     
-    let stream = stream::once(async move {
-        Ok(Event::default()
-            .event("message")
-            .data(format!(r#"{{"conversation_id":"{}","status":"streaming_not_implemented"}}"#, conversation_id)))
+    // Get memory context
+    let memory_service = state.memory_service.clone();
+    let chat_service = state.chat_service.clone();
+    
+    // Create a channel for streaming
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(100);
+    
+    // Spawn task to handle streaming
+    tokio::spawn(async move {
+        let start = Instant::now();
+        
+        // Get relevant memory context
+        let context_memories = memory_service.search(&message, 5).await.unwrap_or_default();
+        let memory_ids: Vec<Uuid> = context_memories.iter().map(|(m, _)| m.id).collect();
+        
+        // Build prompt with context
+        let mut prompt = "You are Tachikoma, an intelligent AI assistant created by madKoding.\nYou have access to long-term memory and can remember past conversations.\nBe helpful, accurate, and concise. Respond in the same language as the user.\n\n".to_string();
+        
+        if !context_memories.is_empty() {
+            prompt.push_str("Relevant context from memory:\n");
+            for (memory, score) in context_memories.iter().take(3) {
+                prompt.push_str(&format!("- [relevance: {:.2}] {}\n", score, memory.content));
+            }
+            prompt.push_str("\n");
+        }
+        
+        prompt.push_str(&format!("User: {}", message));
+        
+        // Select model (use default for now)
+        let model = chat_service.select_model_for_task(&message);
+        
+        // Send initial event with conversation info
+        let init_data = serde_json::json!({
+            "type": "start",
+            "conversation_id": conversation_id,
+            "model": model,
+        });
+        let _ = tx.send(Ok(Event::default().event("message").data(init_data.to_string()))).await;
+        
+        // Make streaming request to Ollama
+        let ollama_url = std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
+        let client = reqwest::Client::new();
+        
+        let ollama_request = serde_json::json!({
+            "model": model,
+            "messages": [{
+                "role": "user",
+                "content": prompt
+            }],
+            "stream": true,
+            "options": {
+                "temperature": 0.7,
+                "num_predict": 2048
+            }
+        });
+        
+        match client.post(format!("{}/api/chat", ollama_url))
+            .json(&ollama_request)
+            .send()
+            .await
+        {
+            Ok(response) => {
+                if response.status().is_success() {
+                    let mut stream = response.bytes_stream();
+                    let mut full_content = String::new();
+                    let mut prompt_tokens: u64 = 0;
+                    let mut completion_tokens: u64 = 0;
+                    
+                    while let Some(chunk_result) = futures_util::StreamExt::next(&mut stream).await {
+                        match chunk_result {
+                            Ok(chunk) => {
+                                // Parse NDJSON from Ollama
+                                if let Ok(text) = std::str::from_utf8(&chunk) {
+                                    for line in text.lines() {
+                                        if line.is_empty() { continue; }
+                                        
+                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
+                                            if let Some(msg) = json.get("message") {
+                                                if let Some(content) = msg.get("content").and_then(|c| c.as_str()) {
+                                                    full_content.push_str(content);
+                                                    
+                                                    let chunk_data = serde_json::json!({
+                                                        "type": "chunk",
+                                                        "content": content,
+                                                    });
+                                                    let _ = tx.send(Ok(Event::default().event("message").data(chunk_data.to_string()))).await;
+                                                }
+                                            }
+                                            
+                                            // Check if done and get token counts
+                                            if json.get("done").and_then(|d| d.as_bool()).unwrap_or(false) {
+                                                prompt_tokens = json.get("prompt_eval_count").and_then(|c| c.as_u64()).unwrap_or(0);
+                                                completion_tokens = json.get("eval_count").and_then(|c| c.as_u64()).unwrap_or(0);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!(error = %e, "Stream chunk error");
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Save conversation to database
+                    let user_message = ChatMessage::user(conversation_id, message);
+                    let mut assistant_message = ChatMessage::assistant(conversation_id, full_content.clone());
+                    assistant_message.metadata = MessageMetadata {
+                        model: Some(model.clone()),
+                        context_memory_ids: memory_ids,
+                        generation_time_ms: Some(start.elapsed().as_millis() as u64),
+                        prompt_tokens: Some(prompt_tokens),
+                        completion_tokens: Some(completion_tokens),
+                        token_count: Some((prompt_tokens + completion_tokens) as u32),
+                        ..Default::default()
+                    };
+                    
+                    chat_service.update_conversation_direct(conversation_id, user_message, assistant_message.clone()).await;
+                    
+                    // Send final event with complete info
+                    let final_data = serde_json::json!({
+                        "type": "done",
+                        "conversation_id": conversation_id,
+                        "message_id": assistant_message.id,
+                        "model": model,
+                        "tokens_prompt": prompt_tokens,
+                        "tokens_completion": completion_tokens,
+                        "processing_time_ms": start.elapsed().as_millis() as u64,
+                    });
+                    let _ = tx.send(Ok(Event::default().event("message").data(final_data.to_string()))).await;
+                } else {
+                    let error_data = serde_json::json!({
+                        "type": "error",
+                        "error": format!("Ollama error: {}", response.status()),
+                    });
+                    let _ = tx.send(Ok(Event::default().event("message").data(error_data.to_string()))).await;
+                }
+            }
+            Err(e) => {
+                let error_data = serde_json::json!({
+                    "type": "error",
+                    "error": format!("Request failed: {}", e),
+                });
+                let _ = tx.send(Ok(Event::default().event("message").data(error_data.to_string()))).await;
+            }
+        }
     });
 
-    Sse::new(stream)
+    Sse::new(ReceiverStream::new(rx))
 }
 
 /// GET /api/chat/conversations/:id
@@ -98,8 +243,8 @@ pub async fn get_conversation(
                     role: format!("{:?}", m.role).to_lowercase(),
                     content: m.content.clone(),
                     model: m.metadata.model.clone(),
-                    tokens_prompt: m.metadata.token_count.map(|t| t as u64),
-                    tokens_completion: m.metadata.token_count.map(|t| t as u64),
+                    tokens_prompt: m.metadata.prompt_tokens,
+                    tokens_completion: m.metadata.completion_tokens,
                     created_at: m.created_at.to_rfc3339(),
                 }
             }).collect();

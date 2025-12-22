@@ -77,6 +77,15 @@ export interface ChatMessageDto {
   created_at: string;
 }
 
+export interface StreamCompleteResponse {
+  conversation_id: string;
+  message_id: string;
+  model: string;
+  tokens_prompt: number;
+  tokens_completion: number;
+  processing_time_ms: number;
+}
+
 export interface HealthResponse {
   status: string;
   services: {
@@ -93,6 +102,85 @@ export const chatApi = {
   sendMessage: async (request: ChatMessageRequest): Promise<ChatMessageResponse> => {
     const response = await api.post<ChatMessageResponse>('/chat', request);
     return response.data;
+  },
+
+  // Streaming message using Server-Sent Events
+  sendMessageStream: (
+    request: ChatMessageRequest,
+    onChunk: (chunk: string) => void,
+    onComplete: (response: StreamCompleteResponse) => void,
+    onError: (error: string) => void
+  ): (() => void) => {
+    const controller = new AbortController();
+    
+    fetch('/api/chat/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error('No reader available');
+        }
+        
+        const decoder = new TextDecoder();
+        let buffer = '';
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          
+          // Parse SSE events
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          
+          for (const line of lines) {
+            if (line.startsWith('data:')) {
+              const data = line.slice(5).trim();
+              if (data) {
+                try {
+                  const parsed = JSON.parse(data);
+                  
+                  if (parsed.type === 'chunk') {
+                    onChunk(parsed.content);
+                  } else if (parsed.type === 'done') {
+                    onComplete({
+                      conversation_id: parsed.conversation_id,
+                      message_id: parsed.message_id,
+                      model: parsed.model,
+                      tokens_prompt: parsed.tokens_prompt,
+                      tokens_completion: parsed.tokens_completion,
+                      processing_time_ms: parsed.processing_time_ms,
+                    });
+                  } else if (parsed.type === 'error') {
+                    onError(parsed.error);
+                  }
+                } catch {
+                  // Ignore parse errors for incomplete data
+                }
+              }
+            }
+          }
+        }
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') {
+          onError(error.message);
+        }
+      });
+    
+    // Return cancel function
+    return () => controller.abort();
   },
 
   getConversations: async (): Promise<ConversationDto[]> => {
