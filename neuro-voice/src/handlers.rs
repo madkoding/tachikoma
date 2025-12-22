@@ -205,10 +205,12 @@ pub async fn synthesize(
     };
 
     // Build effects config from request
-    let mut effects = EffectsConfig::default();
-    effects.speed = request.speed;
-    effects.pitch_shift = request.pitch_shift;
-    effects.robot_effect = request.robot_effect;
+    let effects = EffectsConfig {
+        speed: request.speed,
+        pitch_shift: request.pitch_shift,
+        robot_effect: request.robot_effect,
+        ..Default::default()
+    };
 
     info!(
         "🎤 Synthesizing {} chars with voice '{}'",
@@ -230,7 +232,7 @@ pub async fn synthesize(
                 .header("Content-Type", "audio/wav")
                 .header("Content-Disposition", "inline; filename=speech.wav")
                 .body(Body::from(wav_bytes))
-                .unwrap()
+                .expect("Failed to build WAV response")
         }
         Err(e) => {
             error!("Synthesis error: {}", e);
@@ -271,10 +273,12 @@ pub async fn synthesize_stream(
     );
 
     // Build effects config from request
-    let mut effects = EffectsConfig::default();
-    effects.speed = request.speed;
-    effects.pitch_shift = request.pitch_shift;
-    effects.robot_effect = request.robot_effect;
+    let effects = EffectsConfig {
+        speed: request.speed,
+        pitch_shift: request.pitch_shift,
+        robot_effect: request.robot_effect,
+        ..Default::default()
+    };
 
     let voice = request.voice.clone();
     let voice_engine = state.voice_engine.clone();
@@ -304,7 +308,7 @@ pub async fn synthesize_stream(
                             data: Some(audio_b64),
                         };
 
-                        format!("data: {}\n\n", serde_json::to_string(&event).unwrap())
+                        format!("data: {}\n\n", serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string()))
                     }
                     Err(e) => {
                         error!("Error synthesizing sentence {}: {}", index, e);
@@ -331,7 +335,7 @@ pub async fn synthesize_stream(
         .header("Cache-Control", "no-cache")
         .header("Connection", "keep-alive")
         .body(body)
-        .unwrap()
+        .expect("Failed to build SSE response")
 }
 
 /// Synthesize text to speech with Opus streaming (SSE)
@@ -361,10 +365,12 @@ pub async fn synthesize_opus_stream(
     );
 
     // Build effects config from request
-    let mut effects = EffectsConfig::default();
-    effects.speed = request.speed;
-    effects.pitch_shift = request.pitch_shift;
-    effects.robot_effect = request.robot_effect;
+    let effects = EffectsConfig {
+        speed: request.speed,
+        pitch_shift: request.pitch_shift,
+        robot_effect: request.robot_effect,
+        ..Default::default()
+    };
 
     let voice = request.voice.clone();
     let voice_engine = state.voice_engine.clone();
@@ -401,7 +407,7 @@ pub async fn synthesize_opus_stream(
                                     data: Some(audio_b64),
                                 };
 
-                                format!("data: {}\n\n", serde_json::to_string(&event).unwrap())
+                                format!("data: {}\n\n", serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string()))
                             }
                             Err(e) => {
                                 error!("Opus encoding error for sentence {}: {}", index, e);
@@ -423,7 +429,7 @@ pub async fn synthesize_opus_stream(
                 total: None,
                 data: None,
             };
-            format!("data: {}\n\n", serde_json::to_string(&event).unwrap())
+            format!("data: {}\n\n", serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string()))
         }));
 
     let body = Body::from_stream(stream.map(|s| Ok::<_, Infallible>(s)));
@@ -435,5 +441,5 @@ pub async fn synthesize_opus_stream(
         .header("Connection", "keep-alive")
         .header("X-Audio-Format", "opus")
         .body(body)
-        .unwrap()
+        .expect("Failed to build SSE response")
 }

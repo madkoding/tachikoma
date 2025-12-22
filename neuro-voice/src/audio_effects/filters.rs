@@ -100,7 +100,8 @@ fn peaking_eq_coeffs(center: f32, sample_rate: f32, q: f32, gain_db: f32) -> Biq
         a2: a2 / a0,
     }
 }
-#[allow(dead_code)]#[allow(dead_code)]
+
+#[allow(dead_code)]
 pub fn apply_highpass_filter(audio: &[f32], cutoff_freq: f32, sample_rate: u32) -> Vec<f32> {
     if audio.is_empty() || cutoff_freq < 1.0 {
         return audio.to_vec();

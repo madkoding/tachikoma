@@ -25,7 +25,7 @@ pub fn apply_chorus(audio: &[f32], sample_rate: u32, wet: f32, num_voices: usize
             let delay_int = delay.floor() as usize;
             let delay_frac = delay - delay_int as f32;
 
-            if i >= delay_int + 1 {
+            if i > delay_int {
                 let s1 = audio[i - delay_int];
                 let s2 = audio[i - delay_int - 1];
                 let delayed = s1 * (1.0 - delay_frac) + s2 * delay_frac;
