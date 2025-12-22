@@ -8,6 +8,7 @@ export interface Message {
   model?: string;
   tokensPrompt?: number;
   tokensCompletion?: number;
+  processingTimeMs?: number;
 }
 
 export interface Conversation {

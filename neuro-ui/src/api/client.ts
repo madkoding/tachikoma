@@ -86,6 +86,12 @@ export interface StreamCompleteResponse {
   processing_time_ms: number;
 }
 
+// Helper to calculate tokens per second
+export function calculateTokensPerSecond(tokens: number, timeMs: number): number {
+  if (timeMs <= 0) return 0;
+  return Math.round((tokens / timeMs) * 1000 * 10) / 10;
+}
+
 export interface HealthResponse {
   status: string;
   services: {

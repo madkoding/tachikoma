@@ -52,9 +52,15 @@ export default function ChatMessage({ message }: Readonly<ChatMessageProps>) {
 
         {/* Token info for assistant messages */}
         {!isUser && message.tokensPrompt !== undefined && (
-          <div className="mt-2 text-xs text-cyber-cyan/50 flex gap-3 font-mono">
+          <div className="mt-2 text-xs text-cyber-cyan/50 flex flex-wrap gap-3 font-mono">
             {message.model && <span>{t('message.model')}: <span className="text-cyber-green">{message.model}</span></span>}
             <span>{t('message.tokens')}: <span className="text-cyber-yellow">{message.tokensPrompt} + {message.tokensCompletion}</span></span>
+            {message.processingTimeMs !== undefined && message.processingTimeMs > 0 && (
+              <>
+                <span>{t('message.time')}: <span className="text-cyber-magenta">{(message.processingTimeMs / 1000).toFixed(1)}s</span></span>
+                <span>{t('message.speed')}: <span className="text-cyber-cyan">{((message.tokensCompletion || 0) / (message.processingTimeMs / 1000)).toFixed(1)} tok/s</span></span>
+              </>
+            )}
           </div>
         )}
       </div>

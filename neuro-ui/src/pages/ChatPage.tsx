@@ -156,6 +156,7 @@ export default function ChatPage() {
           model: response.model,
           tokensPrompt: response.tokens_prompt,
           tokensCompletion: response.tokens_completion,
+          processingTimeMs: response.processing_time_ms,
         }));
         setLoading(false);
       },

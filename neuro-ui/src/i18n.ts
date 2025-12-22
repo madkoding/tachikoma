@@ -43,6 +43,8 @@ const resources = {
       'message.assistant': 'TACHIKOMA',
       'message.model': 'MODEL',
       'message.tokens': 'TOKENS',
+      'message.time': 'TIME',
+      'message.speed': 'SPEED',
       
       // Status
       'status.online': 'ONLINE',
@@ -109,6 +111,8 @@ const resources = {
       'message.assistant': 'TACHIKOMA',
       'message.model': 'MODELO',
       'message.tokens': 'TOKENS',
+      'message.time': 'TIEMPO',
+      'message.speed': 'VELOCIDAD',
       
       // Status
       'status.online': 'EN LÍNEA',
