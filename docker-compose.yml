@@ -88,7 +88,7 @@ services:
   # Voice Service - Piper TTS API (Rust)
   # ===========================================================================
   # Ultra-fast text-to-speech synthesis using Piper TTS with robotic effects.
-  # Migrated from Python to Rust for improved performance.
+  # Runs in Docker because it requires Piper binary and voice models.
   # GPU support for accelerated ONNX inference.
   # ===========================================================================
   voice-service:
@@ -122,83 +122,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-
-  # ===========================================================================
-  # NEURO-OS Backend - Rust Axum REST API
-  # ===========================================================================
-  # The central orchestrator that coordinates all AI agents, manages memories,
-  # and serves the REST API for both User and Admin UIs.
-  # ===========================================================================
-  neuro-backend:
-    build:
-      context: ./neuro-backend
-      dockerfile: Dockerfile
-    container_name: neuro-backend
-    restart: unless-stopped
-    environment:
-      - RUST_LOG=info,neuro_backend=debug
-      - DATABASE_URL=ws://surrealdb:8000
-      - DATABASE_NS=neuro
-      - DATABASE_DB=memories
-      - DATABASE_USER=${SURREAL_USER:-root}
-      - DATABASE_PASS=${SURREAL_PASS:-neuroos_secret_2024}
-      - OLLAMA_URL=http://ollama:11434
-      - SEARXNG_URL=http://searxng:8080
-      - SERVER_HOST=0.0.0.0
-      - SERVER_PORT=3000
-    ports:
-      - "3000:3000"
-    networks:
-      - neuro-network
-    depends_on:
-      surrealdb:
-        condition: service_healthy
-      ollama:
-        condition: service_started
-      searxng:
-        condition: service_started
-
-  # ===========================================================================
-  # User UI - React Chat Interface
-  # ===========================================================================
-  # A modern chat interface with i18n support (ES/EN) for interacting
-  # with the NEURO-OS AI system.
-  # ===========================================================================
-  user-ui:
-    build:
-      context: ./user-ui
-      dockerfile: Dockerfile
-    container_name: neuro-user-ui
-    restart: unless-stopped
-    environment:
-      - VITE_API_URL=http://localhost:3000
-    ports:
-      - "5173:80"
-    networks:
-      - neuro-network
-    depends_on:
-      - neuro-backend
-
-  # ===========================================================================
-  # Admin UI - React Graph Visualization Dashboard
-  # ===========================================================================
-  # A dedicated dashboard for visualizing, editing, and managing
-  # the memory graph network (CRUD operations on nodes).
-  # ===========================================================================
-  admin-ui:
-    build:
-      context: ./admin-ui
-      dockerfile: Dockerfile
-    container_name: neuro-admin-ui
-    restart: unless-stopped
-    environment:
-      - VITE_API_URL=http://localhost:3000
-    ports:
-      - "5174:80"
-    networks:
-      - neuro-network
-    depends_on:
-      - neuro-backend
 
 # =============================================================================
 # Networks Configuration

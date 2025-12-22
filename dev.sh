@@ -29,7 +29,7 @@ print_header "NEURO-OS Development Mode"
 
 # Ensure Docker services are running
 echo -e "${GREEN}▶${NC} Ensuring Docker services are running..."
-docker-compose up -d surrealdb searxng ollama
+docker-compose up -d surrealdb searxng ollama voice-service
 sleep 3
 
 case $MODE in

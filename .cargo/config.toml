@@ -1,0 +1,45 @@
+# =============================================================================
+# Cargo Build Optimizations
+# =============================================================================
+# Configuraciones para acelerar compilaciones en desarrollo
+# =============================================================================
+
+[build]
+# Usar todos los núcleos disponibles para compilación paralela
+jobs = -1
+
+# Usar sccache para cachear compilaciones (acelera recompilaciones ~10x)
+rustc-wrapper = "sccache"
+
+# =============================================================================
+# Linker rápido - mold (Linux) o lld
+# =============================================================================
+# mold es ~5x más rápido que el linker por defecto
+# Instalar: sudo apt install mold  (o brew install mold en macOS)
+
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+# Alternativa si no tienes mold, usa lld (más común):
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# =============================================================================
+# Para macOS (si lo necesitas)
+# =============================================================================
+# [target.aarch64-apple-darwin]
+# rustflags = ["-C", "link-arg=-fuse-ld=/opt/homebrew/bin/ld64.lld"]
+
+# [target.x86_64-apple-darwin]  
+# rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/ld64.lld"]
+
+[profile.dev]
+# Optimización mínima para dependencias (acelera runtime sin afectar compilación)
+opt-level = 0
+
+[profile.dev.package."*"]
+# Optimizar dependencias externas - se compilan una vez y son más rápidas en runtime
+opt-level = 2
+
+[registries.crates-io]
+protocol = "sparse"

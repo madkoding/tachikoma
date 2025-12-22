@@ -3,39 +3,55 @@
 # =============================================================================
 # Multi-stage build for the Piper TTS voice service in Rust.
 # Includes NVIDIA GPU support for accelerated ONNX inference.
+# Optimized with mold linker and cargo-chef for fast cached builds.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Stage 1: Build the Rust binary
+# Stage 1: Chef planner - analyze dependencies
 # -----------------------------------------------------------------------------
-FROM rust:1.83-slim AS builder
+FROM rust:1.83-slim AS chef
+RUN cargo install cargo-chef
+WORKDIR /app
 
-# Install build dependencies (including libopus for audio encoding)
+# -----------------------------------------------------------------------------
+# Stage 2: Prepare recipe (dependency lockfile)
+# -----------------------------------------------------------------------------
+FROM chef AS planner
+COPY Cargo.toml Cargo.lock* ./
+COPY src ./src
+RUN cargo chef prepare --recipe-path recipe.json
+
+# -----------------------------------------------------------------------------
+# Stage 3: Build dependencies (cached layer)
+# -----------------------------------------------------------------------------
+FROM chef AS builder
+
+# Install build dependencies + mold linker
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
     libopus-dev \
+    mold \
+    clang \
     && rm -rf /var/lib/apt/lists/*
+
+# Configure cargo: mold linker + parallel jobs
+RUN mkdir -p /root/.cargo && \
+    printf '[build]\njobs = -1\n\n[target.x86_64-unknown-linux-gnu]\nlinker = "clang"\nrustflags = ["-C", "link-arg=-fuse-ld=mold"]\n' > /root/.cargo/config.toml
 
 WORKDIR /app
 
-# Copy manifests first for dependency caching
+# Copy recipe and build ONLY dependencies (this layer is cached!)
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# Now copy source and build the actual app (only this recompiles on code changes)
 COPY Cargo.toml Cargo.lock* ./
-
-# Create dummy source to cache dependencies
-RUN mkdir -p src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo build --release && \
-    rm -rf src
-
-# Copy actual source code
 COPY src ./src
-
-# Build the actual binary
-RUN touch src/main.rs && cargo build --release
+RUN cargo build --release
 
 # -----------------------------------------------------------------------------
-# Stage 2: Runtime image with NVIDIA GPU support
+# Stage 4: Runtime image with NVIDIA GPU support
 # -----------------------------------------------------------------------------
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 
@@ -46,6 +62,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
     libgomp1 \
     libopus0 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
