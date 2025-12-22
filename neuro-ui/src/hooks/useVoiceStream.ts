@@ -54,7 +54,7 @@ export interface UseVoiceStreamReturn {
   /** Resume playback */
   resume: () => void;
   /** Update voice configuration */
-  setConfig: (config: Partial<VoiceConfig>) => void;
+  updateConfig: (config: Partial<VoiceConfig>) => void;
   /** Check if voice service is available */
   checkAvailability: () => Promise<boolean>;
 }
@@ -94,7 +94,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
     queueLength: 0,
   });
 
-  const [config, setConfigValue] = useState<VoiceConfig>({
+  const [config, setConfig] = useState<VoiceConfig>({
     ...DEFAULT_CONFIG,
     ...initialConfig,
   });
@@ -425,8 +425,8 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
   // Configuration Update
   // ==========================================================================
 
-  const setConfig = useCallback((newConfig: Partial<VoiceConfig>) => {
-    setConfigValue(prev => {
+  const updateConfig = useCallback((newConfig: Partial<VoiceConfig>) => {
+    setConfig(prev => {
       const updated = { ...prev, ...newConfig };
 
       // Update volume immediately if changed
@@ -456,7 +456,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setConfigValue(prev => ({ ...prev, ...parsed }));
+        setConfig(prev => ({ ...prev, ...parsed }));
       } catch (e) {
         console.error('Failed to load voice config:', e);
       }
@@ -488,7 +488,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
     stop,
     pause,
     resume,
-    setConfig,
+    updateConfig,
     checkAvailability,
   };
 }

@@ -17,7 +17,7 @@ export default function ChatPage() {
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   
   // Voice synthesis hook
-  const { state: voiceState, config: voiceConfig, speak, stop: stopVoice, setConfig: setVoiceConfig } = useVoiceStream();
+  const { state: voiceState, config: voiceConfig, speak, stop: stopVoice, updateConfig: setVoiceConfig } = useVoiceStream();
   const lastSpokenMessageRef = useRef<string | null>(null);
   
   const {
