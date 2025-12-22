@@ -56,6 +56,7 @@ pub async fn send_message(
                 tokens_completion: response.message.metadata.completion_tokens.unwrap_or(0),
                 processing_time_ms: processing_time.as_millis() as u64,
                 extracted_memories: Vec::new(),
+                tools_used: response.tools_used,
             }))
         }
         Err(e) => {
@@ -96,10 +97,8 @@ pub async fn stream_message(
         let context_memories = memory_service.search(&message, 5).await.unwrap_or_default();
         let memory_ids: Vec<Uuid> = context_memories.iter().map(|(m, _)| m.id).collect();
         
-        // Build system prompt
-        let mut system_prompt = "Eres Tachikoma, un asistente de IA amigable y conversacional creado por madKoding. \
-Tu personalidad es curiosa, empática y natural. Mantén conversaciones fluidas y recuerda el contexto de lo que el usuario te ha dicho. \
-Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.".to_string();
+        // Build system prompt (using the same prompt from ChatService)
+        let mut system_prompt = chat_service.system_prompt.clone();
         
         // Add memory context to system prompt if available
         if !context_memories.is_empty() {

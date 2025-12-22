@@ -48,6 +48,9 @@ pub struct ChatMessageResponse {
     /// Memories extracted from conversation
     #[serde(default)]
     pub extracted_memories: Vec<MemoryDto>,
+    /// Tools used during processing
+    #[serde(default)]
+    pub tools_used: Vec<String>,
 }
 
 /// Conversation summary

@@ -32,7 +32,7 @@ pub struct ChatService {
     model_manager: Arc<ModelManager>,
     llm_provider: Arc<dyn LlmProvider>,
     repository: Arc<SurrealDbRepository>,
-    system_prompt: String,
+    pub system_prompt: String,
 }
 
 impl ChatService {
@@ -53,10 +53,20 @@ impl ChatService {
         }
     }
 
-    fn default_system_prompt() -> String {
+    pub fn default_system_prompt() -> String {
         r#"Eres Tachikoma, un asistente de IA amigable y conversacional creado por madKoding.
 Tu personalidad es curiosa, empática y natural. Mantén conversaciones fluidas y recuerda el contexto de lo que el usuario te ha dicho.
-Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable."#.to_string()
+
+CAPACIDADES:
+- 🔍 Buscar información en la web cuando el usuario lo necesite
+- 💾 Recordar información importante para conversaciones futuras
+- 💻 Ejecutar comandos del sistema (cuando sea necesario y seguro)
+- 🧠 Acceder a memoria de largo plazo con contexto relevante
+
+Cuando recibes información de herramientas (búsquedas web, comandos), úsala para responder de forma completa y precisa.
+Si la información viene de una búsqueda web, menciona las fuentes cuando sea relevante.
+
+Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable. No eres alguien kawaii, no hables como anime."#.to_string()
     }
 
     /// Process a chat request
@@ -74,8 +84,11 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
 
         debug!(memory_count = context_memories.len(), "Retrieved memory context");
 
-        // Build prompt with context
-        let prompt = self.build_prompt(&request.message, &context_memories);
+        // Detect if we need to use tools
+        let tools_used = self.detect_and_execute_tools(&request.message).await;
+        
+        // Build prompt with context and tool results
+        let prompt = self.build_prompt_with_tools(&request.message, &context_memories, &tools_used);
 
         // Auto-select model based on message analysis
         let selected_model = self.select_model_for_task(&request.message);
@@ -99,10 +112,12 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         // Update conversation history
         self.update_conversation(conversation_id, user_message, assistant_message.clone()).await;
 
+        let tools_list: Vec<String> = tools_used.iter().map(|(name, _)| name.clone()).collect();
+        
         let response = ChatResponse {
             conversation_id,
             message: assistant_message,
-            tools_used: vec![],
+            tools_used: tools_list,
             context_memories: memory_ids,
             processing_time_ms: start.elapsed().as_millis() as u64,
         };
@@ -110,18 +125,160 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         info!(
             conversation_id = %conversation_id,
             processing_time_ms = response.processing_time_ms,
+            tools_used = ?response.tools_used,
             "Chat completed"
         );
 
         Ok(response)
     }
 
-    fn build_prompt(&self, user_message: &str, memories: &[(crate::domain::entities::memory::MemoryNode, f64)]) -> String {
+    /// =========================================================================
+    /// Tool Detection and Execution
+    /// =========================================================================
+    async fn detect_and_execute_tools(&self, message: &str) -> Vec<(String, String)> {
+        let msg_lower = message.to_lowercase();
+        let mut tools_used = Vec::new();
+
+        // Web Search Keywords
+        let search_keywords = [
+            "busca", "search", "encuentra", "find", "investiga", "research",
+            "qué es", "what is", "cómo es", "información sobre", "info about",
+            "noticias", "news", "actualidad", "current", "latest",
+        ];
+
+        // Command Execution Keywords
+        let command_keywords = [
+            "ejecuta", "execute", "run", "corre", "shell", "comando",
+            "terminal", "bash", "lista archivos", "list files", "muestra",
+            "ps ", "ls ", "cat ", "grep ", "pwd", "whoami",
+        ];
+
+        // Check for web search intent
+        if search_keywords.iter().any(|kw| msg_lower.contains(kw)) {
+            info!("🔍 Detected web search intent");
+            
+            // Extract search query (simple heuristic)
+            let query = self.extract_search_query(message);
+            
+            match self.agent_orchestrator.search_web(&query).await {
+                Ok(results) => {
+                    let summary = self.summarize_search_results(&results);
+                    info!("✅ Web search completed: {} results", results.results.len());
+                    tools_used.push(("web_search".to_string(), summary));
+                }
+                Err(e) => {
+                    error!("❌ Web search failed: {}", e);
+                    tools_used.push(("web_search".to_string(), format!("Error: {}", e)));
+                }
+            }
+        }
+
+        // Check for command execution intent (more restrictive)
+        if command_keywords.iter().any(|kw| msg_lower.contains(kw)) {
+            info!("⚠️  Detected command execution intent");
+            
+            // Extract command
+            if let Some(cmd) = self.extract_command(message) {
+                match self.agent_orchestrator.execute_command(&cmd, None).await {
+                    Ok(output) => {
+                        info!("✅ Command executed: {}", cmd);
+                        let result = format!("$ {}\n{}", cmd, output.stdout);
+                        tools_used.push(("execute_command".to_string(), result));
+                    }
+                    Err(e) => {
+                        error!("❌ Command failed: {}", e);
+                        tools_used.push(("execute_command".to_string(), format!("Error: {}", e)));
+                    }
+                }
+            }
+        }
+
+        tools_used
+    }
+
+    /// Extract search query from message
+    fn extract_search_query(&self, message: &str) -> String {
+        // Remove common command words
+        let msg = message
+            .to_lowercase()
+            .replace("busca", "")
+            .replace("search", "")
+            .replace("encuentra", "")
+            .replace("find", "")
+            .replace("investiga", "")
+            .replace("qué es", "")
+            .replace("what is", "")
+            .replace("información sobre", "")
+            .replace("info about", "")
+            .trim()
+            .to_string();
+
+        if msg.is_empty() {
+            message.to_string()
+        } else {
+            msg
+        }
+    }
+
+    /// Extract command from message
+    fn extract_command(&self, message: &str) -> Option<String> {
+        // Look for common patterns
+        if let Some(pos) = message.find("ejecuta ") {
+            return Some(message[pos + 8..].trim().to_string());
+        }
+        if let Some(pos) = message.find("execute ") {
+            return Some(message[pos + 8..].trim().to_string());
+        }
+        if let Some(pos) = message.find("run ") {
+            return Some(message[pos + 4..].trim().to_string());
+        }
+        
+        // Check if message looks like a direct command
+        let msg_lower = message.to_lowercase();
+        if msg_lower.starts_with("ls ") || msg_lower.starts_with("ps ") || 
+           msg_lower.starts_with("cat ") || msg_lower == "pwd" || msg_lower == "whoami" {
+            return Some(message.to_string());
+        }
+
+        None
+    }
+
+    /// Summarize search results
+    fn summarize_search_results(&self, results: &crate::domain::ports::search_provider::SearchResults) -> String {
+        let mut summary = format!("🔍 Encontré {} resultados:\n\n", results.results.len());
+        
+        for (i, result) in results.results.iter().take(5).enumerate() {
+            summary.push_str(&format!("{}. {}\n", i + 1, result.title));
+            if !result.snippet.is_empty() {
+                summary.push_str(&format!("   {}\n", result.snippet));
+            }
+            summary.push_str(&format!("   🔗 {}\n\n", result.url));
+        }
+
+        summary
+    }
+
+    fn build_prompt_with_tools(
+        &self,
+        user_message: &str,
+        memories: &[(crate::domain::entities::memory::MemoryNode, f64)],
+        tools_used: &[(String, String)],
+    ) -> String {
         let mut prompt = self.system_prompt.clone();
         prompt.push_str("\n\n");
 
+        // Add tool results first (most important context)
+        if !tools_used.is_empty() {
+            prompt.push_str("=== INFORMACIÓN OBTENIDA CON HERRAMIENTAS ===\n");
+            for (tool_name, result) in tools_used {
+                prompt.push_str(&format!("\n[{}]\n{}\n", tool_name.to_uppercase(), result));
+            }
+            prompt.push_str("\n");
+        }
+
+        // Add memory context
         if !memories.is_empty() {
-            prompt.push_str("Relevant context from memory:\n");
+            prompt.push_str("=== CONTEXTO RELEVANTE DE MEMORIA ===\n");
             for (memory, score) in memories.iter().take(3) {
                 prompt.push_str(&format!("- [{:.2}] {}\n", score, memory.content));
             }
@@ -132,6 +289,10 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         prompt.push_str(user_message);
         prompt.push_str("\n\nAssistant: ");
         prompt
+    }
+
+    fn build_prompt(&self, user_message: &str, memories: &[(crate::domain::entities::memory::MemoryNode, f64)]) -> String {
+        self.build_prompt_with_tools(user_message, memories, &[])
     }
 
     /// Update conversation - internal method
