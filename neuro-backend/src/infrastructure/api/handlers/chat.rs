@@ -231,9 +231,7 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
                         ..Default::default()
                     };
                     
-                    chat_service.update_conversation_direct(conversation_id, user_message, assistant_message.clone()).await;
-                    
-                    // Send final event
+                    // Send final event FIRST (before saving to DB)
                     let final_data = serde_json::json!({
                         "type": "done",
                         "conversation_id": conversation_id,
@@ -244,6 +242,14 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
                         "processing_time_ms": start.elapsed().as_millis() as u64,
                     });
                     let _ = tx.send(Ok(Event::default().event("message").data(final_data.to_string()))).await;
+                    
+                    // Drop the sender to signal stream completion
+                    drop(tx);
+                    
+                    // NOW save to database (after stream is closed)
+                    tracing::info!(conversation_id = %conversation_id, "Saving conversation after stream completed");
+                    chat_service.update_conversation_direct(conversation_id, user_message, assistant_message.clone()).await;
+                    tracing::info!(conversation_id = %conversation_id, "Conversation save completed");
                 } else {
                     let error_data = serde_json::json!({
                         "type": "error",
@@ -260,6 +266,8 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
                 let _ = tx.send(Ok(Event::default().event("message").data(error_data.to_string()))).await;
             }
         }
+        
+        tracing::info!("Stream handler task completed");
     });
 
     Sse::new(ReceiverStream::new(rx))

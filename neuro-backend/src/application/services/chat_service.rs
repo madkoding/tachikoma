@@ -150,12 +150,15 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         user_message: ChatMessage,
         assistant_message: ChatMessage,
     ) {
+        tracing::info!(conversation_id = %conversation_id, "Saving conversation to database");
+        
         // Get or create conversation
         let mut conversation = self.repository
             .get_conversation(conversation_id)
             .await
             .unwrap_or(None)
             .unwrap_or_else(|| {
+                tracing::info!("Creating new conversation");
                 let mut conv = Conversation::new();
                 conv.id = conversation_id;
                 // Generate title from first message
@@ -169,14 +172,20 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         // Save conversation
         if let Err(e) = self.repository.save_conversation(&conversation).await {
             tracing::error!(error = %e, "Failed to save conversation");
+        } else {
+            tracing::info!("Conversation saved successfully");
         }
 
         // Save messages
         if let Err(e) = self.repository.save_message(&user_message).await {
             tracing::error!(error = %e, "Failed to save user message");
+        } else {
+            tracing::info!("User message saved");
         }
         if let Err(e) = self.repository.save_message(&assistant_message).await {
             tracing::error!(error = %e, "Failed to save assistant message");
+        } else {
+            tracing::info!("Assistant message saved");
         }
     }
 
