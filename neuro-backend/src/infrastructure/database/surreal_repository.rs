@@ -419,16 +419,18 @@ impl SurrealDbRepository {
     /// Save a conversation to the database
     pub async fn save_conversation(&self, conversation: &Conversation) -> Result<(), DomainError> {
         let sql = r#"
-            CREATE type::thing('conversation', $id) SET
+            UPSERT type::thing('conversation', $id) SET
                 title = $title,
                 created_at = $created_at,
                 updated_at = $updated_at,
                 archived = $archived
-            ON DUPLICATE KEY UPDATE
-                title = $title,
-                updated_at = $updated_at,
-                archived = $archived
         "#;
+
+        tracing::debug!(
+            conversation_id = %conversation.id,
+            title = ?conversation.title,
+            "Executing save_conversation SQL"
+        );
 
         self.pool.client()
             .query(sql)
@@ -438,7 +440,10 @@ impl SurrealDbRepository {
             .bind(("updated_at", Datetime::from(conversation.updated_at)))
             .bind(("archived", conversation.archived))
             .await
-            .map_err(|e| DomainError::database(e.to_string()))?;
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to execute save_conversation query");
+                DomainError::database(e.to_string())
+            })?;
 
         Ok(())
     }
@@ -561,20 +566,42 @@ impl SurrealDbRepository {
     pub async fn list_conversations(&self) -> Result<Vec<(Uuid, Option<String>, chrono::DateTime<chrono::Utc>)>, DomainError> {
         let sql = "SELECT meta::id(id) as id, title, updated_at FROM conversation ORDER BY updated_at DESC";
 
+        tracing::debug!("Executing list_conversations query");
+
         let mut response = self.pool.client()
             .query(sql)
             .await
-            .map_err(|e| DomainError::database(e.to_string()))?;
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to execute list_conversations query");
+                DomainError::database(e.to_string())
+            })?;
 
-        let records: Vec<ConversationRecord> = response.take(0)
-            .map_err(|e| DomainError::database(e.to_string()))?;
+        // Use a simpler struct for the response since we're only selecting 3 fields
+        #[derive(Debug, Deserialize)]
+        struct ListRecord {
+            id: String,
+            title: Option<String>,
+            updated_at: Datetime,
+        }
+
+        let records: Vec<ListRecord> = response.take(0)
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to deserialize list_conversations response");
+                DomainError::database(e.to_string())
+            })?;
+
+        tracing::debug!(count = records.len(), "Found conversations");
 
         let mut result = Vec::new();
         for record in records {
             use chrono::{DateTime, Utc};
             let updated_at: DateTime<Utc> = record.updated_at.0.into();
-            let id = Uuid::parse_str(&record.id).map_err(|e| DomainError::database(e.to_string()))?;
-            result.push((id, record.title, updated_at));
+            // Skip records with invalid UUIDs (like test data)
+            if let Ok(id) = Uuid::parse_str(&record.id) {
+                result.push((id, record.title, updated_at));
+            } else {
+                tracing::debug!(id = %record.id, "Skipping conversation with invalid UUID");
+            }
         }
 
         Ok(result)

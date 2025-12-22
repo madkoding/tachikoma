@@ -76,6 +76,7 @@ pub async fn stream_message(
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let conversation_id = request.conversation_id.unwrap_or_else(Uuid::new_v4);
     let message = request.message.clone();
+    let message_for_memory = request.message.clone(); // Clone for memory extraction
     
     // Get services
     let memory_service = state.memory_service.clone();
@@ -245,6 +246,9 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
                     
                     // Drop the sender to signal stream completion
                     drop(tx);
+                    
+                    // Extract and store memories from user message
+                    chat_service.extract_and_store_memories(&message_for_memory).await;
                     
                     // NOW save to database (after stream is closed)
                     tracing::info!(conversation_id = %conversation_id, "Saving conversation after stream completed");

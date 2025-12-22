@@ -4,17 +4,16 @@ export default function TypingIndicator() {
   const { t } = useTranslation();
 
   return (
-    <div className="flex gap-3 p-4 rounded border border-cyber-cyan/20 bg-cyber-cyan/5">
-      <div className="w-8 h-8 rounded flex items-center justify-center bg-cyber-cyan/20 text-cyber-cyan text-sm font-bold shrink-0 border border-cyber-cyan/50 font-cyber">
-        T
+    <div className="flex items-center gap-2 py-2 px-3">
+      <div className="flex items-center gap-1 text-cyber-cyan/70 font-mono text-sm">
+        <span className="text-cyber-cyan">{'>'}</span>
+        <span>{t('chat.thinking')}</span>
+        <span className="animate-pulse text-cyber-cyan">_</span>
       </div>
-      <div className="flex items-center">
-        <div className="typing-indicator flex gap-1">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-        <span className="ml-3 text-sm text-cyber-cyan/60 font-mono">{t('chat.thinking')}</span>
+      <div className="flex gap-0.5">
+        <span className="w-1.5 h-1.5 bg-cyber-cyan rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+        <span className="w-1.5 h-1.5 bg-cyber-cyan rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+        <span className="w-1.5 h-1.5 bg-cyber-cyan rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
       </div>
     </div>
   );

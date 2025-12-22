@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useChatStore, Conversation } from '../stores/chatStore';
+import { chatApi } from '../api/client';
 import clsx from 'clsx';
 
 interface SidebarProps {
@@ -21,6 +22,21 @@ export default function Sidebar({ isOpen, onToggle }: Readonly<SidebarProps>) {
   const handleSelectConversation = (id: string) => {
     setCurrentConversation(id);
     navigate(`/chat/${id}`);
+  };
+
+  const handleDeleteConversation = async (id: string) => {
+    try {
+      // Delete from backend
+      await chatApi.deleteConversation(id);
+      // Update local state
+      deleteConversation(id);
+      // If we deleted the current conversation, go to home
+      if (currentConversationId === id) {
+        navigate('/');
+      }
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
+    }
   };
 
   const groupConversations = (conversations: Conversation[]) => {
@@ -104,7 +120,7 @@ export default function Sidebar({ isOpen, onToggle }: Readonly<SidebarProps>) {
                 conversations={today}
                 currentId={currentConversationId}
                 onSelect={handleSelectConversation}
-                onDelete={deleteConversation}
+                onDelete={handleDeleteConversation}
               />
             )}
             {yesterday.length > 0 && (
@@ -113,7 +129,7 @@ export default function Sidebar({ isOpen, onToggle }: Readonly<SidebarProps>) {
                 conversations={yesterday}
                 currentId={currentConversationId}
                 onSelect={handleSelectConversation}
-                onDelete={deleteConversation}
+                onDelete={handleDeleteConversation}
               />
             )}
             {older.length > 0 && (
@@ -122,7 +138,7 @@ export default function Sidebar({ isOpen, onToggle }: Readonly<SidebarProps>) {
                 conversations={older}
                 currentId={currentConversationId}
                 onSelect={handleSelectConversation}
-                onDelete={deleteConversation}
+                onDelete={handleDeleteConversation}
               />
             )}
           </div>
