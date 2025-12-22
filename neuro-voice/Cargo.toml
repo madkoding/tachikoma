@@ -1,0 +1,62 @@
+# =============================================================================
+# Voice Service - Rust Piper TTS API
+# =============================================================================
+# Ultra-fast text-to-speech service using Piper TTS with robotic audio effects.
+# Migrated from Python FastAPI to Rust Axum for improved performance.
+# =============================================================================
+
+[package]
+name = "voice-service"
+version = "1.0.0"
+edition = "2021"
+authors = ["NEURO-OS Team"]
+description = "Voice synthesis service using Piper TTS with robotic effects"
+license = "MIT"
+
+[dependencies]
+# =============================================================================
+# Web Framework & Async Runtime
+# =============================================================================
+axum = { version = "0.7", features = ["macros", "json"] }
+tokio = { version = "1.40", features = ["full", "process"] }
+tower = { version = "0.5", features = ["util", "timeout"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# =============================================================================
+# Serialization
+# =============================================================================
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# =============================================================================
+# Audio Processing
+# =============================================================================
+hound = "3.5"          # WAV file reading/writing
+byteorder = "1.5"      # Binary data handling
+opus = "0.3"           # Opus audio codec (high quality, low latency)
+ogg = "0.9"            # Ogg container format
+
+# =============================================================================
+# Error Handling & Logging
+# =============================================================================
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# =============================================================================
+# Utilities
+# =============================================================================
+regex = "1.10"
+lazy_static = "1.5"
+base64 = "0.22"
+async-stream = "0.3"
+futures = "0.3"
+tokio-stream = "0.1"
+dotenvy = "0.15"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

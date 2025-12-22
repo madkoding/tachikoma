@@ -35,4 +35,8 @@ docker rm neuro-voice 2>/dev/null || true
 echo -e "${YELLOW}▶${NC} Stopping Docker containers..."
 docker compose down 2>/dev/null || true
 
+# Clean up network if empty
+echo -e "${YELLOW}▶${NC} Cleaning up networks..."
+docker network prune -f 2>/dev/null || true
+
 echo -e "${GREEN}✓ All NEURO-OS services stopped.${NC}"

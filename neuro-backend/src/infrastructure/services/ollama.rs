@@ -36,6 +36,9 @@ struct OllamaChatRequest {
     stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     options: Option<OllamaOptions>,
+    /// How long to keep model loaded. -1 = forever, "5m" = 5 minutes
+    #[serde(skip_serializing_if = "Option::is_none")]
+    keep_alive: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -133,6 +136,19 @@ impl OllamaClient {
         &self.config.default_model
     }
 
+    /// Determine keep_alive value based on model tier
+    /// Light models (3b) and embedding models stay loaded forever, others unload after 5 minutes
+    fn get_keep_alive_for_model(model_name: &str) -> serde_json::Value {
+        let lower = model_name.to_lowercase();
+        // Light models (3b variants) and embedding models stay loaded forever
+        if lower.contains("3b") || lower.contains("ministral") || lower.contains("embed") || lower.contains("nomic") {
+            serde_json::json!(-1)
+        } else {
+            // Standard/Heavy models unload after 5 minutes of inactivity
+            serde_json::json!("5m")
+        }
+    }
+
     /// Get the embedding model name
     pub fn embedding_model(&self) -> &str {
         &self.config.embedding_model
@@ -146,6 +162,7 @@ impl OllamaClient {
     ) -> Result<reqwest::Response, DomainError> {
         let model_name = model.unwrap_or(&self.config.default_model);
 
+        let keep_alive = Self::get_keep_alive_for_model(model_name);
         let request = OllamaChatRequest {
             model: model_name.to_string(),
             messages: vec![OllamaChatMessage {
@@ -157,10 +174,11 @@ impl OllamaClient {
                 temperature: Some(0.7),
                 num_predict: Some(2048),
             }),
+            keep_alive: Some(keep_alive.clone()),
         };
 
         let url = self.api_url("api/chat");
-        debug!(url = %url, model = %model_name, "Sending streaming chat request");
+        debug!(url = %url, model = %model_name, keep_alive = %keep_alive, "Sending streaming chat request");
 
         let response = self.client
             .post(&url)
@@ -188,6 +206,7 @@ impl LlmProvider for OllamaClient {
     #[instrument(skip(self, prompt))]
     async fn generate(&self, prompt: &str, model: Option<&str>) -> Result<GenerationResult, DomainError> {
         let model_name = model.unwrap_or(&self.config.default_model);
+        let keep_alive = Self::get_keep_alive_for_model(model_name);
 
         let request = OllamaChatRequest {
             model: model_name.to_string(),
@@ -200,10 +219,11 @@ impl LlmProvider for OllamaClient {
                 temperature: Some(0.7),
                 num_predict: Some(2048),
             }),
+            keep_alive: Some(keep_alive.clone()),
         };
 
         let url = self.api_url("api/chat");
-        debug!(url = %url, model = %model_name, "Sending chat request");
+        debug!(url = %url, model = %model_name, keep_alive = %keep_alive, "Sending chat request");
 
         let response = self.client
             .post(&url)

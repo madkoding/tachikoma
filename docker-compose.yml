@@ -64,6 +64,11 @@ services:
     image: ollama/ollama:latest
     container_name: neuro-ollama
     restart: unless-stopped
+    environment:
+      # Keep model loaded indefinitely to avoid 30+ second reload times
+      - OLLAMA_KEEP_ALIVE=-1
+      # Context length for conversations
+      - OLLAMA_CONTEXT_LENGTH=4096
     volumes:
       - ollama_data:/root/.ollama
     ports:
@@ -80,21 +85,37 @@ services:
               capabilities: [gpu]
 
   # ===========================================================================
-  # Voice Service - Kokoro TTS API
+  # Voice Service - Piper TTS API (Rust)
   # ===========================================================================
-  # Text-to-speech synthesis using Kokoro-82M model. Provides voice
-  # synthesis capabilities for the AI assistant.
+  # Ultra-fast text-to-speech synthesis using Piper TTS with robotic effects.
+  # Migrated from Python to Rust for improved performance.
+  # GPU support for accelerated ONNX inference.
   # ===========================================================================
   voice-service:
     build:
-      context: ./voice-service
+      context: ./neuro-voice
       dockerfile: Dockerfile
     container_name: neuro-voice
     restart: unless-stopped
+    environment:
+      - RUST_LOG=info,voice_service=debug
+      - HOST=0.0.0.0
+      - PORT=8100
+      - PIPER_BIN=/app/piper/piper
+      - MODELS_DIR=/app/models
+      - DEFAULT_VOICE=es_MX-claude-high
     ports:
       - "8100:8100"
     networks:
       - neuro-network
+    # GPU support (requires nvidia-container-toolkit)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
       interval: 30s

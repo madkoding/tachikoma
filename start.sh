@@ -50,16 +50,35 @@ run_docker() {
 print_step "Starting Docker services..."
 run_docker compose up -d surrealdb searxng ollama
 
-# Build and start Voice Service container
-print_step "Starting Voice Service..."
+# Build and start Voice Service container (Rust)
+print_step "Starting Voice Service (Rust)..."
 if ! run_docker images | grep -q "neuro-voice"; then
     echo -e "  ${YELLOW}Building Voice Service image (first time only)...${NC}"
-    run_docker build -t neuro-voice ./voice-service
+    run_docker build -t neuro-voice ./neuro-voice
 fi
 run_docker stop neuro-voice 2>/dev/null || true
 run_docker rm neuro-voice 2>/dev/null || true
-run_docker run -d --gpus all --name neuro-voice --network neuro-os-network -p 8100:8100 neuro-voice
-echo -e "  ${GREEN}Voice Service started with GPU support!${NC}"
+
+# Get the network name from docker-compose
+NETWORK_NAME=$(run_docker network ls --filter name=kibo --format '{{.Name}}' | grep neuro-network | head -1)
+if [ -z "$NETWORK_NAME" ]; then
+    NETWORK_NAME="kibo_neuro-network"
+    # Create network if it doesn't exist
+    run_docker network create $NETWORK_NAME 2>/dev/null || true
+fi
+
+run_docker run -d --gpus all \
+    --name neuro-voice \
+    --network $NETWORK_NAME \
+    -p 8100:8100 \
+    -e RUST_LOG=info,voice_service=debug \
+    -e HOST=0.0.0.0 \
+    -e PORT=8100 \
+    -e PIPER_BIN=/app/piper/piper \
+    -e MODELS_DIR=/app/models \
+    -e DEFAULT_VOICE=es_MX-claude-high \
+    neuro-voice
+echo -e "  ${GREEN}Voice Service (Rust) started with GPU support!${NC}"
 
 # Wait for SurrealDB to be ready
 print_step "Waiting for SurrealDB to be ready..."
@@ -90,6 +109,19 @@ while ! curl -s http://127.0.0.1:11434/api/tags >/dev/null 2>&1; do
 done
 echo -e "${GREEN}  Ollama is ready!${NC}"
 
+# Pre-load the Light model (ministral-3:3b) - most used for simple queries
+print_step "Pre-loading Light model (this may take ~30s on first run)..."
+OLLAMA_LIGHT_MODEL="ministral-3:3b"
+echo -e "  ${YELLOW}Loading model: $OLLAMA_LIGHT_MODEL${NC}"
+# Send a simple prompt to force model loading
+WARMUP_RESPONSE=$(curl -s --max-time 120 http://127.0.0.1:11434/api/chat \
+    -d "{\"model\": \"$OLLAMA_LIGHT_MODEL\", \"messages\": [{\"role\": \"user\", \"content\": \"hi\"}], \"stream\": false}" 2>/dev/null)
+if echo "$WARMUP_RESPONSE" | grep -q "content"; then
+    echo -e "${GREEN}  Light model loaded and ready!${NC}"
+else
+    echo -e "${YELLOW}  Warning: Model warm-up may have failed. First request might be slow.${NC}"
+fi
+
 # Start backend in background
 print_step "Starting backend..."
 cd neuro-backend
@@ -97,11 +129,11 @@ cd neuro-backend
 # Voice service URL (Docker container)
 export VOICE_SERVICE_URL="http://127.0.0.1:8100"
 
+# Note: OLLAMA_DEFAULT_MODEL is not used - ModelManager selects model dynamically based on task
 DATABASE_URL="ws://127.0.0.1:8000" \
 DATABASE_USER="root" \
 DATABASE_PASS="neuroos_secret_2024" \
 OLLAMA_URL="http://127.0.0.1:11434" \
-OLLAMA_DEFAULT_MODEL="qwen2.5:3b" \
 SEARXNG_URL="http://127.0.0.1:8080" \
 RUST_LOG=info \
 ./target/release/neuro-backend &

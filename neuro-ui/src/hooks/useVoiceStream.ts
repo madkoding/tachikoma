@@ -65,7 +65,11 @@ export interface UseVoiceStreamReturn {
 
 // Voice service URL (proxied through Vite in dev, direct in production)
 const VOICE_SERVICE_URL = '/voice';
-const SAMPLE_RATE = 22050; // Piper TTS outputs 22.05kHz
+const SAMPLE_RATE = 44100; // High quality audio at 44.1kHz (CD quality)
+const OPUS_SAMPLE_RATE = 48000; // Opus encoder uses 48kHz (highest quality)
+
+// Use Opus format for ~10x smaller payload and faster streaming
+const USE_OPUS = true;
 
 // Default configuration
 const DEFAULT_CONFIG: VoiceConfig = {
@@ -109,8 +113,10 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
 
   const initAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
+      // Use appropriate sample rate based on format
+      const sampleRate = USE_OPUS ? OPUS_SAMPLE_RATE : SAMPLE_RATE;
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
-        sampleRate: SAMPLE_RATE,
+        sampleRate: sampleRate,
       });
 
       // Create gain node for volume control
@@ -169,18 +175,56 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
   }, []);
 
   // ==========================================================================
-  // WAV Decoding
+  // Audio Decoding (WAV and OGG/Opus)
   // ==========================================================================
 
-  const decodeWavToAudioBuffer = useCallback(async (wavData: ArrayBuffer): Promise<AudioBuffer> => {
+  const decodeAudioToBuffer = useCallback(async (audioData: ArrayBuffer, format: 'wav' | 'opus'): Promise<AudioBuffer> => {
     const audioContext = initAudioContext();
     
     try {
-      // Use Web Audio API's built-in decoder
-      return await audioContext.decodeAudioData(wavData);
+      // Create a copy of the ArrayBuffer because decodeAudioData may detach it
+      const audioDataCopy = audioData.slice(0);
+      
+      // Web Audio API can decode both WAV and OGG/Opus natively
+      return await audioContext.decodeAudioData(audioDataCopy);
     } catch (error) {
-      console.error('Failed to decode WAV:', error);
-      throw new Error('Failed to decode audio data');
+      console.error(`Failed to decode ${format.toUpperCase()}:`, error);
+      
+      // Fallback: Manual WAV parsing for simple PCM data (only works for WAV)
+      if (format === 'wav') {
+        try {
+          const view = new DataView(audioData);
+          const numChannels = view.getUint16(22, true);
+          const sampleRate = view.getUint32(24, true);
+          const bitsPerSample = view.getUint16(34, true);
+          
+          // Find data chunk
+          let dataOffset = 44; // Standard WAV header size
+          const dataLength = (audioData.byteLength - dataOffset);
+          const numSamples = dataLength / (numChannels * (bitsPerSample / 8));
+          
+          const buffer = audioContext.createBuffer(numChannels, numSamples, sampleRate);
+          
+          for (let channel = 0; channel < numChannels; channel++) {
+            const channelData = buffer.getChannelData(channel);
+            for (let i = 0; i < numSamples; i++) {
+              const offset = dataOffset + (i * numChannels + channel) * (bitsPerSample / 8);
+              if (bitsPerSample === 16) {
+                channelData[i] = view.getInt16(offset, true) / 32768;
+              } else if (bitsPerSample === 32) {
+                channelData[i] = view.getFloat32(offset, true);
+              }
+            }
+          }
+          
+          return buffer;
+        } catch (fallbackError) {
+          console.error('Fallback WAV decoding also failed:', fallbackError);
+          throw new Error('Failed to decode audio data');
+        }
+      }
+      
+      throw new Error(`Failed to decode ${format.toUpperCase()} audio data`);
     }
   }, [initAudioContext]);
 
@@ -228,8 +272,15 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
     try {
       initAudioContext();
 
+      // Choose endpoint based on format preference
+      const endpoint = USE_OPUS 
+        ? `${VOICE_SERVICE_URL}/synthesize/opus`
+        : `${VOICE_SERVICE_URL}/synthesize/stream`;
+      
+      const audioFormat = USE_OPUS ? 'opus' : 'wav';
+
       // Use streaming endpoint for real-time playback
-      const response = await fetch(`${VOICE_SERVICE_URL}/synthesize/stream`, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -238,7 +289,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
           text: text,
           voice: config.voice,
           speed: config.speed,
-          pitch_shift: 3,  // +3 semitones
+          pitch_shift: 6,  // +6 semitones (Tachikoma voice)
           robot_effect: true,  // Enable robot effect chain
         }),
         signal: abortControllerRef.current.signal,
@@ -279,8 +330,8 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
                   bytes[i] = binaryString.charCodeAt(i);
                 }
 
-                // Decode WAV and add to queue
-                const audioBuffer = await decodeWavToAudioBuffer(bytes.buffer);
+                // Decode audio (WAV or OGG/Opus) and add to queue
+                const audioBuffer = await decodeAudioToBuffer(bytes.buffer, audioFormat);
                 audioQueueRef.current.push(audioBuffer);
                 setState(prev => ({ 
                   ...prev, 
@@ -314,7 +365,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
         error: error.message || 'Voice synthesis failed',
       }));
     }
-  }, [config.enabled, config.voice, config.speed, initAudioContext, decodeWavToAudioBuffer, processQueue]);
+  }, [config.enabled, config.voice, config.speed, initAudioContext, decodeAudioToBuffer, processQueue]);
 
   // ==========================================================================
   // Playback Controls
