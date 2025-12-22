@@ -50,9 +50,34 @@ run_docker() {
 print_step "Starting Docker services..."
 run_docker compose up -d surrealdb searxng ollama
 
-# Wait for services
-print_step "Waiting for services to be ready..."
-sleep 5
+# Wait for SurrealDB to be ready
+print_step "Waiting for SurrealDB to be ready..."
+MAX_RETRIES=30
+RETRY_COUNT=0
+while ! curl -s http://127.0.0.1:8000/health >/dev/null 2>&1; do
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+        echo -e "${RED}Error: SurrealDB failed to start after $MAX_RETRIES attempts${NC}"
+        exit 1
+    fi
+    echo -e "  Waiting for SurrealDB... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+    sleep 2
+done
+echo -e "${GREEN}  SurrealDB is ready!${NC}"
+
+# Wait for Ollama to be ready
+print_step "Waiting for Ollama to be ready..."
+RETRY_COUNT=0
+while ! curl -s http://127.0.0.1:11434/api/tags >/dev/null 2>&1; do
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+        echo -e "${YELLOW}Warning: Ollama not responding, continuing anyway...${NC}"
+        break
+    fi
+    echo -e "  Waiting for Ollama... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+    sleep 2
+done
+echo -e "${GREEN}  Ollama is ready!${NC}"
 
 # Start backend in background
 print_step "Starting backend..."
