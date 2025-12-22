@@ -45,12 +45,25 @@ pub struct SearchResults {
 
 impl SearchResults {
     pub fn as_context(&self, max_results: usize) -> String {
-        let mut context = format!("Web search results for '{}':\n\n", self.query);
+        // Pre-calcular capacidad estimada para evitar re-allocaciones
+        let estimated_size = 50 + self.query.len() + 
+            self.results.iter().take(max_results)
+                .map(|r| r.title.len() + r.url.len() + r.snippet.len() + 30)
+                .sum::<usize>();
+        
+        let mut context = String::with_capacity(estimated_size);
+        context.push_str("Web search results for '");
+        context.push_str(&self.query);
+        context.push_str("':\n\n");
+        
         for (i, result) in self.results.iter().take(max_results).enumerate() {
-            context.push_str(&format!(
+            use std::fmt::Write;
+            // write! es más eficiente que format! + push_str
+            let _ = write!(
+                context,
                 "{}. {}\n   URL: {}\n   {}\n\n",
                 i + 1, result.title, result.url, result.snippet
-            ));
+            );
         }
         context
     }

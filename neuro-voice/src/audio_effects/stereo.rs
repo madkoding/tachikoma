@@ -23,14 +23,22 @@ impl StereoBuffer {
 
     /// Interleave L/R channels for standard stereo output
     pub fn interleave(&self) -> Vec<f32> {
-        let mut output = Vec::with_capacity(self.left.len() * 2);
-        for i in 0..self.left.len() {
-            output.push(self.left[i]);
-            output.push(self.right[i]);
+        let len = self.left.len();
+        let mut output = Vec::with_capacity(len * 2);
+        
+        // Usar iteradores zip es más eficiente que indexar en loop
+        // y permite mejor vectorización por el compilador
+        for (&l, &r) in self.left.iter().zip(self.right.iter()) {
+            output.push(l);
+            output.push(r);
         }
         output
     }
 }
+
+/// Pre-computed constants
+const TWO_PI: f32 = std::f32::consts::PI * 2.0;
+const MS_TO_SECONDS: f32 = 0.001;
 
 /// Create stereo from mono with dual-voice effect
 /// 
@@ -45,7 +53,7 @@ pub fn mono_to_stereo_dual_voice(
     pitch_detune: f32,  // Pitch difference in cents (10-30 typical)
     swap_rate_hz: f32,  // How often voices swap channels (0.5-2 Hz)
 ) -> StereoBuffer {
-    let delay_samples = ((delay_ms / 1000.0) * SAMPLE_RATE as f32) as usize;
+    let delay_samples = ((delay_ms * MS_TO_SECONDS) * SAMPLE_RATE as f32) as usize;
     let len = mono.len();
     
     let mut stereo = StereoBuffer::new(len);
@@ -55,8 +63,12 @@ pub fn mono_to_stereo_dual_voice(
     
     // Calculate swap envelope (smooth crossfade between channels)
     let swap_period = (SAMPLE_RATE as f32 / swap_rate_hz) as usize;
+    // Pre-compute inverse for multiplication instead of division
+    let inv_swap_period = 1.0 / swap_period as f32;
+    // Pre-compute angular frequency
+    let phase_multiplier = TWO_PI * inv_swap_period;
     
-    for (i, _) in mono.iter().enumerate().take(len) {
+    for i in 0..len {
         // Original sample
         let original = mono[i];
         
@@ -65,14 +77,15 @@ pub fn mono_to_stereo_dual_voice(
         let detuned_sample = detuned[delayed_idx];
         
         // Calculate crossfade position (0.0 to 1.0, oscillating)
-        let phase = (i % swap_period) as f32 / swap_period as f32;
-        let crossfade = (phase * std::f32::consts::PI * 2.0).sin() * 0.5 + 0.5;
+        // Optimized: avoid modulo and division by using pre-computed multiplier
+        let phase_idx = i % swap_period;
+        let crossfade = (phase_idx as f32 * phase_multiplier).sin() * 0.5 + 0.5;
         
         // Smooth crossfade between channel assignments
-        // When crossfade = 0: original→L, detuned→R
-        // When crossfade = 1: detuned→L, original→R
-        stereo.left[i] = original * (1.0 - crossfade) + detuned_sample * crossfade;
-        stereo.right[i] = detuned_sample * (1.0 - crossfade) + original * crossfade;
+        // Optimized: compute (1 - crossfade) once
+        let inv_crossfade = 1.0 - crossfade;
+        stereo.left[i] = original * inv_crossfade + detuned_sample * crossfade;
+        stereo.right[i] = detuned_sample * inv_crossfade + original * crossfade;
     }
     
     stereo
@@ -126,6 +139,10 @@ pub fn mono_to_stereo_autopan(
     stereo
 }
 
+/// Constante pre-calculada para conversión de cents
+const LN_2: f32 = 0.693147180559945;
+const INV_1200: f32 = 1.0 / 1200.0;
+
 /// Simple micro pitch shift using resampling (for small detuning)
 /// cents: pitch change in cents (100 cents = 1 semitone)
 fn apply_micro_pitch_shift(audio: &[f32], cents: f32) -> Vec<f32> {
@@ -133,27 +150,31 @@ fn apply_micro_pitch_shift(audio: &[f32], cents: f32) -> Vec<f32> {
         return audio.to_vec();
     }
     
-    // Convert cents to ratio: 2^(cents/1200)
-    let ratio = 2.0_f32.powf(cents / 1200.0);
-    let new_len = (audio.len() as f32 / ratio) as usize;
+    let audio_len = audio.len();
+    
+    // Convert cents to ratio: 2^(cents/1200) usando e^(x*ln2) que es más rápido
+    let ratio = (cents * INV_1200 * LN_2).exp();
+    let new_len = (audio_len as f32 / ratio) as usize;
     let mut output = Vec::with_capacity(new_len);
+    let last_idx = audio_len - 1;
     
     for i in 0..new_len {
         let src_pos = i as f32 * ratio;
         let src_idx = src_pos as usize;
         let frac = src_pos - src_idx as f32;
         
-        let sample = if src_idx + 1 < audio.len() {
-            audio[src_idx] * (1.0 - frac) + audio[src_idx + 1] * frac
+        let sample = if src_idx < last_idx {
+            // Interpolación optimizada: s0 + frac * (s1 - s0)
+            audio[src_idx] + frac * (audio[src_idx + 1] - audio[src_idx])
         } else {
-            audio[src_idx.min(audio.len() - 1)]
+            audio[src_idx.min(last_idx)]
         };
         
         output.push(sample);
     }
     
     // Pad or trim to match original length
-    output.resize(audio.len(), 0.0);
+    output.resize(audio_len, 0.0);
     output
 }
 

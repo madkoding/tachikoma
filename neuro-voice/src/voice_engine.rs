@@ -301,13 +301,16 @@ impl VoiceEngine {
         // Convert raw PCM to f32 samples
         // Piper outputs 16-bit signed PCM at 22050 Hz mono
         let raw_bytes = output.stdout;
-        let num_samples = raw_bytes.len() / 2;
+        let num_samples = raw_bytes.len() >> 1;  // Más rápido que / 2
         let mut samples = Vec::with_capacity(num_samples);
+        
+        // Constante pre-calculada para normalización (1/32768)
+        const INV_32768: f32 = 1.0 / 32768.0;
 
         for chunk in raw_bytes.chunks_exact(2) {
             let sample_i16 = i16::from_le_bytes([chunk[0], chunk[1]]);
-            let sample_f32 = sample_i16 as f32 / 32768.0;
-            samples.push(sample_f32);
+            // Multiplicar por recíproco es más rápido que dividir
+            samples.push(sample_i16 as f32 * INV_32768);
         }
 
         Ok(samples)
@@ -316,17 +319,28 @@ impl VoiceEngine {
     /// Upsample audio from Piper rate (22050 Hz) to target rate (44100 Hz)
     /// Uses linear interpolation for simplicity - exact 2x ratio
     fn upsample_2x(samples: &[f32]) -> Vec<f32> {
-        let mut upsampled = Vec::with_capacity(samples.len() * 2);
+        let len = samples.len();
+        if len == 0 {
+            return Vec::new();
+        }
         
-        for i in 0..samples.len() {
+        let mut upsampled = Vec::with_capacity(len << 1);  // Más rápido que * 2
+        let last_idx = len - 1;
+        
+        for i in 0..last_idx {
             let current = samples[i];
-            let next = samples.get(i + 1).copied().unwrap_or(current);
+            let next = samples[i + 1];
             
             // Original sample
             upsampled.push(current);
-            // Interpolated sample (midpoint)
+            // Interpolated sample (midpoint): optimizado como (a + b) * 0.5
             upsampled.push((current + next) * 0.5);
         }
+        
+        // Último sample: sin interpolación (o duplicar)
+        let last = samples[last_idx];
+        upsampled.push(last);
+        upsampled.push(last);
         
         upsampled
     }
@@ -369,11 +383,17 @@ impl VoiceEngine {
         };
 
         let mut writer = WavWriter::new(cursor, spec)?;
+        
+        // Constantes pre-calculadas para conversión
+        const SCALE: f32 = 32767.0;
+        const MIN_VAL: f32 = -32768.0;
+        const MAX_VAL: f32 = 32767.0;
 
         // Write interleaved stereo samples (L, R, L, R, ...)
-        for i in 0..stereo.left.len() {
-            let left_i16 = (stereo.left[i] * 32767.0).clamp(-32768.0, 32767.0) as i16;
-            let right_i16 = (stereo.right[i] * 32767.0).clamp(-32768.0, 32767.0) as i16;
+        // Usar iteradores zip para mejor rendimiento
+        for (&left, &right) in stereo.left.iter().zip(stereo.right.iter()) {
+            let left_i16 = (left * SCALE).clamp(MIN_VAL, MAX_VAL) as i16;
+            let right_i16 = (right * SCALE).clamp(MIN_VAL, MAX_VAL) as i16;
             writer.write_sample(left_i16)?;
             writer.write_sample(right_i16)?;
         }

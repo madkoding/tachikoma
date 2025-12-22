@@ -79,37 +79,24 @@ lazy_static! {
 /// # Returns
 /// Cleaned text suitable for TTS
 pub fn clean_text_for_speech(text: &str) -> String {
-    let mut result = text.to_string();
+    use std::borrow::Cow;
+    
+    // Usar Cow para evitar allocaciones cuando no hay cambios
+    // Solo convierte a String owned cuando hay un reemplazo real
+    let result: Cow<str> = CODE_BLOCK_PATTERN.replace_all(text, " código omitido ");
+    let result: Cow<str> = INLINE_CODE_PATTERN.replace_all(&result, "");
+    let result: Cow<str> = EMOJI_PATTERN.replace_all(&result, "");
+    let result: Cow<str> = URL_PATTERN.replace_all(&result, "");
+    let result: Cow<str> = BOLD_ASTERISK_PATTERN.replace_all(&result, "$1");
+    let result: Cow<str> = ITALIC_ASTERISK_PATTERN.replace_all(&result, "$1");
+    let result: Cow<str> = BOLD_UNDERSCORE_PATTERN.replace_all(&result, "$1");
+    let result: Cow<str> = ITALIC_UNDERSCORE_PATTERN.replace_all(&result, "$1");
+    let result: Cow<str> = HEADER_PATTERN.replace_all(&result, "");
+    let result: Cow<str> = LIST_MARKER_PATTERN.replace_all(&result, "");
+    let result: Cow<str> = NUMBERED_LIST_PATTERN.replace_all(&result, "");
+    let result: Cow<str> = WHITESPACE_PATTERN.replace_all(&result, " ");
 
-    // Remove code blocks (```language\n...\n```)
-    result = CODE_BLOCK_PATTERN.replace_all(&result, " código omitido ").to_string();
-
-    // Remove inline code (`...`)
-    result = INLINE_CODE_PATTERN.replace_all(&result, "").to_string();
-
-    // Remove emojis
-    result = EMOJI_PATTERN.replace_all(&result, "").to_string();
-
-    // Remove URLs
-    result = URL_PATTERN.replace_all(&result, "").to_string();
-
-    // Remove markdown bold/italic
-    result = BOLD_ASTERISK_PATTERN.replace_all(&result, "$1").to_string();
-    result = ITALIC_ASTERISK_PATTERN.replace_all(&result, "$1").to_string();
-    result = BOLD_UNDERSCORE_PATTERN.replace_all(&result, "$1").to_string();
-    result = ITALIC_UNDERSCORE_PATTERN.replace_all(&result, "$1").to_string();
-
-    // Remove markdown headers
-    result = HEADER_PATTERN.replace_all(&result, "").to_string();
-
-    // Remove markdown list markers
-    result = LIST_MARKER_PATTERN.replace_all(&result, "").to_string();
-    result = NUMBERED_LIST_PATTERN.replace_all(&result, "").to_string();
-
-    // Replace multiple whitespace with single space
-    result = WHITESPACE_PATTERN.replace_all(&result, " ").to_string();
-
-    // Trim
+    // Solo al final convertimos a String y trimmeamos
     result.trim().to_string()
 }
 
@@ -122,20 +109,28 @@ pub fn clean_text_for_speech(text: &str) -> String {
 /// Vector of sentences
 pub fn split_into_sentences(text: &str) -> Vec<String> {
     // Split on sentence-ending punctuation followed by whitespace
-    // Note: Rust regex doesn't support look-behind, so we use a different approach
-    // Replace sentence endings with a marker, then split
-    let with_markers = text
-        .replace(". ", ".|SPLIT|")
-        .replace("! ", "!|SPLIT|")
-        .replace("? ", "?|SPLIT|")
-        .replace(".\n", ".|SPLIT|")
-        .replace("!\n", "!|SPLIT|")
-        .replace("?\n", "?|SPLIT|");
+    // Optimizado: usar una sola pasada con chars() en lugar de múltiples replace()
+    let mut result = String::with_capacity(text.len() + text.len() / 20); // Pequeño overhead para marcadores
+    let mut chars = text.chars().peekable();
     
-    let sentences: Vec<String> = with_markers
+    while let Some(c) = chars.next() {
+        result.push(c);
+        // Si es puntuación final y el siguiente es espacio o newline, insertar marcador
+        if c == '.' || c == '!' || c == '?' {
+            if let Some(&next) = chars.peek() {
+                if next == ' ' || next == '\n' {
+                    result.push_str("|SPLIT|");
+                    chars.next(); // Consumir el espacio/newline
+                }
+            }
+        }
+    }
+    
+    let sentences: Vec<String> = result
         .split("|SPLIT|")
-        .map(|s| s.trim().to_string())
+        .map(|s| s.trim())
         .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
         .collect();
 
     if sentences.is_empty() {

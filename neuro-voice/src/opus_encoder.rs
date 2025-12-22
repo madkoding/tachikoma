@@ -104,10 +104,12 @@ pub fn encode_pcm_to_opus(pcm_samples: &[f32]) -> Result<Vec<u8>> {
     // For stereo: each frame needs OPUS_FRAME_SIZE samples per channel
     // Interleaved format: [L0, R0, L1, R1, ...] so we need OPUS_FRAME_SIZE * 2 values per frame
     let stereo_frame_size = OPUS_STEREO_FRAME_SIZE;
-    let chunks: Vec<_> = pcm_samples.chunks(stereo_frame_size).collect();
-    let total_chunks = chunks.len();
+    
+    // Contar chunks sin collect para evitar allocación
+    let total_chunks = (pcm_samples.len() + stereo_frame_size - 1) / stereo_frame_size;
+    let mut chunk_idx = 0;
 
-    for (idx, chunk) in chunks.into_iter().enumerate() {
+    for chunk in pcm_samples.chunks(stereo_frame_size) {
         // Pad last chunk if necessary (must be exact stereo frame size)
         let input: Vec<f32> = if chunk.len() < stereo_frame_size {
             let mut padded = chunk.to_vec();
@@ -125,7 +127,7 @@ pub fn encode_pcm_to_opus(pcm_samples: &[f32]) -> Result<Vec<u8>> {
                 granule_pos += OPUS_FRAME_SIZE as u64;
                 
                 // Determine if this is the last packet
-                let end_info = if idx == total_chunks - 1 {
+                let end_info = if chunk_idx == total_chunks - 1 {
                     ogg::writing::PacketWriteEndInfo::EndStream
                 } else {
                     ogg::writing::PacketWriteEndInfo::NormalPacket
@@ -143,6 +145,8 @@ pub fn encode_pcm_to_opus(pcm_samples: &[f32]) -> Result<Vec<u8>> {
                 return Err(anyhow!("Opus encoding failed: {}", e));
             }
         }
+        
+        chunk_idx += 1;
     }
 
     // Get the final output
@@ -165,19 +169,23 @@ pub fn resample(samples: &[f32], source_rate: u32, target_rate: u32) -> Vec<f32>
         return samples.to_vec();
     }
 
-    let ratio = source_rate as f64 / target_rate as f64;
-    let new_len = (samples.len() as f64 / ratio) as usize;
+    let samples_len = samples.len();
+    // Usar f32 para todas las operaciones - más rápido en CPUs modernos
+    let ratio = source_rate as f32 / target_rate as f32;
+    let new_len = (samples_len as f32 / ratio) as usize;
     let mut resampled = Vec::with_capacity(new_len);
+    let last_idx = samples_len - 1;
 
     for i in 0..new_len {
-        let src_pos = i as f64 * ratio;
+        let src_pos = i as f32 * ratio;
         let src_idx = src_pos as usize;
-        let frac = src_pos - src_idx as f64;
+        let frac = src_pos - src_idx as f32;
 
-        let sample = if src_idx + 1 < samples.len() {
-            samples[src_idx] * (1.0 - frac as f32) + samples[src_idx + 1] * frac as f32
+        let sample = if src_idx < last_idx {
+            // Interpolación optimizada: s0 + frac * (s1 - s0)
+            samples[src_idx] + frac * (samples[src_idx + 1] - samples[src_idx])
         } else {
-            samples[src_idx.min(samples.len() - 1)]
+            samples[src_idx.min(last_idx)]
         };
 
         resampled.push(sample);

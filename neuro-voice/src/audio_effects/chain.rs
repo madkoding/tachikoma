@@ -4,8 +4,18 @@ use super::reverb::apply_reverb;
 use super::limiter::apply_limiter;
 use super::chorus::apply_chorus;
 
+/// Constantes pre-calculadas para el delay
+const DELAY_MS: f32 = 0.030; // 30ms
+const DRY_MIX: f32 = 0.55;   // 55% voz original
+const WET_MIX: f32 = 0.45;   // 45% voz procesada
+
 fn normalize_peak_in_place(audio: &mut [f32], max_level: f32) {
-    let max_val = audio.iter().map(|s| s.abs()).fold(0.0f32, f32::max);
+    // Usar reduce en lugar de fold para mejor optimización
+    let max_val = audio.iter()
+        .map(|s| s.abs())
+        .reduce(f32::max)
+        .unwrap_or(0.0);
+    
     if max_val > max_level {
         let scale = max_level / max_val;
         for s in audio.iter_mut() {
@@ -41,6 +51,7 @@ pub fn apply_robot_effect_chain(
     // CAPA 1: Voz original 100% SIN FILTROS
     // =========================================================================
     let dry = audio;
+    let dry_len = dry.len();
 
     // =========================================================================
     // CAPA 2: Pitch +6, chorus, reverb CON 30ms de delay
@@ -59,23 +70,26 @@ pub fn apply_robot_effect_chain(
     // MEZCLA: dry (sin delay) + wet (con 30ms de delay)
     // =========================================================================
     
-    // 30ms de delay en samples: 22050 * 0.030 = 661 samples
-    let delay_samples = (SAMPLE_RATE as f32 * 0.030) as usize; // 30ms
+    // Delay pre-calculado como constante multiplicada por sample rate
+    let delay_samples = (SAMPLE_RATE as f32 * DELAY_MS) as usize;
+    let wet_len = wet.len();
     
     // La salida debe ser lo suficientemente larga para ambas
-    let out_len = dry.len().max(wet.len() + delay_samples);
+    let out_len = dry_len.max(wet_len + delay_samples);
     let mut out = vec![0.0f32; out_len];
 
     // Agregar dry (voz original) desde el inicio
-    for (i, &dry_sample) in dry.iter().enumerate() {
-        out[i] += dry_sample * 0.55; // 55% voz original
+    // Usar slice directo para mejor rendimiento
+    for (out_sample, &dry_sample) in out[..dry_len].iter_mut().zip(dry.iter()) {
+        *out_sample = dry_sample * DRY_MIX;
     }
     
     // Agregar wet (voz procesada) con delay de 30ms
+    let wet_end = (delay_samples + wet_len).min(out_len);
     for (i, &wet_sample) in wet.iter().enumerate() {
         let out_idx = i + delay_samples;
-        if out_idx < out_len {
-            out[out_idx] += wet_sample * 0.45; // 45% voz procesada con delay
+        if out_idx < wet_end {
+            out[out_idx] += wet_sample * WET_MIX;
         }
     }
 

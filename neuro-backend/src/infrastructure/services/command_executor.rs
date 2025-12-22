@@ -76,13 +76,13 @@ impl SafeCommandExecutor {
             .map(|s| s.to_string())
     }
 
+    #[inline]
     fn contains_blocked_pattern(&self, command: &str) -> Option<&str> {
-        for pattern in &self.blocked_patterns {
-            if command.contains(pattern) {
-                return Some(pattern);
-            }
-        }
-        None
+        // Usar find() es más idiomático y puede ser optimizado mejor por el compilador
+        self.blocked_patterns
+            .iter()
+            .find(|pattern| command.contains(pattern.as_str()))
+            .map(|s| s.as_str())
     }
 
     fn is_safe_git_command(args: &[&str]) -> bool {
