@@ -12,7 +12,7 @@ use crate::config::Config;
 use anyhow::Result;
 use colored::Colorize;
 use rustyline::error::ReadlineError;
-use rustyline::{DefaultEditor, Result as RlResult};
+use rustyline::DefaultEditor;
 
 /// Special shell commands
 const CMD_HELP: &str = "/help";

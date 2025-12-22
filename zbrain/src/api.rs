@@ -54,10 +54,13 @@ struct HealthServices {
 /// Memory item from API
 #[derive(Debug, Deserialize)]
 pub struct Memory {
+    #[allow(dead_code)]
     pub id: String,
     pub content: String,
     pub memory_type: String,
+    #[allow(dead_code)]
     pub importance: f32,
+    #[allow(dead_code)]
     pub created_at: String,
 }
 
