@@ -86,7 +86,7 @@ export default function MemoriesPage() {
                     {t('memories.createdAt')}
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
+                    {t('memories.actions')}
                   </th>
                 </tr>
               </thead>
@@ -112,11 +112,11 @@ export default function MemoriesPage() {
                         <div className="w-16 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
                           <div
                             className="bg-neuro-500 h-2 rounded-full"
-                            style={{ width: `${memory.importance * 100}%` }}
+                            style={{ width: `${memory.importance_score * 100}%` }}
                           />
                         </div>
                         <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
-                          {memory.importance.toFixed(2)}
+                          {memory.importance_score.toFixed(2)}
                         </span>
                       </div>
                     </td>
@@ -186,7 +186,7 @@ function MemoryDetailModal({ memory, onClose }: MemoryDetailModalProps) {
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Memory Details
+              {t('memories.details')}
             </h2>
             <button
               onClick={onClose}
@@ -217,7 +217,7 @@ function MemoryDetailModal({ memory, onClose }: MemoryDetailModalProps) {
                 <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
                   {t('memories.importance')}
                 </label>
-                <p className="mt-1 text-gray-900 dark:text-white">{memory.importance.toFixed(2)}</p>
+                <p className="mt-1 text-gray-900 dark:text-white">{memory.importance_score.toFixed(2)}</p>
               </div>
             </div>
 
@@ -288,7 +288,7 @@ function AddMemoryModal({ onClose, onSuccess }: AddMemoryModalProps) {
     createMutation.mutate({
       content,
       memory_type: memoryType,
-      importance,
+      importance_score: importance,
       metadata: {},
     });
   };

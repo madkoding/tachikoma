@@ -34,9 +34,21 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-# Start Docker services
+# Function to run docker commands (handles group membership issue)
+run_docker() {
+    if docker ps >/dev/null 2>&1; then
+        docker "$@"
+    elif sg docker -c "docker ps" >/dev/null 2>&1; then
+        sg docker -c "docker $*"
+    else
+        echo -e "${RED}Error: Cannot access Docker. Please ensure you're in the docker group and re-login.${NC}"
+        exit 1
+    fi
+}
+
+# Start Docker services (user must be in docker group)
 print_step "Starting Docker services..."
-docker-compose up -d surrealdb searxng ollama
+run_docker compose up -d surrealdb searxng ollama
 
 # Wait for services
 print_step "Waiting for services to be ready..."
@@ -45,7 +57,14 @@ sleep 5
 # Start backend in background
 print_step "Starting backend..."
 cd neuro-backend
-cargo run --release &
+DATABASE_URL="ws://127.0.0.1:8000" \
+DATABASE_USER="root" \
+DATABASE_PASS="neuroos_secret_2024" \
+OLLAMA_URL="http://127.0.0.1:11434" \
+OLLAMA_DEFAULT_MODEL="qwen2.5:3b" \
+SEARXNG_URL="http://127.0.0.1:8080" \
+RUST_LOG=info \
+./target/release/neuro-backend &
 BACKEND_PID=$!
 cd ..
 

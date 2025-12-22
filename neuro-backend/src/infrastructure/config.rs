@@ -165,7 +165,7 @@ impl OllamaConfig {
                 .parse()
                 .unwrap_or(120),
             default_model: std::env::var("OLLAMA_DEFAULT_MODEL")
-                .unwrap_or_else(|_| "qwen2.5:7b".to_string()),
+                .unwrap_or_else(|_| "qwen2.5-coder:7b".to_string()),
             embedding_model: std::env::var("OLLAMA_EMBEDDING_MODEL")
                 .unwrap_or_else(|_| "nomic-embed-text".to_string()),
         })

@@ -4,17 +4,17 @@ export default function TypingIndicator() {
   const { t } = useTranslation();
 
   return (
-    <div className="flex gap-3 p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-      <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-600 dark:bg-gray-500 text-white text-sm font-medium shrink-0">
-        N
+    <div className="flex gap-3 p-4 rounded border border-cyber-cyan/20 bg-cyber-cyan/5">
+      <div className="w-8 h-8 rounded flex items-center justify-center bg-cyber-cyan/20 text-cyber-cyan text-sm font-bold shrink-0 border border-cyber-cyan/50 font-cyber">
+        T
       </div>
       <div className="flex items-center">
         <div className="typing-indicator flex gap-1">
-          <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
-          <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
-          <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+          <span></span>
+          <span></span>
+          <span></span>
         </div>
-        <span className="ml-2 text-sm text-gray-500">{t('chat.thinking')}</span>
+        <span className="ml-3 text-sm text-cyber-cyan/60 font-mono">{t('chat.thinking')}</span>
       </div>
     </div>
   );

@@ -1,51 +1,60 @@
 import { Message } from '../stores/chatStore';
+import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 
 interface ChatMessageProps {
-  message: Message;
+  readonly message: Message;
 }
 
-export default function ChatMessage({ message }: ChatMessageProps) {
+export default function ChatMessage({ message }: Readonly<ChatMessageProps>) {
+  const { t } = useTranslation();
   const isUser = message.role === 'user';
 
   return (
     <div
       className={clsx(
-        'flex gap-3 p-4 rounded-lg',
-        isUser ? 'bg-neuro-50 dark:bg-neuro-900/20' : 'bg-gray-50 dark:bg-gray-800'
+        'flex gap-3 p-4 rounded border transition-all',
+        isUser 
+          ? 'bg-cyber-magenta/5 border-cyber-magenta/20' 
+          : 'bg-cyber-cyan/5 border-cyber-cyan/20'
       )}
     >
       {/* Avatar */}
       <div
         className={clsx(
-          'w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium shrink-0',
-          isUser ? 'bg-neuro-500' : 'bg-gray-600 dark:bg-gray-500'
+          'w-8 h-8 rounded flex items-center justify-center text-sm font-bold shrink-0 font-cyber',
+          isUser 
+            ? 'bg-cyber-magenta/20 text-cyber-magenta border border-cyber-magenta/50' 
+            : 'bg-cyber-cyan/20 text-cyber-cyan border border-cyber-cyan/50'
         )}
       >
-        {isUser ? 'U' : 'N'}
+        {isUser ? 'U' : 'T'}
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="font-medium text-sm">
-            {isUser ? 'You' : 'NEURO-OS'}
+          <span className={clsx(
+            'font-medium text-sm font-mono',
+            isUser ? 'text-cyber-magenta' : 'neon-cyan'
+          )}>
+            {isUser ? t('message.user') : t('message.assistant')}
           </span>
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-cyber-cyan/40 font-mono">
             {new Date(message.createdAt).toLocaleTimeString()}
           </span>
         </div>
         
-        <div className="prose prose-sm dark:prose-invert max-w-none">
+        <div className="prose prose-sm max-w-none">
           <ReactMarkdown>{message.content}</ReactMarkdown>
         </div>
 
         {/* Token info for assistant messages */}
         {!isUser && message.tokensPrompt !== undefined && (
-          <div className="mt-2 text-xs text-gray-500 flex gap-3">
-            {message.model && <span>Model: {message.model}</span>}
-            <span>Tokens: {message.tokensPrompt} + {message.tokensCompletion}</span>
+          <div className="mt-2 text-xs text-cyber-cyan/50 flex gap-3 font-mono">
+            {message.model && <span>{t('message.model')}: <span className="text-cyber-green">{message.model}</span></span>}
+            <span>{t('message.tokens')}: <span className="text-cyber-yellow">{message.tokensPrompt} + {message.tokensCompletion}</span></span>
           </div>
         )}
       </div>

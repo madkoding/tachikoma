@@ -17,18 +17,17 @@ NC='\033[0m'
 
 echo -e "${CYAN}Stopping NEURO-OS services...${NC}"
 
-# Stop Docker services
-echo -e "${YELLOW}▶${NC} Stopping Docker containers..."
-docker-compose down
-
-# Kill any running Node processes for neuro-ui and neuro-admin
-echo -e "${YELLOW}▶${NC} Stopping frontend dev servers..."
-pkill -f "vite.*neuro-ui" 2>/dev/null || true
-pkill -f "vite.*neuro-admin" 2>/dev/null || true
-
-# Kill backend
+# Kill backend first
 echo -e "${YELLOW}▶${NC} Stopping backend..."
 pkill -f "neuro-backend" 2>/dev/null || true
-pkill -f "target/release/neuro-backend" 2>/dev/null || true
+
+# Kill any running Node/Vite processes
+echo -e "${YELLOW}▶${NC} Stopping frontend dev servers..."
+pkill -f "vite" 2>/dev/null || true
+pkill -f "esbuild" 2>/dev/null || true
+
+# Stop Docker services (don't use sudo - user should be in docker group)
+echo -e "${YELLOW}▶${NC} Stopping Docker containers..."
+docker compose down 2>/dev/null || true
 
 echo -e "${GREEN}✓ All NEURO-OS services stopped.${NC}"

@@ -228,6 +228,27 @@ impl DomainError {
         }
     }
 
+    /// Create an LLM error (alias for inference)
+    pub fn llm_error(message: impl Into<String>) -> Self {
+        Self::InferenceError {
+            message: message.into(),
+        }
+    }
+
+    /// Create an embedding error
+    pub fn embedding_error(message: impl Into<String>) -> Self {
+        Self::EmbeddingError {
+            message: message.into(),
+        }
+    }
+
+    /// Create a command error (alias for command_blocked)
+    pub fn command_error(message: impl Into<String>) -> Self {
+        Self::CommandParseError {
+            message: message.into(),
+        }
+    }
+
     /// Create a network error
     pub fn network(message: impl Into<String>) -> Self {
         Self::NetworkError {

@@ -42,8 +42,14 @@ impl DatabasePool {
     pub async fn new(config: &DatabaseConfig) -> Result<Self> {
         info!("Connecting to SurrealDB at {}", config.url);
 
+        // Extract host from URL (remove ws:// prefix if present)
+        let host = config.url
+            .strip_prefix("ws://")
+            .or_else(|| config.url.strip_prefix("wss://"))
+            .unwrap_or(&config.url);
+
         // Connect to SurrealDB
-        let client = Surreal::new::<Ws>(&config.url).await?;
+        let client = Surreal::new::<Ws>(host).await?;
 
         // Authenticate
         client
@@ -99,7 +105,7 @@ impl DatabasePool {
             
             DEFINE FIELD IF NOT EXISTS id ON memory TYPE string;
             DEFINE FIELD IF NOT EXISTS content ON memory TYPE string;
-            DEFINE FIELD IF NOT EXISTS vector ON memory TYPE array;
+            DEFINE FIELD IF NOT EXISTS vector ON memory TYPE array<float>;
             DEFINE FIELD IF NOT EXISTS memory_type ON memory TYPE string;
             DEFINE FIELD IF NOT EXISTS metadata ON memory TYPE object;
             DEFINE FIELD IF NOT EXISTS created_at ON memory TYPE datetime;

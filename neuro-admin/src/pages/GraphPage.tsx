@@ -55,7 +55,8 @@ export default function GraphPage() {
     refetchInterval: 60000,
   });
 
-  const { data: stats } = useQuery({
+  // Stats available for future use
+  const { data: _stats } = useQuery({
     queryKey: ['graph-stats'],
     queryFn: graphApi.getStats,
   });
@@ -227,7 +228,7 @@ export default function GraphPage() {
             nodeLabel={(node: GraphNode) => `${node.memory_type}: ${node.content.substring(0, 50)}...`}
             nodeColor={(node: GraphNode) => NODE_COLORS[node.memory_type] || NODE_COLORS.default}
             nodeRelSize={6}
-            nodeVal={(node: GraphNode) => node.importance * 2}
+            nodeVal={(node: GraphNode) => (node.importance_score || 0.5) * 2}
             linkColor={(link: GraphLink) => RELATION_COLORS[link.relation] || '#94a3b8'}
             linkWidth={(link: GraphLink) => link.weight * 2}
             linkDirectionalArrowLength={3}
@@ -243,7 +244,7 @@ export default function GraphPage() {
         {selectedNode && (
           <div className="w-80 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 overflow-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Node Details</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white">{t('graph.nodeDetails')}</h3>
               <button
                 onClick={() => setSelectedNode(null)}
                 className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -256,7 +257,7 @@ export default function GraphPage() {
             
             <div className="space-y-3">
               <div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Type</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{t('memories.type')}</span>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
                   <span
                     className="inline-block w-3 h-3 rounded-full mr-2"
@@ -267,17 +268,17 @@ export default function GraphPage() {
               </div>
               
               <div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Content</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{t('graph.content')}</span>
                 <p className="text-sm text-gray-900 dark:text-white">{selectedNode.content}</p>
               </div>
               
               <div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Importance</span>
-                <p className="text-sm text-gray-900 dark:text-white">{selectedNode.importance.toFixed(2)}</p>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{t('graph.importance')}</span>
+                <p className="text-sm text-gray-900 dark:text-white">{(selectedNode.importance_score || 0).toFixed(2)}</p>
               </div>
               
               <div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Created</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{t('graph.created')}</span>
                 <p className="text-sm text-gray-900 dark:text-white">
                   {new Date(selectedNode.created_at).toLocaleString()}
                 </p>
@@ -297,7 +298,7 @@ export default function GraphPage() {
       {/* Legend */}
       <div className="flex flex-wrap gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm">
         <div className="flex flex-wrap gap-3">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Node Types:</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('graph.nodeTypes')}:</span>
           {Object.entries(NODE_COLORS).filter(([k]) => k !== 'default').map(([type, color]) => (
             <span key={type} className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
               <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useChatStore, Message } from '../stores/chatStore';
 import { chatApi } from '../api/client';
 import ChatMessage from '../components/ChatMessage';
@@ -99,25 +99,29 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-cyber-bg">
       {/* Sidebar */}
       <Sidebar isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
 
       {/* Main chat area */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="h-14 border-b border-gray-200 dark:border-gray-700 flex items-center px-4 gap-4">
+        <header className="h-14 border-b border-cyber-cyan/20 flex items-center px-4 gap-4 bg-cyber-surface">
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg lg:hidden"
+            className="p-2 hover:bg-cyber-cyan/10 rounded text-cyber-cyan lg:hidden"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="font-semibold truncate">
-            {currentConversation?.title || t('app.title')}
+          <h1 className="font-semibold truncate text-cyber-cyan font-mono text-sm">
+            {currentConversation?.title || t('header.defaultTitle')}
           </h1>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-cyber-green animate-pulse shadow-[0_0_10px_#00ff88]"></span>
+            <span className="text-xs text-cyber-green font-mono">{t('status.online')}</span>
+          </div>
         </header>
 
         {/* Messages */}
@@ -136,7 +140,7 @@ export default function ChatPage() {
         </div>
 
         {/* Input */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="p-4 border-t border-cyber-cyan/20 bg-cyber-surface">
           <ChatInput onSend={handleSendMessage} disabled={isLoading} />
         </div>
       </main>

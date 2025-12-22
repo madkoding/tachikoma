@@ -114,7 +114,9 @@ impl MemoryService {
         }
 
         // Generate embedding
+        info!("Generating embedding for content: {}...", &content[..content.len().min(50)]);
         let vector = self.llm_provider.embed(&content).await?;
+        info!("Embedding generated with {} dimensions", vector.len());
 
         // Create memory node
         let memory = if let Some(meta) = metadata {
@@ -122,6 +124,8 @@ impl MemoryService {
         } else {
             MemoryNode::new(content, vector, memory_type)
         };
+        
+        info!("Memory node created with vector length: {}", memory.vector.len());
 
         // Persist to database
         let created = self.repository.create(memory).await?;

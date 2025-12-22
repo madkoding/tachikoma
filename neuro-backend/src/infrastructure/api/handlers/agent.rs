@@ -1,29 +1,19 @@
 //! =============================================================================
-//! Agent Handlers
-//! =============================================================================
-//! HTTP handlers for AI agent capabilities (search, command execution).
+//! Agent Handlers - Simplified
 //! =============================================================================
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, Json};
 use std::sync::Arc;
 use tracing::{debug, error, instrument, warn};
 
-use crate::domain::ports::search_provider::SearchQuery;
+use crate::domain::ports::search_provider::SearchOptions;
 use crate::infrastructure::api::dto::{
     CommandExecuteRequest, CommandResultDto, ErrorResponse,
     WebSearchRequest, WebSearchResultDto,
 };
 use crate::AppState;
 
-/// =============================================================================
-/// Web search
-/// =============================================================================
 /// POST /api/agent/search
-/// =============================================================================
 #[instrument(skip(state, request))]
 pub async fn web_search(
     State(state): State<Arc<AppState>>,
@@ -31,17 +21,9 @@ pub async fn web_search(
 ) -> Result<Json<Vec<WebSearchResultDto>>, (StatusCode, Json<ErrorResponse>)> {
     debug!(query = %request.query, limit = request.limit, "Performing web search");
 
-    let search_query = SearchQuery {
-        query: request.query,
-        categories: request.category.map(|c| vec![c]).unwrap_or_default(),
-        language: None,
-        limit: Some(request.limit as u32),
-        page: Some(1),
-        time_range: None,
-        safe_search: Some(true),
-    };
+    let options = SearchOptions::with_limit(request.limit);
 
-    match state.search_provider.search(search_query).await {
+    match state.search_provider.search(&request.query, Some(options)).await {
         Ok(response) => {
             let results: Vec<WebSearchResultDto> = response.results
                 .into_iter()
@@ -49,11 +31,10 @@ pub async fn web_search(
                     title: r.title,
                     url: r.url,
                     snippet: r.snippet,
-                    source: r.source,
-                    score: r.score,
+                    source: r.engine.unwrap_or_else(|| "unknown".to_string()),
+                    score: None,
                 })
                 .collect();
-
             Ok(Json(results))
         }
         Err(e) => {
@@ -66,11 +47,7 @@ pub async fn web_search(
     }
 }
 
-/// =============================================================================
-/// Execute command
-/// =============================================================================
 /// POST /api/agent/execute
-/// =============================================================================
 #[instrument(skip(state, request))]
 pub async fn execute_command(
     State(state): State<Arc<AppState>>,
@@ -78,16 +55,13 @@ pub async fn execute_command(
 ) -> Result<Json<CommandResultDto>, (StatusCode, Json<ErrorResponse>)> {
     debug!(command = %request.command, "Executing command");
 
-    // First check if command is allowed
-    match state.command_executor.is_command_allowed(&request.command).await {
+    // Validate command first
+    match state.command_executor.validate(&request.command).await {
         Ok(false) => {
             warn!(command = %request.command, "Command not allowed");
             return Err((
                 StatusCode::FORBIDDEN,
-                Json(ErrorResponse::new(
-                    "COMMAND_NOT_ALLOWED",
-                    "This command is not in the allowed whitelist",
-                )),
+                Json(ErrorResponse::new("COMMAND_NOT_ALLOWED", "Command not in allowlist")),
             ));
         }
         Err(e) => {
@@ -99,20 +73,17 @@ pub async fn execute_command(
         Ok(true) => {}
     }
 
-    let command_request = crate::domain::ports::command_executor::CommandRequest {
-        command: request.command,
-        working_directory: request.working_directory,
-        environment: None,
-        timeout_seconds: request.timeout_seconds,
-    };
+    let options = request.working_directory.map(|dir| {
+        crate::domain::ports::command_executor::ExecutionOptions::with_working_dir(&dir)
+    });
 
-    match state.command_executor.execute(command_request).await {
+    match state.command_executor.execute(&request.command, options).await {
         Ok(result) => {
             Ok(Json(CommandResultDto {
                 exit_code: result.exit_code,
                 stdout: result.stdout,
                 stderr: result.stderr,
-                duration_ms: result.duration_ms,
+                duration_ms: result.execution_time_ms,
                 timed_out: result.timed_out,
             }))
         }
@@ -126,44 +97,26 @@ pub async fn execute_command(
     }
 }
 
-/// =============================================================================
-/// Get allowed commands
-/// =============================================================================
 /// GET /api/agent/commands
-/// =============================================================================
-#[instrument(skip(state))]
+#[instrument(skip(_state))]
 pub async fn get_allowed_commands(
-    State(state): State<Arc<AppState>>,
+    State(_state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<String>>, (StatusCode, Json<ErrorResponse>)> {
-    match state.command_executor.get_allowed_commands().await {
-        Ok(commands) => Ok(Json(commands)),
-        Err(e) => {
-            error!(error = %e, "Failed to get allowed commands");
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new("ERROR", e.to_string())),
-            ))
-        }
-    }
+    // Return a static list for now
+    Ok(Json(vec![
+        "ls".to_string(), "cat".to_string(), "head".to_string(), "tail".to_string(),
+        "grep".to_string(), "find".to_string(), "pwd".to_string(), "echo".to_string(),
+        "git".to_string(), "cargo".to_string(), "npm".to_string(), "node".to_string(),
+    ]))
 }
 
-/// =============================================================================
-/// Get search categories
-/// =============================================================================
-/// GET /api/agent/search/categories
-/// =============================================================================
-#[instrument(skip(state))]
+/// GET /api/agent/search/categories  
+#[instrument(skip(_state))]
 pub async fn get_search_categories(
-    State(state): State<Arc<AppState>>,
+    State(_state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<String>>, (StatusCode, Json<ErrorResponse>)> {
-    match state.search_provider.get_categories().await {
-        Ok(categories) => Ok(Json(categories)),
-        Err(e) => {
-            error!(error = %e, "Failed to get search categories");
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new("ERROR", e.to_string())),
-            ))
-        }
-    }
+    Ok(Json(vec![
+        "general".to_string(), "images".to_string(), "videos".to_string(),
+        "news".to_string(), "map".to_string(), "it".to_string(),
+    ]))
 }

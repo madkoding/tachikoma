@@ -24,24 +24,31 @@ struct ChatRequest {
 /// Chat response from API
 #[derive(Debug, Deserialize)]
 struct ChatResponse {
-    response: String,
+    content: String,
     #[allow(dead_code)]
-    model_used: Option<String>,
+    model: Option<String>,
     #[allow(dead_code)]
-    tokens_used: Option<u32>,
+    tokens_prompt: Option<u64>,
+    #[allow(dead_code)]
+    tokens_completion: Option<u64>,
 }
 
 /// Health check response
 #[derive(Debug, Deserialize)]
 struct HealthResponse {
-    #[allow(dead_code)]
     status: String,
     #[allow(dead_code)]
-    ollama: bool,
+    services: HealthServices,
+}
+
+#[derive(Debug, Deserialize)]
+struct HealthServices {
     #[allow(dead_code)]
-    surrealdb: bool,
+    database: String,
     #[allow(dead_code)]
-    searxng: bool,
+    llm: String,
+    #[allow(dead_code)]
+    search: String,
 }
 
 /// Memory item from API
@@ -76,7 +83,7 @@ impl NeuroClient {
 
     /// Check if the API is healthy and reachable
     pub async fn health_check(&self) -> Result<bool> {
-        let url = format!("{}/api/system/health", self.base_url);
+        let url = format!("{}/api/health", self.base_url);
 
         let response = self
             .client
@@ -87,7 +94,7 @@ impl NeuroClient {
 
         if response.status().is_success() {
             let health: HealthResponse = response.json().await?;
-            Ok(health.ollama)
+            Ok(health.status == "healthy")
         } else {
             Ok(false)
         }
@@ -112,7 +119,7 @@ impl NeuroClient {
 
         if response.status().is_success() {
             let chat_response: ChatResponse = response.json().await?;
-            Ok(chat_response.response)
+            Ok(chat_response.content)
         } else {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();

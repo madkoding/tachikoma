@@ -6,8 +6,6 @@
 # Rust Backend API, User UI, and Admin UI.
 # =============================================================================
 
-version: '3.9'
-
 services:
   # ===========================================================================
   # SurrealDB - Graph Database with Vector Search Capabilities
@@ -19,22 +17,11 @@ services:
     image: surrealdb/surrealdb:latest
     container_name: neuro-surrealdb
     restart: unless-stopped
-    command: start --auth --strict --log trace file:/data/neuro.db
-    environment:
-      - SURREAL_USER=${SURREAL_USER:-root}
-      - SURREAL_PASS=${SURREAL_PASS:-neuroos_secret_2024}
-    volumes:
-      - surrealdb_data:/data
+    command: start --user ${SURREAL_USER:-root} --pass ${SURREAL_PASS:-neuroos_secret_2024} --log trace memory
     ports:
       - "8000:8000"
     networks:
       - neuro-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   # ===========================================================================
   # Searxng - Privacy-Respecting Metasearch Engine
@@ -67,6 +54,8 @@ services:
   # ===========================================================================
   # Provides local AI inference capabilities. The ModelManager selects
   # appropriate models (3B, 7B, 14B) based on available VRAM.
+  # NOTE: GPU support requires nvidia-container-toolkit. Comment out the
+  # deploy section if running on CPU only.
   # ===========================================================================
   ollama:
     image: ollama/ollama:latest
@@ -78,6 +67,7 @@ services:
       - "11434:11434"
     networks:
       - neuro-network
+    # GPU support (requires nvidia-container-toolkit)
     deploy:
       resources:
         reservations:

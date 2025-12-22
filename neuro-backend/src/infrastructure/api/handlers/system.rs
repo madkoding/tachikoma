@@ -66,13 +66,10 @@ pub async fn health_check(
     };
 
     // Check search provider
-    let search_status = match state.search_provider.health_check().await {
-        Ok(true) => "healthy".to_string(),
-        Ok(false) => "unhealthy".to_string(),
-        Err(e) => {
-            warn!(error = %e, "Search health check failed");
-            format!("unhealthy: {}", e)
-        }
+    let search_status = if state.search_provider.is_healthy().await {
+        "healthy".to_string()
+    } else {
+        "unhealthy".to_string()
     };
 
     // Overall status
@@ -125,8 +122,6 @@ pub async fn liveness_check() -> StatusCode {
 }
 
 /// =============================================================================
-/// Get available models
-/// =============================================================================
 /// GET /api/models
 /// =============================================================================
 #[instrument(skip(state))]
@@ -138,12 +133,12 @@ pub async fn list_models(
             let dtos: Vec<ModelInfoDto> = models
                 .into_iter()
                 .map(|m| ModelInfoDto {
-                    id: m.id,
+                    id: m.name.clone(),
                     name: m.name,
-                    size_bytes: m.size_bytes,
+                    size_bytes: Some(m.size),
                     parameters: m.parameters,
-                    context_length: m.context_length,
-                    is_embedding_model: m.is_embedding_model,
+                    context_length: None,
+                    is_embedding_model: m.is_embedding,
                 })
                 .collect();
 

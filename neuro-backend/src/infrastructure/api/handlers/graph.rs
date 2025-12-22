@@ -166,14 +166,12 @@ pub async fn create_relation(
         }
     };
 
-    let edge = GraphEdge::with_confidence(
+    match state.memory_service.create_relation(
         request.from_id,
         request.to_id,
         relation,
         request.confidence,
-    );
-
-    match state.memory_service.create_relation(edge).await {
+    ).await {
         Ok(created_edge) => {
             Ok((StatusCode::CREATED, Json(edge_to_dto(created_edge))))
         }

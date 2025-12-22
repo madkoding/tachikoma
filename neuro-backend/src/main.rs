@@ -169,11 +169,7 @@ async fn main() -> Result<()> {
     // -------------------------------------------------------------------------
     info!("⚙️ Creating application services...");
     
-    let model_manager = Arc::new(ModelManager::new(
-        llm_provider.clone(),
-        config.ollama.default_model.clone(),
-        config.ollama.embedding_model.clone(),
-    ));
+    let model_manager = Arc::new(ModelManager::new(llm_provider.clone()));
 
     let memory_service = Arc::new(MemoryService::new(
         memory_repository,

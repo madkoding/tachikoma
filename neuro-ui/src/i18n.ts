@@ -28,6 +28,27 @@ const resources = {
       'chat.welcome': 'Hello! I\'m NEURO-OS, your AI assistant with memory.',
       'chat.welcomeDesc': 'I remember our previous conversations and can help you with various tasks.',
       
+      // Features
+      'feature.memory': 'LONG_TERM_MEMORY',
+      'feature.memoryDesc': 'I remember our conversations and learn your preferences',
+      'feature.search': 'WEB_SEARCH',
+      'feature.searchDesc': 'Search the web for current information when needed',
+      'feature.cmd': 'CMD_EXECUTE',
+      'feature.cmdDesc': 'Run safe local commands to help with tasks',
+      'feature.model': 'ADAPTIVE_MODEL',
+      'feature.modelDesc': 'Automatically selects the best model for each task',
+      
+      // Message labels
+      'message.user': 'USER',
+      'message.assistant': 'TACHIKOMA',
+      'message.model': 'MODEL',
+      'message.tokens': 'TOKENS',
+      
+      // Status
+      'status.online': 'ONLINE',
+      'status.offline': 'OFFLINE',
+      'header.defaultTitle': 'TACHIKOMA // NEURAL INTERFACE',
+      
       // Sidebar
       'sidebar.conversations': 'Conversations',
       'sidebar.newChat': 'New Chat',
@@ -72,6 +93,27 @@ const resources = {
       'chat.noMessagesDesc': 'Envía un mensaje para comenzar a chatear con NEURO-OS',
       'chat.welcome': '¡Hola! Soy NEURO-OS, tu asistente IA con memoria.',
       'chat.welcomeDesc': 'Recuerdo nuestras conversaciones anteriores y puedo ayudarte con diversas tareas.',
+      
+      // Features
+      'feature.memory': 'MEMORIA_LARGO_PLAZO',
+      'feature.memoryDesc': 'Recuerdo nuestras conversaciones y aprendo tus preferencias',
+      'feature.search': 'BÚSQUEDA_WEB',
+      'feature.searchDesc': 'Busco en la web información actualizada cuando es necesario',
+      'feature.cmd': 'EJECUTAR_COMANDOS',
+      'feature.cmdDesc': 'Ejecuto comandos locales seguros para ayudarte con tareas',
+      'feature.model': 'MODELO_ADAPTATIVO',
+      'feature.modelDesc': 'Selecciona automáticamente el mejor modelo para cada tarea',
+      
+      // Message labels
+      'message.user': 'USUARIO',
+      'message.assistant': 'TACHIKOMA',
+      'message.model': 'MODELO',
+      'message.tokens': 'TOKENS',
+      
+      // Status
+      'status.online': 'EN LÍNEA',
+      'status.offline': 'DESCONECTADO',
+      'header.defaultTitle': 'TACHIKOMA // INTERFAZ NEURAL',
       
       // Sidebar
       'sidebar.conversations': 'Conversaciones',

@@ -12,25 +12,25 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
+    <div className="min-h-screen bg-cyber-bg flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
-        <div className="p-6">
+      <aside className="w-64 bg-cyber-surface border-r border-cyber-cyan/20 relative">
+        {/* Glow effect */}
+        <div className="absolute inset-0 bg-gradient-to-b from-cyber-cyan/5 to-transparent pointer-events-none"></div>
+        
+        <div className="p-6 relative">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-neuro-500 flex items-center justify-center">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-              </svg>
+            <div className="w-10 h-10 rounded-lg bg-cyber-cyan/20 border border-cyber-cyan flex items-center justify-center shadow-[0_0_15px_rgba(0,245,255,0.3)]">
+              <TachikomaIcon />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white">NEURO-OS</h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Admin Panel</p>
+              <h1 className="text-lg font-bold neon-cyan font-cyber tracking-wider">TACHIKOMA</h1>
+              <p className="text-xs text-cyber-cyan/50 font-mono">ADMIN // v1.0</p>
             </div>
           </div>
         </div>
 
-        <nav className="px-4 space-y-1">
+        <nav className="px-4 space-y-1 relative">
           <NavItem to="/" icon={<DashboardIcon />} label={t('nav.dashboard')} />
           <NavItem to="/graph" icon={<GraphIcon />} label={t('nav.graph')} />
           <NavItem to="/memories" icon={<MemoryIcon />} label={t('nav.memories')} />
@@ -39,23 +39,23 @@ export default function Layout() {
         <div className="absolute bottom-4 left-4 right-4 space-y-2">
           <button
             onClick={toggle}
-            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all border border-transparent hover:border-cyber-cyan/30 font-mono"
           >
             {isDark ? <SunIcon /> : <MoonIcon />}
-            {isDark ? 'Light Mode' : 'Dark Mode'}
+            {isDark ? t('common.lightMode') : t('common.darkMode')}
           </button>
           <button
             onClick={toggleLanguage}
-            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all border border-transparent hover:border-cyber-cyan/30 font-mono"
           >
             <LanguageIcon />
-            {i18n.language === 'en' ? 'Español' : 'English'}
+            {i18n.language === 'en' ? 'ESPAÑOL' : 'ENGLISH'}
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-8 overflow-auto">
+      <main className="flex-1 p-8 overflow-auto bg-cyber-bg">
         <Outlet />
       </main>
     </div>
@@ -63,27 +63,36 @@ export default function Layout() {
 }
 
 interface NavItemProps {
-  to: string;
-  icon: React.ReactNode;
-  label: string;
+  readonly to: string;
+  readonly icon: React.ReactNode;
+  readonly label: string;
 }
 
-function NavItem({ to, icon, label }: NavItemProps) {
+function NavItem({ to, icon, label }: Readonly<NavItemProps>) {
   return (
     <NavLink
       to={to}
       className={({ isActive }) =>
         clsx(
-          'flex items-center gap-3 px-4 py-3 rounded-lg transition-colors',
+          'flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-mono text-sm tracking-wide',
           isActive
-            ? 'bg-neuro-50 dark:bg-neuro-900/20 text-neuro-600 dark:text-neuro-400'
-            : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            ? 'bg-cyber-cyan/10 text-cyber-cyan border border-cyber-cyan/50 shadow-[0_0_15px_rgba(0,245,255,0.2)]'
+            : 'text-cyber-cyan/60 hover:text-cyber-cyan hover:bg-cyber-cyan/5 border border-transparent hover:border-cyber-cyan/20'
         )
       }
     >
       {icon}
-      <span className="font-medium">{label}</span>
+      <span className="uppercase">{label}</span>
     </NavLink>
+  );
+}
+
+function TachikomaIcon() {
+  return (
+    <svg className="w-6 h-6 text-cyber-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+    </svg>
   );
 }
 
