@@ -1,5 +1,6 @@
 /// Soft clip / tape-ish saturation using tanh.
 /// drive: 0.0..1.0 (maps to internal gain)
+#[allow(dead_code)]
 pub fn apply_saturation(audio: &[f32], drive: f32, mix: f32) -> Vec<f32> {
     if audio.is_empty() || mix < 0.001 || drive < 0.001 {
         return audio.to_vec();

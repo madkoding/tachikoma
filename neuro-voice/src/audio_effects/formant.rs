@@ -5,6 +5,7 @@ use super::filters::{peaking_eq_process_in_place};
 /// NOTE: This is not a true LPC/formant-preserving shifter; it is a pragmatic
 /// approximation that tends to produce a more "infantil/robótico" character,
 /// especially when followed by a vocoder.
+#[allow(dead_code)]
 pub fn apply_formant_shift_approx(
     audio: &[f32],
     shift_pct: f32,

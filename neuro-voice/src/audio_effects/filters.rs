@@ -17,6 +17,7 @@ pub struct BiquadState {
     y2: f32,
 }
 
+#[allow(dead_code)]
 impl BiquadState {
     pub fn process(&mut self, x0: f32, c: &BiquadCoeffs) -> f32 {
         let y0 = c.b0 * x0 + c.b1 * self.x1 + c.b2 * self.x2 - c.a1 * self.y1 - c.a2 * self.y2;
@@ -28,6 +29,7 @@ impl BiquadState {
     }
 }
 
+#[allow(dead_code)]
 fn highpass_coeffs(cutoff: f32, sample_rate: f32, q: f32) -> BiquadCoeffs {
     let omega = 2.0 * PI * cutoff / sample_rate;
     let sin_omega = omega.sin();
@@ -50,6 +52,7 @@ fn highpass_coeffs(cutoff: f32, sample_rate: f32, q: f32) -> BiquadCoeffs {
     }
 }
 
+#[allow(dead_code)]
 fn bandpass_coeffs(center: f32, sample_rate: f32, q: f32) -> BiquadCoeffs {
     let omega = 2.0 * PI * center / sample_rate;
     let sin_omega = omega.sin();
@@ -73,6 +76,7 @@ fn bandpass_coeffs(center: f32, sample_rate: f32, q: f32) -> BiquadCoeffs {
     }
 }
 
+#[allow(dead_code)]
 fn peaking_eq_coeffs(center: f32, sample_rate: f32, q: f32, gain_db: f32) -> BiquadCoeffs {
     // RBJ peaking EQ
     let a = 10.0_f32.powf(gain_db / 40.0);
@@ -96,7 +100,7 @@ fn peaking_eq_coeffs(center: f32, sample_rate: f32, q: f32, gain_db: f32) -> Biq
         a2: a2 / a0,
     }
 }
-
+#[allow(dead_code)]#[allow(dead_code)]
 pub fn apply_highpass_filter(audio: &[f32], cutoff_freq: f32, sample_rate: u32) -> Vec<f32> {
     if audio.is_empty() || cutoff_freq < 1.0 {
         return audio.to_vec();
@@ -119,6 +123,7 @@ pub fn apply_highpass_filter(audio: &[f32], cutoff_freq: f32, sample_rate: u32) 
 }
 
 /// Gentle 1-pole low-pass (≈6 dB/oct) RC filter.
+#[allow(dead_code)]
 pub fn apply_lowpass_filter_rc(audio: &[f32], cutoff_hz: f32, sample_rate: u32) -> Vec<f32> {
     if audio.is_empty() || cutoff_hz < 1.0 {
         return audio.to_vec();
@@ -138,6 +143,7 @@ pub fn apply_lowpass_filter_rc(audio: &[f32], cutoff_hz: f32, sample_rate: u32) 
     out
 }
 
+#[allow(dead_code)]
 pub fn apply_resonant_bandpass(audio: &[f32], center_hz: f32, q: f32, gain_db: f32, sample_rate: u32) -> Vec<f32> {
     if audio.is_empty() {
         return Vec::new();
@@ -159,6 +165,7 @@ pub fn apply_resonant_bandpass(audio: &[f32], center_hz: f32, q: f32, gain_db: f
     out
 }
 
+#[allow(dead_code)]
 pub fn peaking_eq_process_in_place(audio: &mut [f32], center_hz: f32, q: f32, gain_db: f32, sample_rate: u32) {
     if audio.is_empty() {
         return;
@@ -171,6 +178,7 @@ pub fn peaking_eq_process_in_place(audio: &mut [f32], center_hz: f32, q: f32, ga
     }
 }
 
+#[allow(dead_code)]
 pub fn bandpass_process_in_place(audio: &mut [f32], center_hz: f32, q: f32, sample_rate: u32) {
     if audio.is_empty() {
         return;

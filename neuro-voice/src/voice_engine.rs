@@ -25,6 +25,7 @@ use crate::audio_effects::{
 use crate::config::{EffectsConfig, PiperConfig, VoiceModel};
 
 /// Piper outputs 16-bit PCM at 22050 Hz
+#[allow(dead_code)]
 const PIPER_OUTPUT_RATE: u32 = 22050;
 
 /// Voice Engine state
@@ -331,6 +332,7 @@ impl VoiceEngine {
     }
 
     /// Convert f32 audio samples to WAV bytes (mono)
+    #[allow(dead_code)]
     fn audio_to_wav(&self, audio: &[f32]) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
         let cursor = Cursor::new(&mut buffer);
@@ -464,6 +466,7 @@ impl VoiceEngine {
     }
 
     /// Get the current sample rate
+    #[allow(dead_code)]
     pub fn sample_rate(&self) -> u32 {
         SAMPLE_RATE
     }

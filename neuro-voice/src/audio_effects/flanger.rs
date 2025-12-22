@@ -1,5 +1,6 @@
 use std::f32::consts::PI;
 
+#[allow(dead_code)]
 pub fn apply_flanger(
     audio: &[f32],
     sample_rate: u32,

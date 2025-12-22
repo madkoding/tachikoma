@@ -1,11 +1,13 @@
 use super::filters::{bandpass_process_in_place};
 
+#[allow(dead_code)]
 fn db_to_lin(db: f32) -> f32 {
     10.0_f32.powf(db / 20.0)
 }
 
 /// Simple de-esser: extracts 4-8k-ish band, applies gain reduction, mixes back.
 /// reduction_db is positive (e.g. 6.0 means up to -6 dB).
+#[allow(dead_code)]
 pub fn apply_deesser(
     audio: &[f32],
     center_hz: f32,

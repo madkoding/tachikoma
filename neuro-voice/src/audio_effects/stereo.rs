@@ -80,6 +80,7 @@ pub fn mono_to_stereo_dual_voice(
 
 /// Create stereo with Haas effect (precedence effect)
 /// More subtle than dual-voice, creates width without obvious movement
+#[allow(dead_code)]
 pub fn mono_to_stereo_haas(mono: &[f32], delay_ms: f32) -> StereoBuffer {
     let delay_samples = ((delay_ms / 1000.0) * SAMPLE_RATE as f32) as usize;
     let len = mono.len();
@@ -99,6 +100,7 @@ pub fn mono_to_stereo_haas(mono: &[f32], delay_ms: f32) -> StereoBuffer {
 }
 
 /// Create stereo with dynamic panning (voice moves L→R→L)
+#[allow(dead_code)]
 pub fn mono_to_stereo_autopan(
     mono: &[f32],
     pan_rate_hz: f32,  // How fast the voice moves (0.2-1.0 Hz typical)

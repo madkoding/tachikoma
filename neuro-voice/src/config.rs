@@ -36,7 +36,7 @@ pub struct PiperConfig {
     /// Default voice name
     pub default_voice: String,
     /// Max text length
-    pub max_text_length: usize,
+    pub _max_text_length: usize,
     /// Synthesis timeout in seconds
     pub timeout_secs: u64,
 }
@@ -52,7 +52,7 @@ impl Default for PiperConfig {
             ),
             default_voice: std::env::var("DEFAULT_VOICE")
                 .unwrap_or_else(|_| "es_MX-claude-high".to_string()),
-            max_text_length: 5000,
+            _max_text_length: 5000,
             timeout_secs: 30,
         }
     }
@@ -152,7 +152,7 @@ pub struct VoiceModel {
 pub struct AppConfig {
     pub server: ServerConfig,
     pub piper: PiperConfig,
-    pub effects: EffectsConfig,
+    pub _effects: EffectsConfig,
 }
 
 impl AppConfig {
@@ -160,7 +160,7 @@ impl AppConfig {
         Self {
             server: ServerConfig::default(),
             piper: PiperConfig::default(),
-            effects: EffectsConfig::default(),
+            _effects: EffectsConfig::default(),
         }
     }
 }

@@ -6,6 +6,7 @@
 pub const SAMPLE_RATE: u32 = 44100;
 
 /// Piper TTS native sample rate (fixed by model)
+#[allow(dead_code)]
 pub const PIPER_SAMPLE_RATE: u32 = 22050;
 
 mod filters;
@@ -25,4 +26,4 @@ mod stereo;
 
 pub use pitch_shift::apply_pitch_shift;
 pub use chain::apply_robot_effect_chain;
-pub use stereo::{mono_to_stereo_dual_voice, mono_to_stereo_autopan, StereoBuffer};
+pub use stereo::{mono_to_stereo_dual_voice, StereoBuffer};

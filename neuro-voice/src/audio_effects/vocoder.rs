@@ -25,21 +25,25 @@ struct Band {
     env: f32,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub enum CarrierWave {
     Saw,
     Square,
 }
 
+#[allow(dead_code)]
 fn saw(phase: f32) -> f32 {
     // phase 0..1
     2.0 * (phase - 0.5)
 }
 
+#[allow(dead_code)]
 fn square(phase: f32) -> f32 {
     if phase < 0.5 { 1.0 } else { -1.0 }
 }
 
+#[allow(dead_code)]
 fn autocorr_pitch_hz(frame: &[f32], sample_rate: u32) -> (f32, f32) {
     // Very simple autocorrelation pitch estimate.
     // Returns (f0_hz, confidence 0..1)
@@ -88,6 +92,7 @@ fn autocorr_pitch_hz(frame: &[f32], sample_rate: u32) -> (f32, f32) {
     (f0, conf)
 }
 
+#[allow(dead_code)]
 pub fn apply_vocoder(
     audio: &[f32],
     sample_rate: u32,

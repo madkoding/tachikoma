@@ -1,8 +1,10 @@
+#[allow(dead_code)]
 fn db_to_lin(db: f32) -> f32 {
     10.0_f32.powf(db / 20.0)
 }
 
 /// Simple feed-forward compressor (mono) with soft knee-ish behavior.
+#[allow(dead_code)]
 pub fn apply_compressor(
     audio: &[f32],
     threshold_db: f32,
