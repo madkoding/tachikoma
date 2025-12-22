@@ -10,6 +10,9 @@ import TypingIndicator from '../components/TypingIndicator';
 import WelcomeScreen from '../components/WelcomeScreen';
 import { useVoiceStream } from '../hooks/useVoiceStream';
 
+// Helper to detect complete sentences for progressive voice synthesis
+const SENTENCE_ENDINGS = /[.!?。！？]+\s*/g;
+
 export default function ChatPage() {
   const { t } = useTranslation();
   const { conversationId } = useParams<{ conversationId?: string }>();
@@ -19,6 +22,10 @@ export default function ChatPage() {
   // Voice synthesis hook
   const { state: voiceState, config: voiceConfig, speak, stop: stopVoice, updateConfig: setVoiceConfig } = useVoiceStream();
   const lastSpokenMessageRef = useRef<string | null>(null);
+  
+  // For progressive voice synthesis during streaming
+  const pendingTextRef = useRef<string>('');
+  const spokenSentencesRef = useRef<Set<string>>(new Set());
   
   const {
     conversations,
@@ -129,6 +136,10 @@ export default function ChatPage() {
     setLoading(true);
     setError(null);
 
+    // Reset progressive voice synthesis state
+    pendingTextRef.current = '';
+    spokenSentencesRef.current = new Set();
+
     // Create placeholder for assistant message that will be updated during streaming
     const assistantMessageId = crypto.randomUUID();
     const assistantMessage: Message = {
@@ -146,19 +157,38 @@ export default function ChatPage() {
         conversation_id: convId,
         stream: true,
       },
-      // On chunk - update message content
+      // On chunk - update message content AND progressively synthesize voice
       (chunk: string) => {
         useChatStore.getState().updateMessage(convId, assistantMessageId, (msg) => ({
           ...msg,
           content: msg.content + chunk,
         }));
-      },
-      // On complete - update with final metadata
-      (response: StreamCompleteResponse) => {
-        const finalMessage = useChatStore.getState().conversations
-          .find(c => c.id === convId)?.messages
-          .find(m => m.id === assistantMessageId);
         
+        // Progressive voice synthesis: speak complete sentences as they arrive
+        if (voiceConfig.enabled && voiceConfig.autoPlay) {
+          pendingTextRef.current += chunk;
+          
+          // Check for complete sentences
+          const sentences = pendingTextRef.current.split(SENTENCE_ENDINGS);
+          
+          // If we have more than one part, we have complete sentence(s)
+          if (sentences.length > 1) {
+            // Speak all complete sentences (all except the last incomplete part)
+            for (let i = 0; i < sentences.length - 1; i++) {
+              const sentence = sentences[i].trim();
+              if (sentence && !spokenSentencesRef.current.has(sentence)) {
+                spokenSentencesRef.current.add(sentence);
+                // Fire and forget - don't await, let it queue up
+                speak(sentence);
+              }
+            }
+            // Keep only the incomplete part
+            pendingTextRef.current = sentences[sentences.length - 1];
+          }
+        }
+      },
+      // On complete - update with final metadata and speak any remaining text
+      (response: StreamCompleteResponse) => {
         useChatStore.getState().updateMessage(convId, assistantMessageId, (msg) => ({
           ...msg,
           id: response.message_id,
@@ -168,15 +198,18 @@ export default function ChatPage() {
           processingTimeMs: response.processing_time_ms,
         }));
         
-        // Auto-speak the response if voice is enabled
-        if (voiceConfig.enabled && voiceConfig.autoPlay && finalMessage?.content) {
-          // Only speak if we haven't spoken this message yet
-          if (lastSpokenMessageRef.current !== finalMessage.id) {
-            lastSpokenMessageRef.current = finalMessage.id;
-            speak(finalMessage.content);
+        // Speak any remaining text that didn't end with punctuation
+        if (voiceConfig.enabled && voiceConfig.autoPlay) {
+          const remainingText = pendingTextRef.current.trim();
+          if (remainingText && !spokenSentencesRef.current.has(remainingText)) {
+            speak(remainingText);
           }
+          // Reset refs
+          pendingTextRef.current = '';
+          spokenSentencesRef.current = new Set();
         }
         
+        lastSpokenMessageRef.current = response.message_id;
         setLoading(false);
       },
       // On error

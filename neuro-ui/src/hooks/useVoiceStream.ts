@@ -45,9 +45,11 @@ export interface UseVoiceStreamReturn {
   state: VoiceState;
   /** Current voice configuration */
   config: VoiceConfig;
-  /** Synthesize and play text */
+  /** Synthesize and play text (queued - for progressive streaming) */
   speak: (text: string) => Promise<void>;
-  /** Stop current playback */
+  /** Synthesize and play text (cancels previous - for manual invocation) */
+  speakWithCancel: (text: string) => Promise<void>;
+  /** Stop current playback and clear queue */
   stop: () => void;
   /** Pause playback */
   pause: () => void;
@@ -106,6 +108,10 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
   const isPlayingRef = useRef(false);
   const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Queue for progressive synthesis (multiple speak() calls)
+  const synthesisQueueRef = useRef<string[]>([]);
+  const isSynthesizingRef = useRef(false);
 
   // ==========================================================================
   // Audio Context Initialization
@@ -313,19 +319,8 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
     }
   }, [processAudioChunk]);
 
-  const speak = useCallback(async (text: string): Promise<void> => {
-    if (!config.enabled || !text.trim()) {
-      return;
-    }
-
-    // Cancel any ongoing request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    abortControllerRef.current = new AbortController();
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-
+  // Helper: Synthesize a single text segment
+  const synthesizeText = useCallback(async (text: string): Promise<void> => {
     try {
       initAudioContext();
 
@@ -336,7 +331,6 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
       
       const audioFormat = USE_OPUS ? 'opus' : 'wav';
 
-      // Use streaming endpoint for real-time playback
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -344,8 +338,94 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
           text: text,
           voice: config.voice,
           speed: config.speed,
-          pitch_shift: 6,  // +6 semitones (Tachikoma voice)
-          robot_effect: true,  // Enable robot effect chain
+          pitch_shift: 6,
+          robot_effect: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Voice synthesis failed');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      await processSSEStream(reader, audioFormat);
+    } catch (error: any) {
+      console.error('Voice synthesis error:', error);
+      setState(prev => ({
+        ...prev,
+        error: error.message || 'Voice synthesis failed',
+      }));
+    }
+  }, [config.voice, config.speed, initAudioContext, processSSEStream]);
+
+  // Process synthesis queue sequentially
+  const processSynthesisQueue = useCallback(async () => {
+    if (isSynthesizingRef.current) return;
+    
+    isSynthesizingRef.current = true;
+    setState(prev => ({ ...prev, isLoading: true }));
+
+    while (synthesisQueueRef.current.length > 0) {
+      const text = synthesisQueueRef.current.shift()!;
+      await synthesizeText(text);
+    }
+
+    isSynthesizingRef.current = false;
+    setState(prev => ({ ...prev, isLoading: false }));
+  }, [synthesizeText]);
+
+  // Public speak function - adds to queue for progressive synthesis
+  const speak = useCallback(async (text: string): Promise<void> => {
+    if (!config.enabled || !text.trim()) {
+      return;
+    }
+
+    // Add to synthesis queue
+    synthesisQueueRef.current.push(text.trim());
+    setState(prev => ({ ...prev, error: null }));
+
+    // Start processing queue if not already running
+    processSynthesisQueue();
+  }, [config.enabled, processSynthesisQueue]);
+
+  // Speak with cancel - for manual invocation (cancels queue)
+  const speakWithCancel = useCallback(async (text: string): Promise<void> => {
+    if (!config.enabled || !text.trim()) {
+      return;
+    }
+
+    // Cancel any ongoing synthesis
+    synthesisQueueRef.current = [];
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    abortControllerRef.current = new AbortController();
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      initAudioContext();
+
+      const endpoint = USE_OPUS 
+        ? `${VOICE_SERVICE_URL}/synthesize/opus`
+        : `${VOICE_SERVICE_URL}/synthesize/stream`;
+      
+      const audioFormat = USE_OPUS ? 'opus' : 'wav';
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text,
+          voice: config.voice,
+          speed: config.speed,
+          pitch_shift: 6,
+          robot_effect: true,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -355,7 +435,6 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
         throw new Error(errorData.detail || 'Voice synthesis failed');
       }
 
-      // Process SSE stream
       const reader = response.body?.getReader();
       if (!reader) {
         throw new Error('No response body');
@@ -389,13 +468,17 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
       abortControllerRef.current = null;
     }
 
+    // Clear synthesis queue
+    synthesisQueueRef.current = [];
+    isSynthesizingRef.current = false;
+
     // Stop current playback
     if (currentSourceRef.current) {
       currentSourceRef.current.stop();
       currentSourceRef.current = null;
     }
 
-    // Clear queue
+    // Clear audio queue
     audioQueueRef.current = [];
     isPlayingRef.current = false;
 
@@ -485,6 +568,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
     state,
     config,
     speak,
+    speakWithCancel,
     stop,
     pause,
     resume,
