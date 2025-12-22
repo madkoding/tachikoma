@@ -3,10 +3,21 @@
 # NEURO-OS Start Script
 # =============================================================================
 # Starts all NEURO-OS services in the correct order.
-# Run with: ./start.sh
+# Usage:
+#   ./start.sh          - Start all services (production mode)
+#   ./start.sh --dev    - Start services in development mode (with hot reload)
+#   ./start.sh --docker - Start only Docker services (for manual development)
 # =============================================================================
 
 set -e
+
+# Parse arguments
+MODE="prod"
+if [ "$1" = "--dev" ]; then
+    MODE="dev"
+elif [ "$1" = "--docker" ]; then
+    MODE="docker"
+fi
 
 # Colors
 RED='\033[0;31m'
@@ -80,6 +91,29 @@ run_docker run -d --gpus all \
     neuro-voice
 echo -e "  ${GREEN}Voice Service (Rust) started with GPU support!${NC}"
 
+# If docker-only mode, exit here with instructions
+if [ "$MODE" = "docker" ]; then
+    echo -e "
+${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}
+${GREEN}║${NC}           ${CYAN}Docker services are running!${NC}                        ${GREEN}║${NC}
+${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}
+
+${CYAN}Docker Services:${NC}
+  • SurrealDB:  ${YELLOW}http://localhost:8000${NC}
+  • Ollama:     ${YELLOW}http://localhost:11434${NC}
+  • Searxng:    ${YELLOW}http://localhost:8080${NC}
+  • Voice API:  ${YELLOW}http://localhost:8100${NC}
+
+${CYAN}Now start the app services manually:${NC}
+  ${YELLOW}Terminal 1:${NC} cd neuro-backend && cargo run
+  ${YELLOW}Terminal 2:${NC} cd neuro-ui && npm run dev
+  ${YELLOW}Terminal 3:${NC} cd neuro-admin && npm run dev
+
+${CYAN}Stop with:${NC} ./stop.sh
+"
+    exit 0
+fi
+
 # Wait for SurrealDB to be ready
 print_step "Waiting for SurrealDB to be ready..."
 MAX_RETRIES=30
@@ -130,13 +164,24 @@ cd neuro-backend
 export VOICE_SERVICE_URL="http://127.0.0.1:8100"
 
 # Note: OLLAMA_DEFAULT_MODEL is not used - ModelManager selects model dynamically based on task
-DATABASE_URL="ws://127.0.0.1:8000" \
-DATABASE_USER="root" \
-DATABASE_PASS="neuroos_secret_2024" \
-OLLAMA_URL="http://127.0.0.1:11434" \
-SEARXNG_URL="http://127.0.0.1:8080" \
-RUST_LOG=info \
-./target/release/neuro-backend &
+if [ "$MODE" = "dev" ]; then
+    echo -e "  ${YELLOW}Development mode: using cargo run${NC}"
+    DATABASE_URL="ws://127.0.0.1:8000" \
+    DATABASE_USER="root" \
+    DATABASE_PASS="neuroos_secret_2024" \
+    OLLAMA_URL="http://127.0.0.1:11434" \
+    SEARXNG_URL="http://127.0.0.1:8080" \
+    RUST_LOG=debug \
+    cargo run &
+else
+    DATABASE_URL="ws://127.0.0.1:8000" \
+    DATABASE_USER="root" \
+    DATABASE_PASS="neuroos_secret_2024" \
+    OLLAMA_URL="http://127.0.0.1:11434" \
+    SEARXNG_URL="http://127.0.0.1:8080" \
+    RUST_LOG=info \
+    ./target/release/neuro-backend &
+fi
 BACKEND_PID=$!
 cd ..
 
