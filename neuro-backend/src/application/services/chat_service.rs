@@ -61,10 +61,12 @@ CAPACIDADES:
 - 🔍 Buscar información en la web cuando el usuario lo necesite
 - 💾 Recordar información importante para conversaciones futuras
 - 💻 Ejecutar comandos del sistema (cuando sea necesario y seguro)
+- 📝 Leer y analizar archivos de código del proyecto
 - 🧠 Acceder a memoria de largo plazo con contexto relevante
 
-Cuando recibes información de herramientas (búsquedas web, comandos), úsala para responder de forma completa y precisa.
+Cuando recibes información de herramientas (búsquedas web, comandos, código), úsala para responder de forma completa y precisa.
 Si la información viene de una búsqueda web, menciona las fuentes cuando sea relevante.
+Si analizas código, explica qué hace de manera clara y estructurada.
 
 Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable. No eres alguien kawaii, no hables como anime."#.to_string()
     }
@@ -153,6 +155,14 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
             "ps ", "ls ", "cat ", "grep ", "pwd", "whoami",
         ];
 
+        // Code Analysis Keywords
+        let code_keywords = [
+            "analiza", "analyze", "lee el código", "read code", "revisa",
+            "qué hace", "what does", "explica el código", "explain code",
+            "muestra el archivo", "show file", "lee archivo", "read file",
+            "examina", "examine", "inspecciona", "inspect",
+        ];
+
         // Check for web search intent
         if search_keywords.iter().any(|kw| msg_lower.contains(kw)) {
             info!("🔍 Detected web search intent");
@@ -188,6 +198,25 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
                     Err(e) => {
                         error!("❌ Command failed: {}", e);
                         tools_used.push(("execute_command".to_string(), format!("Error: {}", e)));
+                    }
+                }
+            }
+        }
+
+        // Check for code analysis intent
+        if code_keywords.iter().any(|kw| msg_lower.contains(kw)) {
+            info!("📝 Detected code analysis intent");
+            
+            // Extract file path
+            if let Some(file_path) = self.extract_file_path(message) {
+                match self.read_and_analyze_file(&file_path).await {
+                    Ok(content) => {
+                        info!("✅ File read: {}", file_path);
+                        tools_used.push(("code_analysis".to_string(), content));
+                    }
+                    Err(e) => {
+                        error!("❌ File read failed: {}", e);
+                        tools_used.push(("code_analysis".to_string(), format!("Error: No pude leer el archivo: {}", e)));
                     }
                 }
             }
@@ -241,6 +270,103 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         }
 
         None
+    }
+
+    /// Extract file path from message
+    fn extract_file_path(&self, message: &str) -> Option<String> {
+        // Look for file paths in the message
+        // Common patterns: "lee src/main.rs", "analiza archivo config.toml"
+        
+        // Try to extract after keywords
+        let patterns = [
+            ("lee el archivo ", ""),
+            ("lee archivo ", ""),
+            ("read file ", ""),
+            ("muestra ", ""),
+            ("show ", ""),
+            ("analiza ", ""),
+            ("analyze ", ""),
+        ];
+        
+        for (prefix, _) in patterns {
+            if let Some(pos) = message.to_lowercase().find(prefix) {
+                let path = message[pos + prefix.len()..].trim();
+                // Take until first space or end
+                let file_path = path.split_whitespace().next().unwrap_or(path);
+                if !file_path.is_empty() {
+                    return Some(file_path.to_string());
+                }
+            }
+        }
+        
+        // Try to find file-like patterns (contains .rs, .toml, .json, etc.)
+        let words: Vec<&str> = message.split_whitespace().collect();
+        for word in words {
+            if word.contains('.') && 
+               (word.ends_with(".rs") || word.ends_with(".toml") || 
+                word.ends_with(".json") || word.ends_with(".ts") || 
+                word.ends_with(".js") || word.ends_with(".py") ||
+                word.ends_with(".md") || word.contains('/')) {
+                return Some(word.to_string());
+            }
+        }
+        
+        None
+    }
+
+    /// Read and analyze a code file
+    async fn read_and_analyze_file(&self, file_path: &str) -> Result<String, DomainError> {
+        // Sanitize path to prevent directory traversal
+        let path = file_path.trim_start_matches("./");
+        
+        // Try different working directories
+        let paths_to_try = vec![
+            path.to_string(),
+            format!("/home/madkoding/proyectos/kibo/{}", path),
+            format!("../{}", path),
+        ];
+        
+        let mut last_error = String::new();
+        
+        for try_path in paths_to_try {
+            let cmd = format!("cat {}", try_path);
+            match self.agent_orchestrator.execute_command(&cmd, None).await {
+                Ok(output) if output.exit_code == 0 => {
+                    let content = output.stdout;
+                    let line_count = content.lines().count();
+                    
+                    // Build structured output
+                    let mut result = format!("📄 Archivo: {}\n", file_path);
+                    result.push_str(&format!("📊 Líneas: {}\n\n", line_count));
+                    result.push_str("```\n");
+                    
+                    // Limit to 100 lines for context
+                    if line_count > 100 {
+                        let lines: Vec<&str> = content.lines().take(100).collect();
+                        result.push_str(&lines.join("\n"));
+                        result.push_str(&format!("\n\n... ({} líneas más omitidas)", line_count - 100));
+                    } else {
+                        result.push_str(&content);
+                    }
+                    
+                    result.push_str("\n```");
+                    
+                    return Ok(result);
+                }
+                Err(e) => {
+                    last_error = e.to_string();
+                }
+                Ok(output) => {
+                    last_error = output.stderr;
+                }
+            }
+        }
+        
+        Err(DomainError::CommandFailed {
+            command: format!("cat {}", path),
+            exit_code: 1,
+            stderr: last_error,
+        })
     }
 
     /// Summarize search results
