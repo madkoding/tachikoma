@@ -271,6 +271,16 @@ body {
   }
 }
 
+/* Glow pulse for streaming content */
+@keyframes streamingGlow {
+  0% {
+    filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.9));
+  }
+  100% {
+    filter: none;
+  }
+}
+
 /* Line glow for code blocks */
 @keyframes codeLineGlow {
   0% {
@@ -283,6 +293,20 @@ body {
   }
 }
 
+/* Streaming content container - applies glow when new content arrives */
+.streaming-content {
+  position: relative;
+}
+
+/* Active streaming state - when new characters arrive */
+.streaming-active {
+  animation: streamingGlow 300ms ease-out forwards;
+}
+
+.streaming-active * {
+  animation: glowFade 300ms ease-out forwards;
+}
+
 /* Individual character glow class */
 .streaming-glow {
   animation: glowFade 300ms ease-out forwards;
@@ -293,6 +317,23 @@ body {
   animation: glowFade 300ms ease-out forwards;
 }
 
+/* Animated character for streaming text */
+.animated-char {
+  animation: glowFade 300ms ease-out forwards;
+  display: inline;
+}
+
+/* Animated line for code blocks */
+.animated-line {
+  animation: codeLineGlow 300ms ease-out forwards;
+  display: block;
+}
+
+/* Code line animate (for syntax highlighter) */
+.code-line-animate {
+  animation: codeLineGlow 300ms ease-out forwards;
+}
+
 /* New line animation (for code) */
 .new-line {
   animation: codeLineGlow 300ms ease-out forwards;
@@ -300,6 +341,11 @@ body {
   border-radius: 2px;
   padding: 0 4px;
   margin: 0 -4px;
+}
+
+/* Streaming code styling */
+.streaming-code {
+  position: relative;
 }
 
 /* Message content streaming animation - blinking cursor */

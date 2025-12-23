@@ -1,104 +1,17 @@
 import { Message } from '../stores/chatStore';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
-import ReactMarkdown, { Components } from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
+import StreamingText from './StreamingText';
 
 interface ChatMessageProps {
   readonly message: Message;
   readonly isStreaming?: boolean;
 }
 
-// Custom cyberpunk theme based on oneDark
-const cyberpunkTheme = {
-  ...oneDark,
-  'pre[class*="language-"]': {
-    ...oneDark['pre[class*="language-"]'],
-    background: 'rgba(0, 20, 40, 0.8)',
-    border: '1px solid rgba(0, 255, 255, 0.2)',
-    borderRadius: '0.5rem',
-    margin: '0.5rem 0',
-  },
-  'code[class*="language-"]': {
-    ...oneDark['code[class*="language-"]'],
-    background: 'transparent',
-    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-    fontSize: '0.875rem',
-  },
-};
-
-// Markdown components (defined outside to avoid recreation)
-const markdownComponents: Partial<Components> = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  code({ className, children, ...props }: any) {
-    const match = /language-(\w+)/.exec(className || '');
-    const isInline = !match && !className;
-    const codeContent = Array.isArray(children) ? children.join('') : String(children || '');
-    const codeString = codeContent.replace(/\n$/, '');
-    
-    if (isInline) {
-      return (
-        <code 
-          className="bg-cyber-cyan/10 text-cyber-cyan px-1.5 py-0.5 rounded text-sm font-mono border border-cyber-cyan/20" 
-          {...props}
-        >
-          {children}
-        </code>
-      );
-    }
-    
-    return (
-      <SyntaxHighlighter
-        style={cyberpunkTheme}
-        language={match ? match[1] : 'text'}
-        PreTag="div"
-        customStyle={{
-          margin: '0.75rem 0',
-          padding: '1rem',
-          borderRadius: '0.5rem',
-          background: 'rgba(0, 20, 40, 0.8)',
-          border: '1px solid rgba(0, 255, 255, 0.2)',
-        }}
-        codeTagProps={{
-          style: {
-            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-            fontSize: '0.875rem',
-          }
-        }}
-      >
-        {codeString}
-      </SyntaxHighlighter>
-    );
-  },
-  p: ({ children }) => <p className="text-cyber-cyan/80 mb-2 leading-relaxed">{children}</p>,
-  ul: ({ children }) => <ul className="text-cyber-cyan/80 list-disc list-inside mb-2">{children}</ul>,
-  ol: ({ children }) => <ol className="text-cyber-cyan/80 list-decimal list-inside mb-2">{children}</ol>,
-  li: ({ children }) => <li className="text-cyber-cyan/80">{children}</li>,
-  h1: ({ children }) => <h1 className="text-cyber-cyan font-bold text-xl mb-2">{children}</h1>,
-  h2: ({ children }) => <h2 className="text-cyber-cyan font-bold text-lg mb-2">{children}</h2>,
-  h3: ({ children }) => <h3 className="text-cyber-cyan font-bold text-md mb-2">{children}</h3>,
-  strong: ({ children }) => <strong className="text-cyber-yellow font-bold">{children}</strong>,
-  em: ({ children }) => <em className="text-cyber-magenta italic">{children}</em>,
-  a: ({ href, children }) => (
-    <a href={href} className="text-cyber-cyan underline hover:text-cyber-magenta" target="_blank" rel="noopener noreferrer">
-      {children}
-    </a>
-  ),
-  blockquote: ({ children }) => (
-    <blockquote className="border-l-2 border-cyber-cyan/50 pl-4 italic text-cyber-cyan/60 my-2">
-      {children}
-    </blockquote>
-  ),
-};
-
 function ChatMessage({ message, isStreaming = false }: Readonly<ChatMessageProps>) {
   const { t } = useTranslation();
   const isUser = message.role === 'user';
-  
-  // Memoize components to prevent unnecessary re-renders
-  const components = useMemo(() => markdownComponents, []);
 
   return (
     <div
@@ -139,9 +52,7 @@ function ChatMessage({ message, isStreaming = false }: Readonly<ChatMessageProps
           'prose prose-sm max-w-none prose-invert',
           isStreaming && 'message-streaming'
         )}>
-          <ReactMarkdown components={components}>
-            {message.content}
-          </ReactMarkdown>
+          <StreamingText content={message.content} isStreaming={isStreaming && !isUser} />
         </div>
 
         {/* Token info for assistant messages */}
