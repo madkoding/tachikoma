@@ -37,7 +37,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Configure cargo: mold linker + parallel jobs
 RUN mkdir -p /root/.cargo && \
-    printf '[build]\njobs = -1\n\n[target.x86_64-unknown-linux-gnu]\nlinker = "clang"\nrustflags = ["-C", "link-arg=-fuse-ld=mold"]\n' > /root/.cargo/config.toml
+    echo '[build]' > /root/.cargo/config.toml && \
+    echo 'jobs = -1' >> /root/.cargo/config.toml && \
+    echo '' >> /root/.cargo/config.toml && \
+    echo '[target.x86_64-unknown-linux-gnu]' >> /root/.cargo/config.toml && \
+    echo 'linker = "clang"' >> /root/.cargo/config.toml && \
+    echo 'rustflags = ["-C", "link-arg=-fuse-ld=mold"]' >> /root/.cargo/config.toml
 
 WORKDIR /app
 

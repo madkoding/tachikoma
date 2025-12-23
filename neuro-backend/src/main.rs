@@ -36,7 +36,7 @@
 
 use anyhow::Result;
 use std::sync::Arc;
-use tracing::info;
+use std::io::{self, Write};
 
 mod application;
 mod domain;
@@ -57,6 +57,28 @@ use crate::infrastructure::{
     database::{DatabasePool, SurrealDbRepository},
     services::{OllamaClient, SafeCommandExecutor, SearxngClient, VoiceEngine, VoiceConfig},
 };
+
+// ANSI color codes for terminal output
+const CYAN: &str = "\x1b[36m";
+const GREEN: &str = "\x1b[32m";
+const YELLOW: &str = "\x1b[33m";
+const MAGENTA: &str = "\x1b[35m";
+const RESET: &str = "\x1b[0m";
+const BOLD: &str = "\x1b[1m";
+const DIM: &str = "\x1b[2m";
+
+/// Print a startup step with spinner animation
+fn print_step(step: u8, total: u8, message: &str) {
+    let progress = "█".repeat(step as usize) + &"░".repeat((total - step) as usize);
+    print!("\r{CYAN}[{progress}]{RESET} {DIM}({step}/{total}){RESET} {message}");
+    io::stdout().flush().ok();
+}
+
+/// Print a completed step
+fn print_done(step: u8, total: u8, message: &str) {
+    let progress = "█".repeat(step as usize) + &"░".repeat((total - step) as usize);
+    println!("\r{CYAN}[{progress}]{RESET} {GREEN}✓{RESET} {message}");
+}
 
 /// =============================================================================
 /// Application State
@@ -116,60 +138,66 @@ async fn main() -> Result<()> {
     let config = Config::from_env()?;
 
     // -------------------------------------------------------------------------
-    // Initialize structured logging with tracing
+    // Initialize structured logging with tracing (only warnings and errors)
     // -------------------------------------------------------------------------
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,neuro_backend=debug".into()),
+                .unwrap_or_else(|_| "warn,neuro_backend=info".into()),
         )
-        .with_target(true)
-        .with_thread_ids(true)
-        .with_file(true)
-        .with_line_number(true)
-        .json()
+        .with_target(false)
+        .with_thread_ids(false)
+        .with_file(false)
+        .with_line_number(false)
+        .compact()
         .init();
 
-    info!("🧠 NEURO-OS Backend starting...");
-    info!("📋 Configuration loaded");
+    // -------------------------------------------------------------------------
+    // Pretty startup banner
+    // -------------------------------------------------------------------------
+    println!("\n{CYAN}{BOLD}╔═══════════════════════════════════════════════════════════╗{RESET}");
+    println!("{CYAN}{BOLD}║{RESET}            {MAGENTA}🧠 NEURO-OS Backend v0.1.0{RESET}                   {CYAN}{BOLD}║{RESET}");
+    println!("{CYAN}{BOLD}╚═══════════════════════════════════════════════════════════╝{RESET}\n");
+
+    const TOTAL_STEPS: u8 = 7;
 
     // -------------------------------------------------------------------------
     // Initialize database connection pool
     // -------------------------------------------------------------------------
-    info!("🔌 Connecting to SurrealDB...");
+    print_step(1, TOTAL_STEPS, "Connecting to SurrealDB...");
     let database_pool = DatabasePool::new(&config.database).await?;
-    info!("✅ SurrealDB connection established");
+    print_done(1, TOTAL_STEPS, "SurrealDB connected");
 
     // -------------------------------------------------------------------------
     // Initialize external service clients
     // -------------------------------------------------------------------------
-    info!("🤖 Initializing Ollama client...");
+    print_step(2, TOTAL_STEPS, "Initializing Ollama client...");
     let ollama_client = OllamaClient::new(config.ollama.clone());
     let llm_provider: Arc<dyn LlmProvider + Send + Sync> = Arc::new(ollama_client);
-    info!("✅ Ollama client ready");
+    print_done(2, TOTAL_STEPS, "Ollama client ready");
 
-    info!("🔍 Initializing Searxng client...");
+    print_step(3, TOTAL_STEPS, "Initializing Searxng client...");
     let searxng_client = SearxngClient::new(config.searxng.clone());
     let search_provider: Arc<dyn SearchProvider + Send + Sync> = Arc::new(searxng_client);
-    info!("✅ Searxng client ready");
+    print_done(3, TOTAL_STEPS, "Searxng client ready");
 
-    info!("🔐 Initializing command executor...");
+    print_step(4, TOTAL_STEPS, "Initializing command executor...");
     let command_executor: Arc<dyn CommandExecutor + Send + Sync> = 
         Arc::new(SafeCommandExecutor::new());
-    info!("✅ Command executor ready");
+    print_done(4, TOTAL_STEPS, "Command executor ready");
 
     // -------------------------------------------------------------------------
     // Create memory repository
     // -------------------------------------------------------------------------
-    info!("📦 Initializing memory repository...");
+    print_step(5, TOTAL_STEPS, "Initializing memory repository...");
     let surreal_repository = Arc::new(SurrealDbRepository::new(database_pool.clone()));
     let memory_repository: Arc<dyn MemoryRepository + Send + Sync> = surreal_repository.clone();
-    info!("✅ Memory repository ready");
+    print_done(5, TOTAL_STEPS, "Memory repository ready");
 
     // -------------------------------------------------------------------------
     // Create application services
     // -------------------------------------------------------------------------
-    info!("⚙️ Creating application services...");
+    print_step(6, TOTAL_STEPS, "Creating application services...");
     
     let model_manager = Arc::new(ModelManager::new(llm_provider.clone()));
 
@@ -194,12 +222,12 @@ async fn main() -> Result<()> {
         surreal_repository.clone(),
     ));
 
-    info!("✅ Application services ready");
+    print_done(6, TOTAL_STEPS, "Application services ready");
 
     // -------------------------------------------------------------------------
     // Initialize Voice Engine (Kokoro-82M TTS)
     // -------------------------------------------------------------------------
-    info!("🎤 Initializing Voice Engine...");
+    print_step(7, TOTAL_STEPS, "Initializing Voice Engine...");
     let voice_config = VoiceConfig::default();
     let voice_engine = Arc::new(VoiceEngine::new(voice_config));
     
@@ -210,7 +238,7 @@ async fn main() -> Result<()> {
             tracing::warn!("Voice engine initialization failed: {}. TTS will be disabled.", e);
         }
     });
-    info!("✅ Voice Engine initialized (or disabled if model not found)");
+    print_done(7, TOTAL_STEPS, "Voice Engine initialized");
 
     // -------------------------------------------------------------------------
     // Create application state
@@ -237,14 +265,13 @@ async fn main() -> Result<()> {
     let bind_addr = format!("{}:{}", config.server.host, config.server.port);
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
     
-    info!("🚀 NEURO-OS Backend listening on http://{}", bind_addr);
-    info!("📚 API endpoints:");
-    info!("   - Health:  GET  /api/health");
-    info!("   - Chat:    POST /api/chat");
-    info!("   - Memory:  GET  /api/memories");
-    info!("   - Graph:   GET  /api/admin/graph/stats");
-    info!("   - Search:  POST /api/agent/search");
-    info!("   - Voice:   POST /api/voice/synthesize");
+    println!("\n{GREEN}{BOLD}✓ NEURO-OS Backend ready!{RESET}");
+    println!("{DIM}─────────────────────────────────────────────────────────{RESET}");
+    println!("  {CYAN}▸{RESET} Server:   {YELLOW}http://{bind_addr}{RESET}");
+    println!("  {CYAN}▸{RESET} Health:   {DIM}GET  /api/health{RESET}");
+    println!("  {CYAN}▸{RESET} Chat:     {DIM}POST /api/chat{RESET}");
+    println!("  {CYAN}▸{RESET} Voice:    {DIM}POST /api/voice/synthesize{RESET}");
+    println!("{DIM}─────────────────────────────────────────────────────────{RESET}\n");
 
     axum::serve(listener, app).await?;
 

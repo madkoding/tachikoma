@@ -1,117 +1,130 @@
 {
   "version": "2.0.0",
   "tasks": [
-    {
-      "label": "🐳 Docker Services",
-      "type": "shell",
-      "command": "./start.sh --docker",
-      "isBackground": true,
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "group": "dev"
-      }
-    },
-    {
-      "label": "🦀 Backend (Rust)",
-      "type": "shell",
-      "command": "cd neuro-backend && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 RUST_LOG=debug cargo watch -x run",
-      "isBackground": true,
-      "problemMatcher": {
-        "owner": "rust",
-        "fileLocation": ["relative", "${workspaceFolder}/neuro-backend"],
-        "pattern": {
-          "regexp": "^error\\[E\\d+\\]: (.+)$",
-          "message": 1
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": "^\\[Running",
-          "endsPattern": "^\\s+Compiling|Listening on"
-        }
-      },
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "group": "dev"
-      }
-    },
-    {
-      "label": "⚛️ User UI (Vite)",
-      "type": "shell",
-      "command": "cd neuro-ui && npm run dev",
-      "isBackground": true,
-      "problemMatcher": {
-        "owner": "vite",
-        "pattern": {
-          "regexp": "^(.*):(\\d+):(\\d+): (.*)$",
-          "file": 1,
-          "line": 2,
-          "column": 3,
-          "message": 4
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": "^VITE",
-          "endsPattern": "ready in"
-        }
-      },
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "group": "dev"
-      }
-    },
-    {
-      "label": "🔧 Admin UI (Vite)",
-      "type": "shell",
-      "command": "cd neuro-admin && npm run dev",
-      "isBackground": true,
-      "problemMatcher": {
-        "owner": "vite-admin",
-        "pattern": {
-          "regexp": "^(.*):(\\d+):(\\d+): (.*)$",
-          "file": 1,
-          "line": 2,
-          "column": 3,
-          "message": 4
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": "^VITE",
-          "endsPattern": "ready in"
-        }
-      },
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "group": "dev"
-      }
-    },
-    {
-      "label": "🚀 Start All Dev",
-      "dependsOn": [
-        "🐳 Docker Services",
-        "🦀 Backend (Rust)",
-        "⚛️ User UI (Vite)",
-        "🔧 Admin UI (Vite)"
-      ],
-      "dependsOrder": "sequence",
-      "problemMatcher": [],
-      "runOptions": {
-        "runOn": "default"
-      }
-    },
-    {
-      "label": "🔄 Rebuild Voice Service",
-      "type": "shell",
-      "command": "./dev.sh voice",
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      }
-    }
-  ]
+		{
+			"label": "🐳 Docker Services",
+			"type": "shell",
+			"command": "./start.sh --docker",
+			"isBackground": true,
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"group": "dev"
+			}
+		},
+		{
+			"label": "🦀 Backend (Rust)",
+			"type": "shell",
+			"command": "cd neuro-backend && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 RUST_LOG=warn cargo watch -x run",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "rust",
+				"fileLocation": [
+					"relative",
+					"${workspaceFolder}/neuro-backend"
+				],
+				"pattern": {
+					"regexp": "^error\\[E\\d+\\]: (.+)$",
+					"message": 1
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^\\[Running",
+					"endsPattern": "^\\s+Compiling|Listening on"
+				}
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"group": "dev"
+			}
+		},
+		{
+			"label": "⚛️ User UI (Vite)",
+			"type": "shell",
+			"command": "source ~/.nvm/nvm.sh && cd neuro-ui && npm run dev",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "vite",
+				"pattern": {
+					"regexp": "^(.*):(\\d+):(\\d+): (.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"message": 4
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^VITE",
+					"endsPattern": "ready in"
+				}
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"group": "dev"
+			}
+		},
+		{
+			"label": "🔧 Admin UI (Vite)",
+			"type": "shell",
+			"command": "source ~/.nvm/nvm.sh && cd neuro-admin && npm run dev",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "vite-admin",
+				"pattern": {
+					"regexp": "^(.*):(\\d+):(\\d+): (.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"message": 4
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^VITE",
+					"endsPattern": "ready in"
+				}
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"group": "dev"
+			}
+		},
+		{
+			"label": "🚀 Start All Dev",
+			"dependsOn": [
+				"🐳 Docker Services",
+				"🦀 Backend (Rust)",
+				"⚛️ User UI (Vite)",
+				"🔧 Admin UI (Vite)"
+			],
+			"dependsOrder": "sequence",
+			"problemMatcher": [],
+			"runOptions": {
+				"runOn": "default"
+			}
+		},
+		{
+			"label": "🔄 Rebuild Voice Service",
+			"type": "shell",
+			"command": "./dev.sh voice",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			}
+		},
+		{
+			"label": "🛑 Stop All Dev",
+			"type": "shell",
+			"command": "pkill -f 'cargo watch' ; pkill -f 'neuro-backend' ; pkill -f 'vite.*neuro-ui' ; pkill -f 'vite.*neuro-admin' ; echo '✅ All dev processes stopped'",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		}
+	]
 }
