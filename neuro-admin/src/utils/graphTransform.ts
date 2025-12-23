@@ -105,7 +105,7 @@ function createHubLinks(
   existingConnections: Set<string>
 ): GraphLink[] {
   const links: GraphLink[] = [];
-  const typeKeys = Object.keys(nodesByType);
+  const typeKeys = Object.keys(nodesByType).sort((a, b) => a.localeCompare(b)); // Ordenar para determinismo
   
   for (let i = 0; i < typeKeys.length; i++) {
     for (let j = i + 1; j < typeKeys.length; j++) {
@@ -113,11 +113,15 @@ function createHubLinks(
       const nodesB = nodesByType[typeKeys[j]];
       
       if (nodesA.length > 0 && nodesB.length > 0) {
+        // Usar el primer nodo ordenado por ID para determinismo
+        const sortedA = [...nodesA].sort((a, b) => a.id.localeCompare(b.id));
+        const sortedB = [...nodesB].sort((a, b) => a.id.localeCompare(b.id));
+        
         tryAddLink(
           links,
           existingConnections,
-          nodesA[0].id,
-          nodesB[0].id,
+          sortedA[0].id,
+          sortedB[0].id,
           'RelatedTo',
           0.2
         );
@@ -128,31 +132,105 @@ function createHubLinks(
   return links;
 }
 
-/** Create random connections for organic appearance */
-function createRandomLinks(
+/**
+ * Hash string para generar un número determinístico
+ */
+function hashString(str: string): number {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) ^ (str.codePointAt(i) ?? 0);
+  }
+  return hash >>> 0;
+}
+
+/**
+ * Extrae palabras clave del contenido (palabras de 4+ caracteres)
+ */
+function extractKeywords(content: string): Set<string> {
+  const words = content.toLowerCase()
+    .replaceAll(/[^a-záéíóúüñ\s]/gi, ' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 4);
+  return new Set(words);
+}
+
+/**
+ * Calcula similitud de Jaccard entre dos conjuntos de palabras
+ */
+function jaccardSimilarity(setA: Set<string>, setB: Set<string>): number {
+  if (setA.size === 0 || setB.size === 0) return 0;
+  
+  let intersection = 0;
+  for (const word of setA) {
+    if (setB.has(word)) intersection++;
+  }
+  
+  const union = setA.size + setB.size - intersection;
+  return union > 0 ? intersection / union : 0;
+}
+
+/**
+ * Crea conexiones basadas en similitud de contenido
+ * Determinístico: mismos nodos = mismas conexiones
+ */
+function createContentBasedLinks(
   nodes: Memory[],
   existingConnections: Set<string>,
   maxConnections: number = 50
 ): GraphLink[] {
   const links: GraphLink[] = [];
-  const targetCount = Math.min(nodes.length * 2, maxConnections);
-  let created = 0;
   
-  for (let attempts = 0; attempts < targetCount * 3 && created < targetCount; attempts++) {
-    const i = Math.floor(Math.random() * nodes.length);
-    const j = Math.floor(Math.random() * nodes.length);
-    
-    if (i !== j) {
-      const added = tryAddLink(
-        links,
-        existingConnections,
-        nodes[i].id,
-        nodes[j].id,
-        'RelatedTo',
-        0.15
-      );
-      if (added) created++;
+  if (nodes.length < 2) return links;
+  
+  // Pre-calcular keywords para cada nodo
+  const nodeKeywords = new Map<string, Set<string>>();
+  for (const node of nodes) {
+    nodeKeywords.set(node.id, extractKeywords(node.content));
+  }
+  
+  // Calcular todas las similitudes entre pares
+  const similarities: Array<{ i: number; j: number; score: number }> = [];
+  
+  // Ordenar nodos por ID para determinismo
+  const sortedNodes = [...nodes].sort((a, b) => a.id.localeCompare(b.id));
+  
+  for (let i = 0; i < sortedNodes.length; i++) {
+    for (let j = i + 1; j < sortedNodes.length; j++) {
+      const keywordsA = nodeKeywords.get(sortedNodes[i].id)!;
+      const keywordsB = nodeKeywords.get(sortedNodes[j].id)!;
+      
+      const similarity = jaccardSimilarity(keywordsA, keywordsB);
+      
+      // Solo considerar pares con alguna similitud
+      if (similarity > 0.05) {
+        similarities.push({ i, j, score: similarity });
+      }
     }
+  }
+  
+  // Ordenar por similitud descendente (determinístico por score + IDs)
+  similarities.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    // Desempate por hash de IDs combinados
+    const hashA = hashString(sortedNodes[a.i].id + sortedNodes[a.j].id);
+    const hashB = hashString(sortedNodes[b.i].id + sortedNodes[b.j].id);
+    return hashA - hashB;
+  });
+  
+  // Tomar las mejores conexiones hasta el límite
+  let created = 0;
+  for (const { i, j, score } of similarities) {
+    if (created >= maxConnections) break;
+    
+    const added = tryAddLink(
+      links,
+      existingConnections,
+      sortedNodes[i].id,
+      sortedNodes[j].id,
+      'SimilarContent',
+      Math.min(0.5, score * 2) // Peso basado en similitud
+    );
+    if (added) created++;
   }
   
   return links;
@@ -175,10 +253,10 @@ export function buildVirtualLinks(
   
   const nodesByType = groupNodesByType(nodes);
   
-  // Build virtual links in layers
+  // Build virtual links in layers (todos determinísticos)
   const chainLinks = createTypeChainLinks(nodesByType, existingConnections);
   const hubLinks = createHubLinks(nodesByType, existingConnections);
-  const randomLinks = createRandomLinks(nodes, existingConnections);
+  const contentLinks = createContentBasedLinks(nodes, existingConnections);
   
-  return [...chainLinks, ...hubLinks, ...randomLinks];
+  return [...chainLinks, ...hubLinks, ...contentLinks];
 }
