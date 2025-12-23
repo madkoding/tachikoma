@@ -80,6 +80,54 @@ fn print_done(step: u8, total: u8, message: &str) {
     println!("\r{CYAN}[{progress}]{RESET} {GREEN}✓{RESET} {message}");
 }
 
+/// Warm up the LLM model by sending a simple request
+/// This preloads the model into GPU memory for faster first response
+async fn warm_up_model(llm_provider: &Arc<dyn crate::domain::ports::llm_provider::LlmProvider + Send + Sync>) -> Result<()> {
+    use std::time::Instant;
+    use tokio::time::{interval, Duration};
+    
+    let start = Instant::now();
+    let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    
+    // Spawn warmup task
+    let llm = llm_provider.clone();
+    let warmup_handle = tokio::spawn(async move {
+        llm.generate("hi", Some("ministral:3b")).await
+    });
+    
+    // Animate spinner while waiting
+    let mut ticker = interval(Duration::from_millis(80));
+    let mut frame_idx = 0;
+    
+    loop {
+        tokio::select! {
+            result = &mut Box::pin(async { warmup_handle.is_finished() }) => {
+                if result {
+                    break;
+                }
+            }
+            _ = ticker.tick() => {
+                let elapsed = start.elapsed().as_secs_f64();
+                let spinner = spinner_frames[frame_idx % spinner_frames.len()];
+                print!("\r{CYAN}[███░░░░░]{RESET} {YELLOW}{spinner}{RESET} Loading model to GPU... {DIM}({elapsed:.1}s){RESET}  ");
+                io::stdout().flush().ok();
+                frame_idx += 1;
+            }
+        }
+        
+        if warmup_handle.is_finished() {
+            break;
+        }
+    }
+    
+    // Get result
+    match warmup_handle.await {
+        Ok(Ok(_)) => Ok(()),
+        Ok(Err(e)) => Err(anyhow::anyhow!("{}", e)),
+        Err(e) => Err(anyhow::anyhow!("Task failed: {}", e)),
+    }
+}
+
 /// =============================================================================
 /// Application State
 /// =============================================================================
@@ -159,7 +207,7 @@ async fn main() -> Result<()> {
     println!("{CYAN}{BOLD}║{RESET}            {MAGENTA}🧠 NEURO-OS Backend v0.1.0{RESET}                   {CYAN}{BOLD}║{RESET}");
     println!("{CYAN}{BOLD}╚═══════════════════════════════════════════════════════════╝{RESET}\n");
 
-    const TOTAL_STEPS: u8 = 7;
+    const TOTAL_STEPS: u8 = 8;
 
     // -------------------------------------------------------------------------
     // Initialize database connection pool
@@ -175,29 +223,38 @@ async fn main() -> Result<()> {
     let ollama_client = OllamaClient::new(config.ollama.clone());
     let llm_provider: Arc<dyn LlmProvider + Send + Sync> = Arc::new(ollama_client);
     print_done(2, TOTAL_STEPS, "Ollama client ready");
+    
+    // Warm up the model (preload to GPU memory)
+    print_step(3, TOTAL_STEPS, "Preloading LLM model to GPU...");
+    io::stdout().flush().ok();
+    if let Err(e) = warm_up_model(&llm_provider).await {
+        println!("\r{CYAN}[███░░░░]{RESET} {YELLOW}⚠{RESET} Model warmup skipped: {}", e);
+    } else {
+        print_done(3, TOTAL_STEPS, "LLM model loaded to GPU");
+    }
 
-    print_step(3, TOTAL_STEPS, "Initializing Searxng client...");
+    print_step(4, TOTAL_STEPS, "Initializing Searxng client...");
     let searxng_client = SearxngClient::new(config.searxng.clone());
     let search_provider: Arc<dyn SearchProvider + Send + Sync> = Arc::new(searxng_client);
-    print_done(3, TOTAL_STEPS, "Searxng client ready");
+    print_done(4, TOTAL_STEPS, "Searxng client ready");
 
-    print_step(4, TOTAL_STEPS, "Initializing command executor...");
+    print_step(5, TOTAL_STEPS, "Initializing command executor...");
     let command_executor: Arc<dyn CommandExecutor + Send + Sync> = 
         Arc::new(SafeCommandExecutor::new());
-    print_done(4, TOTAL_STEPS, "Command executor ready");
+    print_done(5, TOTAL_STEPS, "Command executor ready");
 
     // -------------------------------------------------------------------------
     // Create memory repository
     // -------------------------------------------------------------------------
-    print_step(5, TOTAL_STEPS, "Initializing memory repository...");
+    print_step(6, TOTAL_STEPS, "Initializing memory repository...");
     let surreal_repository = Arc::new(SurrealDbRepository::new(database_pool.clone()));
     let memory_repository: Arc<dyn MemoryRepository + Send + Sync> = surreal_repository.clone();
-    print_done(5, TOTAL_STEPS, "Memory repository ready");
+    print_done(6, TOTAL_STEPS, "Memory repository ready");
 
     // -------------------------------------------------------------------------
     // Create application services
     // -------------------------------------------------------------------------
-    print_step(6, TOTAL_STEPS, "Creating application services...");
+    print_step(7, TOTAL_STEPS, "Creating application services...");
     
     let model_manager = Arc::new(ModelManager::new(llm_provider.clone()));
 
@@ -222,12 +279,12 @@ async fn main() -> Result<()> {
         surreal_repository.clone(),
     ));
 
-    print_done(6, TOTAL_STEPS, "Application services ready");
+    print_done(7, TOTAL_STEPS, "Application services ready");
 
     // -------------------------------------------------------------------------
     // Initialize Voice Engine (Kokoro-82M TTS)
     // -------------------------------------------------------------------------
-    print_step(7, TOTAL_STEPS, "Initializing Voice Engine...");
+    print_step(8, TOTAL_STEPS, "Initializing Voice Engine...");
     let voice_config = VoiceConfig::default();
     let voice_engine = Arc::new(VoiceEngine::new(voice_config));
     
@@ -238,7 +295,7 @@ async fn main() -> Result<()> {
             tracing::warn!("Voice engine initialization failed: {}. TTS will be disabled.", e);
         }
     });
-    print_done(7, TOTAL_STEPS, "Voice Engine initialized");
+    print_done(8, TOTAL_STEPS, "Voice Engine initialized");
 
     // -------------------------------------------------------------------------
     // Create application state
