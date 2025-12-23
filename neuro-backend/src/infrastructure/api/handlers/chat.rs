@@ -12,7 +12,7 @@ use futures_util::stream::Stream;
 use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Instant;
-use tracing::{debug, error, instrument};
+use tracing::{error, instrument};
 use uuid::Uuid;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -20,6 +20,7 @@ use crate::domain::entities::chat::{ChatRequest, ChatMessage, MessageMetadata};
 use crate::infrastructure::api::dto::{
     ChatMessageRequest, ChatMessageResponse, ConversationDto, ConversationWithMessagesDto, ChatMessageDto, ErrorResponse,
 };
+use crate::infrastructure::request_logger::{REQUEST_LOGGER, spawn_spinner_task};
 use crate::AppState;
 
 /// POST /api/chat
@@ -29,12 +30,16 @@ pub async fn send_message(
     Json(request): Json<ChatMessageRequest>,
 ) -> Result<Json<ChatMessageResponse>, (StatusCode, Json<ErrorResponse>)> {
     let start = Instant::now();
+    let msg_len = request.message.len();
+    let conv_id = request.conversation_id.map(|id| id.to_string()).unwrap_or_else(|| "new".to_string());
     
-    debug!(
-        conversation_id = ?request.conversation_id,
-        stream = request.stream,
-        "Processing chat message"
-    );
+    // Start request logging
+    REQUEST_LOGGER.start_request(
+        "CHAT",
+        &format!("conv={} len={}", &conv_id[..8.min(conv_id.len())], msg_len)
+    ).await;
+    
+    let spinner = spawn_spinner_task("Generating response...".to_string());
 
     let chat_request = ChatRequest {
         message: request.message.clone(),
@@ -45,7 +50,14 @@ pub async fn send_message(
 
     match state.chat_service.chat(chat_request).await {
         Ok(response) => {
+            spinner.abort();
             let processing_time = start.elapsed();
+            
+            REQUEST_LOGGER.complete_success(
+                response.message.metadata.prompt_tokens.unwrap_or(0) as u32,
+                response.message.metadata.completion_tokens.unwrap_or(0) as u32,
+                &response.message.metadata.model.clone().unwrap_or_default()
+            ).await;
 
             Ok(Json(ChatMessageResponse {
                 content: response.message.content.clone(),
@@ -60,6 +72,8 @@ pub async fn send_message(
             }))
         }
         Err(e) => {
+            spinner.abort();
+            REQUEST_LOGGER.complete_error(&e.to_string()).await;
             error!(error = %e, "Failed to process chat message");
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -78,6 +92,14 @@ pub async fn stream_message(
     let conversation_id = request.conversation_id.unwrap_or_else(Uuid::new_v4);
     let message = request.message.clone();
     let message_for_memory = request.message.clone(); // Clone for memory extraction
+    let msg_len = message.len();
+    let conv_id_str = conversation_id.to_string();
+    
+    // Start request logging
+    REQUEST_LOGGER.start_request(
+        "STREAM",
+        &format!("conv={} len={}", &conv_id_str[..8], msg_len)
+    ).await;
     
     // Get services
     let memory_service = state.memory_service.clone();
@@ -87,6 +109,8 @@ pub async fn stream_message(
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(100);
     
     // Spawn task to handle streaming
+    let _spinner = spawn_spinner_task("Streaming response...".to_string());
+    
     tokio::spawn(async move {
         let start = Instant::now();
         
@@ -243,6 +267,14 @@ pub async fn stream_message(
                     });
                     let _ = tx.send(Ok(Event::default().event("message").data(final_data.to_string()))).await;
                     
+                    // Log stream completion
+                    let chunks_count = full_content.matches("").count() as u32 / 10; // Approximate
+                    REQUEST_LOGGER.complete_stream(
+                        chunks_count,
+                        (prompt_tokens + completion_tokens) as u32,
+                        &model
+                    ).await;
+                    
                     // Drop the sender to signal stream completion
                     drop(tx);
                     
@@ -254,17 +286,21 @@ pub async fn stream_message(
                     chat_service.update_conversation_direct(conversation_id, user_message, assistant_message.clone()).await;
                     tracing::info!(conversation_id = %conversation_id, "Conversation save completed");
                 } else {
+                    let error_msg = format!("Ollama error: {}", response.status());
+                    REQUEST_LOGGER.complete_error(&error_msg).await;
                     let error_data = serde_json::json!({
                         "type": "error",
-                        "error": format!("Ollama error: {}", response.status()),
+                        "error": error_msg,
                     });
                     let _ = tx.send(Ok(Event::default().event("message").data(error_data.to_string()))).await;
                 }
             }
             Err(e) => {
+                let error_msg = format!("Request failed: {}", e);
+                REQUEST_LOGGER.complete_error(&error_msg).await;
                 let error_data = serde_json::json!({
                     "type": "error",
-                    "error": format!("Request failed: {}", e),
+                    "error": error_msg,
                 });
                 let _ = tx.send(Ok(Event::default().event("message").data(error_data.to_string()))).await;
             }
