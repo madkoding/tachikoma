@@ -30,6 +30,17 @@ export default function GraphPage() {
   const tooltipTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const savedCameraPositionRef = useRef<{ x: number; y: number; z: number } | null>(null);
 
+  // Helper to check if dimensions changed significantly
+  const shouldUpdateDimensions = useCallback(
+    (prev: { width: number; height: number } | null, newDims: { width: number; height: number }) => {
+      if (!prev) return newDims;
+      const hasChanged = Math.abs(prev.width - newDims.width) > 1 || 
+                        Math.abs(prev.height - newDims.height) > 1;
+      return hasChanged ? newDims : prev;
+    },
+    []
+  );
+
   // Update dimensions on resize - con múltiples intentos para refresh
   useEffect(() => {
     let rafId: number;
@@ -38,12 +49,14 @@ export default function GraphPage() {
     
     const calculateDimensions = () => {
       if (!containerRef.current) return null;
-      // Usar offsetWidth/offsetHeight que son más confiables
       const width = containerRef.current.offsetWidth;
       const height = containerRef.current.offsetHeight;
-      // Validar que las dimensiones sean razonables (mayor a 100px)
       if (width < 100 || height < 100) return null;
       return { width, height };
+    };
+    
+    const applyDimensions = (newDims: { width: number; height: number }) => {
+      setDimensions(prev => shouldUpdateDimensions(prev, newDims));
     };
     
     const updateDimensions = () => {
@@ -53,14 +66,7 @@ export default function GraphPage() {
       rafId = requestAnimationFrame(() => {
         if (!mounted) return;
         const newDims = calculateDimensions();
-        if (!newDims) return;
-        
-        setDimensions(prev => {
-          if (!prev) return newDims;
-          const hasChanged = Math.abs(prev.width - newDims.width) > 1 || 
-                            Math.abs(prev.height - newDims.height) > 1;
-          return hasChanged ? newDims : prev;
-        });
+        if (newDims) applyDimensions(newDims);
       });
     };
     

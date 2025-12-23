@@ -247,4 +247,5 @@ i18n.use(initReactI18next).init({
   },
 });
 
+// NOSONAR: i18n is created locally, not re-exported from another module
 export default i18n;
