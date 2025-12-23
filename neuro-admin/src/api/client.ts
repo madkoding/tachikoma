@@ -53,13 +53,14 @@ export interface SystemHealth {
 export const graphApi = {
   getGraph: async (_limit?: number): Promise<GraphData> => {
     const response = await api.get('/admin/graph/export');
+    console.log('Graph API response:', response.data);
     // Transform export format to GraphData format
     return {
       nodes: response.data.nodes,
-      edges: response.data.edges.map((e: { from_id: string; to_id: string; relation_type: string; confidence: number }) => ({
+      edges: response.data.edges.map((e: { from_id: string; to_id: string; relation: string; confidence: number }) => ({
         source: e.from_id,
         target: e.to_id,
-        relation: e.relation_type,
+        relation: e.relation,
         weight: e.confidence,
       })),
     };
@@ -92,6 +93,11 @@ export const memoryApi = {
 
   create: async (memory: Partial<Memory>): Promise<Memory> => {
     const response = await api.post('/memories', memory);
+    return response.data;
+  },
+
+  update: async (id: string, memory: Partial<Memory>): Promise<Memory> => {
+    const response = await api.patch(`/memories/${id}`, memory);
     return response.data;
   },
 

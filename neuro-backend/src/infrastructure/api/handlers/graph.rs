@@ -313,6 +313,12 @@ fn parse_relation(relation_str: &str) -> Option<Relation> {
         "context_of" | "contextof" => Some(Relation::ContextOf),
         "references" => Some(Relation::References),
         "supersedes" => Some(Relation::Supersedes),
+        "has_property" | "hasproperty" => Some(Relation::HasProperty),
+        "used_for" | "usedfor" => Some(Relation::UsedFor),
+        "capable_of" | "capableof" => Some(Relation::CapableOf),
+        "located_in" | "locatedin" => Some(Relation::LocatedIn),
+        "created_by" | "createdby" => Some(Relation::CreatedBy),
+        "similar_to" | "similarto" => Some(Relation::SimilarTo),
         _ => None,
     }
 }

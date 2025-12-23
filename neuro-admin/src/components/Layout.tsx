@@ -10,44 +10,41 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-cyber-bg flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-cyber-surface border-r border-cyber-cyan/20 relative">
+    <div className="h-screen bg-cyber-bg flex overflow-hidden">
+      {/* Sidebar - always compact with icons only */}
+      <aside className="relative z-50 h-full w-16 bg-cyber-surface border-r border-cyber-cyan/20 shrink-0">
         {/* Glow effect */}
         <div className="absolute inset-0 bg-gradient-to-b from-cyber-cyan/5 to-transparent pointer-events-none"></div>
         
-        <div className="p-6 relative">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-cyber-cyan/20 border border-cyber-cyan flex items-center justify-center shadow-[0_0_15px_rgba(0,245,255,0.3)]">
+        <div className="p-2 relative">
+          <div className="flex items-center justify-center">
+            <div className="w-10 h-10 shrink-0 rounded-lg bg-cyber-cyan/20 border border-cyber-cyan flex items-center justify-center shadow-[0_0_15px_rgba(0,245,255,0.3)]">
               <TachikomaIcon />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold neon-cyan font-cyber tracking-wider">TACHIKOMA</h1>
-              <p className="text-xs text-cyber-cyan/50 font-mono">ADMIN // v1.0</p>
             </div>
           </div>
         </div>
 
-        <nav className="px-4 space-y-1 relative">
+        <nav className="px-1 space-y-1 relative">
           <NavItem to="/" icon={<DashboardIcon />} label={t('nav.dashboard')} />
           <NavItem to="/graph" icon={<GraphIcon />} label={t('nav.graph')} />
-          <NavItem to="/memories" icon={<MemoryIcon />} label={t('nav.memories')} />
         </nav>
 
-        <div className="absolute bottom-4 left-4 right-4">
+        <div className="absolute bottom-4 left-1 right-1">
           <button
             onClick={toggleLanguage}
-            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all border border-transparent hover:border-cyber-cyan/30 font-mono"
+            className="w-full flex items-center justify-center px-2 py-2 text-sm text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all border border-transparent hover:border-cyber-cyan/30 font-mono"
+            title={i18n.language === 'en' ? 'Cambiar a Español' : 'Switch to English'}
           >
             <LanguageIcon />
-            {i18n.language === 'en' ? 'ESPAÑOL' : 'ENGLISH'}
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-8 overflow-auto bg-cyber-bg">
-        <Outlet />
+      <main className="flex-1 flex flex-col h-full overflow-hidden">
+        <div className="flex-1 overflow-hidden">
+          <Outlet />
+        </div>
       </main>
     </div>
   );
@@ -63,9 +60,10 @@ function NavItem({ to, icon, label }: Readonly<NavItemProps>) {
   return (
     <NavLink
       to={to}
+      title={label}
       className={({ isActive }) =>
         clsx(
-          'flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-mono text-sm tracking-wide',
+          'flex items-center justify-center px-2 py-3 rounded-xl transition-all font-mono text-sm tracking-wide',
           isActive
             ? 'bg-cyber-cyan/10 text-cyber-cyan border border-cyber-cyan/50 shadow-[0_0_15px_rgba(0,245,255,0.2)]'
             : 'text-cyber-cyan/60 hover:text-cyber-cyan hover:bg-cyber-cyan/5 border border-transparent hover:border-cyber-cyan/20'
@@ -73,16 +71,27 @@ function NavItem({ to, icon, label }: Readonly<NavItemProps>) {
       }
     >
       {icon}
-      <span className="uppercase">{label}</span>
     </NavLink>
   );
 }
 
 function TachikomaIcon() {
   return (
-    <svg className="w-6 h-6 text-cyber-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+    <svg className="w-6 h-6 text-cyber-cyan" fill="currentColor" stroke="currentColor" viewBox="0 0 100 100">
+      <g fill="currentColor">
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(0 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(45 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(90 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(135 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(180 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(225 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(270 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(315 50 50)"/>
+      </g>
+      <circle cx="50" cy="50" r="38" fill="none" stroke="currentColor" strokeWidth="6"/>
+      <circle cx="50" cy="50" r="28" fill="none" stroke="currentColor" strokeWidth="4"/>
+      <circle cx="50" cy="50" r="18" fill="none" stroke="currentColor" strokeWidth="3"/>
+      <circle cx="50" cy="50" r="6" fill="currentColor"/>
     </svg>
   );
 }
@@ -101,15 +110,6 @@ function GraphIcon() {
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
             d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-    </svg>
-  );
-}
-
-function MemoryIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-            d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
     </svg>
   );
 }

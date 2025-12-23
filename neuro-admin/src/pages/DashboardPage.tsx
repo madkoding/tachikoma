@@ -37,7 +37,7 @@ export default function DashboardPage() {
     : [];
 
   return (
-    <div className="space-y-8">
+    <div className="h-full overflow-auto p-4 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -95,7 +95,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {/* Memory Types Pie Chart */}
         <div className="cyber-card">
           <h3 className="text-lg font-semibold mb-4 neon-cyan">
@@ -399,9 +399,21 @@ function HeartbeatIcon() {
 
 function BrainIcon() {
   return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+    <svg className="w-5 h-5" fill="currentColor" stroke="currentColor" viewBox="0 0 100 100">
+      <g fill="currentColor">
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(0 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(45 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(90 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(135 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(180 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(225 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(270 50 50)"/>
+        <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(315 50 50)"/>
+      </g>
+      <circle cx="50" cy="50" r="38" fill="none" stroke="currentColor" strokeWidth="6"/>
+      <circle cx="50" cy="50" r="28" fill="none" stroke="currentColor" strokeWidth="4"/>
+      <circle cx="50" cy="50" r="18" fill="none" stroke="currentColor" strokeWidth="3"/>
+      <circle cx="50" cy="50" r="6" fill="currentColor"/>
     </svg>
   );
 }

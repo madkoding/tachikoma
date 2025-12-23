@@ -103,8 +103,8 @@ impl Default for EffectsConfig {
         // - Como si hablara desde dentro de un cuerpo robótico pequeño
         // =======================================================================
         Self {
-            // Velocidad normal para máxima claridad
-            speed: 1.0,
+            // Velocidad ligeramente aumentada (1.15x)
+            speed: 1.15,
             
             // Pitch 0: la cadena de efectos aplica +1 internamente a la capa procesada
             // La voz principal queda sin pitch shift para claridad

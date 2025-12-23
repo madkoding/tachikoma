@@ -264,6 +264,9 @@ pub enum MemoryType {
     /// Conversation context (e.g., "User mentioned working on a Rust project")
     Conversation,
 
+    /// General context information (e.g., "Currently working on project X")
+    Context,
+
     /// User-defined semantic tags (e.g., "Project: NEURO-OS")
     SemanticTag,
 
@@ -278,6 +281,27 @@ pub enum MemoryType {
 
     /// Code snippets or technical documentation
     CodeSnippet,
+
+    /// Tasks, todos, and action items (e.g., "Need to finish report by Friday")
+    Task,
+
+    /// Named entities: people, places, organizations, products
+    Entity,
+
+    /// Goals and objectives (e.g., "User wants to learn Rust")
+    Goal,
+
+    /// Skills and abilities (e.g., "User knows Python")
+    Skill,
+
+    /// Events and dates (e.g., "Birthday is on March 15")
+    Event,
+
+    /// Opinions and beliefs (e.g., "User thinks AI is the future")
+    Opinion,
+
+    /// Experiences and stories (e.g., "User traveled to Japan last year")
+    Experience,
 
     /// Generic/uncategorized memory
     General,

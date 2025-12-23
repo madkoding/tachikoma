@@ -89,6 +89,15 @@ impl AgentOrchestrator {
             "preference" => MemoryType::Preference,
             "procedure" => MemoryType::Procedure,
             "insight" => MemoryType::Insight,
+            "context" => MemoryType::Context,
+            "conversation" => MemoryType::Conversation,
+            "task" => MemoryType::Task,
+            "entity" => MemoryType::Entity,
+            "goal" => MemoryType::Goal,
+            "skill" => MemoryType::Skill,
+            "event" => MemoryType::Event,
+            "opinion" => MemoryType::Opinion,
+            "experience" => MemoryType::Experience,
             _ => MemoryType::General,
         };
 

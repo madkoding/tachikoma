@@ -163,6 +163,72 @@ pub enum Relation {
     /// - "Use Rust 2021 edition" → SUPERSEDES → "Use Rust 2018 edition"
     /// =======================================================================
     Supersedes,
+
+    /// =======================================================================
+    /// Property relationship
+    /// =======================================================================
+    /// Indicates that something has a property or attribute.
+    /// Direction: Source HAS_PROPERTY Target
+    /// 
+    /// # Example
+    /// - "El usuario" → HAS_PROPERTY → "Le gusta el morado"
+    /// =======================================================================
+    HasProperty,
+
+    /// =======================================================================
+    /// Usage relationship
+    /// =======================================================================
+    /// Indicates that something is used for a purpose.
+    /// Direction: Source USED_FOR Target
+    /// 
+    /// # Example
+    /// - "Python" → USED_FOR → "Machine Learning"
+    /// =======================================================================
+    UsedFor,
+
+    /// =======================================================================
+    /// Capability relationship
+    /// =======================================================================
+    /// Indicates that something is capable of doing something.
+    /// Direction: Source CAPABLE_OF Target
+    /// 
+    /// # Example
+    /// - "El usuario" → CAPABLE_OF → "Programar en Rust"
+    /// =======================================================================
+    CapableOf,
+
+    /// =======================================================================
+    /// Location relationship
+    /// =======================================================================
+    /// Indicates that something is located in a place.
+    /// Direction: Source LOCATED_IN Target
+    /// 
+    /// # Example
+    /// - "El usuario" → LOCATED_IN → "Santiago, Chile"
+    /// =======================================================================
+    LocatedIn,
+
+    /// =======================================================================
+    /// Creator relationship
+    /// =======================================================================
+    /// Indicates that something was created by someone/something.
+    /// Direction: Source CREATED_BY Target
+    /// 
+    /// # Example
+    /// - "Este proyecto" → CREATED_BY → "El usuario"
+    /// =======================================================================
+    CreatedBy,
+
+    /// =======================================================================
+    /// Similarity relationship
+    /// =======================================================================
+    /// Indicates that two things are similar but not the same.
+    /// This is symmetric.
+    /// 
+    /// # Example
+    /// - "Me gusta el morado" ←→ SIMILAR_TO ←→ "Me gusta el violeta"
+    /// =======================================================================
+    SimilarTo,
 }
 
 impl Relation {
@@ -189,6 +255,12 @@ impl Relation {
             Relation::ContextOf => Relation::RelatedTo,      // Inverse is generic
             Relation::References => Relation::References,    // Inverse is "ReferencedBy"
             Relation::Supersedes => Relation::Supersedes,    // Inverse is "SupersededBy"
+            Relation::HasProperty => Relation::HasProperty,  // Inverse is "PropertyOf"
+            Relation::UsedFor => Relation::UsedFor,          // Inverse is "Uses"
+            Relation::CapableOf => Relation::CapableOf,      // Inverse is "CapabilityOf"
+            Relation::LocatedIn => Relation::LocatedIn,      // Inverse is "Contains"
+            Relation::CreatedBy => Relation::CreatedBy,      // Inverse is "Created"
+            Relation::SimilarTo => Relation::SimilarTo,      // Symmetric
         }
     }
 
@@ -204,7 +276,7 @@ impl Relation {
     pub fn is_symmetric(&self) -> bool {
         matches!(
             self,
-            Relation::RelatedTo | Relation::Contradicts | Relation::SameAs
+            Relation::RelatedTo | Relation::Contradicts | Relation::SameAs | Relation::SimilarTo
         )
     }
 
@@ -224,9 +296,15 @@ impl Relation {
             Relation::PartOf => 0.9,
             Relation::Causes => 0.8,
             Relation::DerivedFrom => 0.8,
+            Relation::CreatedBy => 0.8,
             Relation::Supports => 0.7,
             Relation::Supersedes => 0.7,
+            Relation::HasProperty => 0.7,
+            Relation::LocatedIn => 0.7,
+            Relation::CapableOf => 0.6,
+            Relation::UsedFor => 0.6,
             Relation::ContextOf => 0.6,
+            Relation::SimilarTo => 0.5,
             Relation::Follows => 0.5,
             Relation::References => 0.4,
             Relation::RelatedTo => 0.3,
@@ -250,6 +328,12 @@ impl Relation {
             Relation::ContextOf,
             Relation::References,
             Relation::Supersedes,
+            Relation::HasProperty,
+            Relation::UsedFor,
+            Relation::CapableOf,
+            Relation::LocatedIn,
+            Relation::CreatedBy,
+            Relation::SimilarTo,
         ]
     }
 
@@ -271,6 +355,12 @@ impl Relation {
             Relation::ContextOf => "context_of",
             Relation::References => "references",
             Relation::Supersedes => "supersedes",
+            Relation::HasProperty => "has_property",
+            Relation::UsedFor => "used_for",
+            Relation::CapableOf => "capable_of",
+            Relation::LocatedIn => "located_in",
+            Relation::CreatedBy => "created_by",
+            Relation::SimilarTo => "similar_to",
         }
     }
 }

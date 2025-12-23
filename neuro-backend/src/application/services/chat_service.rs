@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::application::services::{
     agent_orchestrator::AgentOrchestrator,
+    knowledge_extractor::KnowledgeExtractor,
     memory_service::MemoryService,
     model_manager::ModelManager,
 };
@@ -32,6 +33,8 @@ pub struct ChatService {
     model_manager: Arc<ModelManager>,
     llm_provider: Arc<dyn LlmProvider>,
     repository: Arc<SurrealDbRepository>,
+    /// Intelligent knowledge extractor for auto-learning
+    knowledge_extractor: Arc<KnowledgeExtractor>,
     pub system_prompt: String,
 }
 
@@ -43,12 +46,19 @@ impl ChatService {
         llm_provider: Arc<dyn LlmProvider>,
         repository: Arc<SurrealDbRepository>,
     ) -> Self {
+        // Create the knowledge extractor for intelligent auto-learning
+        let knowledge_extractor = Arc::new(KnowledgeExtractor::new(
+            llm_provider.clone(),
+            memory_service.clone(),
+        ));
+
         Self {
             agent_orchestrator,
             memory_service,
             model_manager,
             llm_provider,
             repository,
+            knowledge_extractor,
             system_prompt: Self::default_system_prompt(),
         }
     }
@@ -579,14 +589,48 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
     }
 
     /// =========================================================================
-    /// Extract and store memories from user messages
+    /// INTELLIGENT AUTO-LEARNING: Extract and store memories from user messages
     /// =========================================================================
-    /// Detects patterns that indicate personal information worth remembering:
-    /// - Personal facts (name, job, location, relationships)
-    /// - Preferences (likes, dislikes, favorites)
-    /// - Explicit memory requests ("recuerda que...")
+    /// Uses LLM-based knowledge extraction to automatically learn from conversations.
+    /// Falls back to pattern-based extraction if LLM extraction fails.
     /// =========================================================================
+    #[instrument(skip(self, user_message), fields(message_len = user_message.len()))]
     pub async fn extract_and_store_memories(&self, user_message: &str) {
+        // Use the intelligent knowledge extractor
+        info!("🧠 Starting intelligent knowledge extraction...");
+        
+        match self.knowledge_extractor.learn_from_message(user_message).await {
+            Ok(knowledge) => {
+                if knowledge.is_memorable {
+                    info!(
+                        facts = knowledge.facts.len(),
+                        preferences = knowledge.preferences.len(),
+                        entities = knowledge.entities.len(),
+                        goals = knowledge.goals.len(),
+                        skills = knowledge.skills.len(),
+                        events = knowledge.events.len(),
+                        opinions = knowledge.opinions.len(),
+                        experiences = knowledge.experiences.len(),
+                        tasks = knowledge.tasks.len(),
+                        relationships = knowledge.relationships.len(),
+                        "✅ Intelligent extraction completed"
+                    );
+                } else {
+                    debug!("Message not deemed memorable by intelligent extractor");
+                }
+            }
+            Err(e) => {
+                error!(error = %e, "Intelligent extraction failed, using fallback patterns");
+                // Fallback to pattern-based extraction
+                self.extract_with_patterns(user_message).await;
+            }
+        }
+    }
+
+    /// =========================================================================
+    /// Fallback pattern-based extraction (when LLM is unavailable)
+    /// =========================================================================
+    async fn extract_with_patterns(&self, user_message: &str) {
         let msg_lower = user_message.to_lowercase();
         
         // Skip very short messages or questions
@@ -594,210 +638,64 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
             return;
         }
 
-        // Patterns for explicit memory requests (highest priority)
-        let explicit_patterns = [
-            ("recuerda que ", ""),
-            ("recuerda: ", ""),
-            ("no olvides que ", ""),
-            ("remember that ", ""),
-            ("remember: ", ""),
-            ("don't forget that ", ""),
-            ("don't forget: ", ""),
+        // Quick pattern checks for common cases
+        let preference_keywords = [
+            "me gusta", "me encanta", "me fascina", "me apasiona", "prefiero",
+            "odio", "detesto", "no me gusta", "mi favorito", "mi favorita",
+            "i like", "i love", "i hate", "i prefer", "my favorite",
         ];
 
-        // Personal identity patterns
-        let identity_patterns = [
-            ("mi nombre es ", "El nombre del usuario es "),
-            ("me llamo ", "El nombre del usuario es "),
-            ("my name is ", "El nombre del usuario es "),
-            ("soy ", "El usuario es "),
-            ("i am ", "El usuario es "),
-            ("i'm ", "El usuario es "),
+        let identity_keywords = [
+            "mi nombre", "me llamo", "soy ", "trabajo en", "trabajo como",
+            "vivo en", "my name", "i am", "i work", "i live",
         ];
 
-        // Work/occupation patterns
-        let work_patterns = [
-            ("trabajo en ", "El usuario trabaja en "),
-            ("trabajo como ", "El usuario trabaja como "),
-            ("trabajo de ", "El usuario trabaja de "),
-            ("i work at ", "El usuario trabaja en "),
-            ("i work as ", "El usuario trabaja como "),
-            ("i work for ", "El usuario trabaja para "),
-            ("mi trabajo es ", "El trabajo del usuario es "),
-            ("my job is ", "El trabajo del usuario es "),
+        let task_keywords = [
+            "tengo que", "debo", "necesito", "todo:", "pendiente",
+            "i need to", "i have to", "i must", "i should",
         ];
 
-        // Living situation patterns
-        let living_patterns = [
-            ("vivo en ", "El usuario vive en "),
-            ("vivo con ", "El usuario vive con "),
-            ("i live in ", "El usuario vive en "),
-            ("i live with ", "El usuario vive con "),
-            ("mi casa está en ", "La casa del usuario está en "),
-            ("my house is in ", "La casa del usuario está en "),
-        ];
-
-        // Relationship patterns
-        let relationship_patterns = [
-            ("mi esposa ", "La esposa del usuario "),
-            ("mi esposo ", "El esposo del usuario "),
-            ("mi pareja ", "La pareja del usuario "),
-            ("mi novio ", "El novio del usuario "),
-            ("mi novia ", "La novia del usuario "),
-            ("mi hijo ", "El hijo del usuario "),
-            ("mi hija ", "La hija del usuario "),
-            ("mis hijos ", "Los hijos del usuario "),
-            ("mi mamá ", "La mamá del usuario "),
-            ("mi papá ", "El papá del usuario "),
-            ("mi hermano ", "El hermano del usuario "),
-            ("mi hermana ", "La hermana del usuario "),
-            ("mi mascota ", "La mascota del usuario "),
-            ("mi perro ", "El perro del usuario "),
-            ("mi gato ", "El gato del usuario "),
-            ("tengo un perro ", "El usuario tiene un perro "),
-            ("tengo un gato ", "El usuario tiene un gato "),
-            ("tengo una mascota ", "El usuario tiene una mascota "),
-            ("my wife ", "La esposa del usuario "),
-            ("my husband ", "El esposo del usuario "),
-            ("my partner ", "La pareja del usuario "),
-            ("my boyfriend ", "El novio del usuario "),
-            ("my girlfriend ", "La novia del usuario "),
-            ("my son ", "El hijo del usuario "),
-            ("my daughter ", "La hija del usuario "),
-            ("my kids ", "Los hijos del usuario "),
-            ("my mom ", "La mamá del usuario "),
-            ("my dad ", "El papá del usuario "),
-            ("my brother ", "El hermano del usuario "),
-            ("my sister ", "La hermana del usuario "),
-            ("my pet ", "La mascota del usuario "),
-            ("my dog ", "El perro del usuario "),
-            ("my cat ", "El gato del usuario "),
-            ("i have a dog ", "El usuario tiene un perro "),
-            ("i have a cat ", "El usuario tiene un gato "),
-            ("i have a pet ", "El usuario tiene una mascota "),
-        ];
-
-        // Preference patterns
-        let preference_patterns = [
-            ("me gusta ", "Al usuario le gusta "),
-            ("me gustan ", "Al usuario le gustan "),
-            ("me encanta ", "Al usuario le encanta "),
-            ("me encantan ", "Al usuario le encantan "),
-            ("prefiero ", "El usuario prefiere "),
-            ("no me gusta ", "Al usuario no le gusta "),
-            ("no me gustan ", "Al usuario no le gustan "),
-            ("odio ", "El usuario odia "),
-            ("detesto ", "El usuario detesta "),
-            ("mi favorito es ", "El favorito del usuario es "),
-            ("mi favorita es ", "La favorita del usuario es "),
-            ("mi color favorito ", "El color favorito del usuario "),
-            ("mi comida favorita ", "La comida favorita del usuario "),
-            ("i like ", "Al usuario le gusta "),
-            ("i love ", "Al usuario le encanta "),
-            ("i prefer ", "El usuario prefiere "),
-            ("i don't like ", "Al usuario no le gusta "),
-            ("i hate ", "El usuario odia "),
-            ("my favorite is ", "El favorito del usuario es "),
-            ("my favorite color ", "El color favorito del usuario "),
-            ("my favorite food ", "La comida favorita del usuario "),
-        ];
-
-        // Try to extract memory from each category
-        let mut extracted = false;
-
-        // First check explicit memory requests
-        for (pattern, _) in explicit_patterns.iter() {
-            if let Some(content) = self.extract_after_pattern(&msg_lower, user_message, pattern) {
-                if self.store_memory(&content, MemoryType::Fact).await {
-                    extracted = true;
-                    break;
+        // Check preferences
+        for keyword in preference_keywords {
+            if msg_lower.contains(keyword) {
+                if let Some(content) = self.extract_simple_content(user_message) {
+                    let _ = self.store_memory(&content, MemoryType::Preference).await;
+                    return;
                 }
             }
         }
 
-        if !extracted {
-            // Check identity patterns
-            for (pattern, prefix) in identity_patterns.iter() {
-                if let Some(content) = self.extract_after_pattern(&msg_lower, user_message, pattern) {
-                    let memory = format!("{}{}", prefix, content);
-                    if self.store_memory(&memory, MemoryType::Fact).await {
-                        extracted = true;
-                        break;
-                    }
+        // Check identity facts
+        for keyword in identity_keywords {
+            if msg_lower.contains(keyword) {
+                if let Some(content) = self.extract_simple_content(user_message) {
+                    let _ = self.store_memory(&content, MemoryType::Fact).await;
+                    return;
                 }
             }
         }
 
-        if !extracted {
-            // Check work patterns
-            for (pattern, prefix) in work_patterns.iter() {
-                if let Some(content) = self.extract_after_pattern(&msg_lower, user_message, pattern) {
-                    let memory = format!("{}{}", prefix, content);
-                    if self.store_memory(&memory, MemoryType::Fact).await {
-                        extracted = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if !extracted {
-            // Check living patterns
-            for (pattern, prefix) in living_patterns.iter() {
-                if let Some(content) = self.extract_after_pattern(&msg_lower, user_message, pattern) {
-                    let memory = format!("{}{}", prefix, content);
-                    if self.store_memory(&memory, MemoryType::Fact).await {
-                        extracted = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if !extracted {
-            // Check relationship patterns
-            for (pattern, prefix) in relationship_patterns.iter() {
-                if let Some(content) = self.extract_after_pattern(&msg_lower, user_message, pattern) {
-                    let memory = format!("{}{}", prefix, content);
-                    if self.store_memory(&memory, MemoryType::Fact).await {
-                        extracted = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if !extracted {
-            // Check preference patterns
-            for (pattern, prefix) in preference_patterns.iter() {
-                if let Some(content) = self.extract_after_pattern(&msg_lower, user_message, pattern) {
-                    let memory = format!("{}{}", prefix, content);
-                    if self.store_memory(&memory, MemoryType::Preference).await {
-                        // Don't set extracted = true for preferences, allow multiple
-                    }
+        // Check tasks
+        for keyword in task_keywords {
+            if msg_lower.contains(keyword) {
+                if let Some(content) = self.extract_simple_content(user_message) {
+                    let _ = self.store_memory(&content, MemoryType::Task).await;
+                    return;
                 }
             }
         }
     }
 
-    /// Extract content after a pattern, handling sentence boundaries
-    fn extract_after_pattern(&self, msg_lower: &str, original: &str, pattern: &str) -> Option<String> {
-        if let Some(pos) = msg_lower.find(pattern) {
-            let content_start = pos + pattern.len();
-            let remaining = &original[content_start..];
-            
-            // Find sentence end or take reasonable chunk
-            let end_pos = remaining
-                .find(|c| c == '.' || c == '!' || c == '?' || c == '\n')
-                .unwrap_or(remaining.len().min(200));
-            
-            let content = remaining[..end_pos].trim();
-            
-            if content.len() >= 2 && content.len() <= 500 {
-                return Some(content.to_string());
-            }
+    /// Extract simple content from a message (used as fallback)
+    fn extract_simple_content(&self, message: &str) -> Option<String> {
+        // Take the whole message if it's reasonable length
+        let content = message.trim();
+        if content.len() >= 10 && content.len() <= 500 {
+            // Convert to third person format
+            Some(format!("El usuario dice: {}", content))
+        } else {
+            None
         }
-        None
     }
 
     /// Store a memory and return success status
@@ -805,16 +703,16 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         info!(
             content = %content,
             memory_type = ?memory_type,
-            "Extracting memory from conversation"
+            "Storing memory from conversation"
         );
 
         match self.memory_service.create_memory(content.to_string(), memory_type, None).await {
             Ok(_) => {
-                info!("Memory stored successfully from conversation");
+                info!("Memory stored successfully");
                 true
             }
             Err(e) => {
-                error!(error = %e, "Failed to store extracted memory");
+                error!(error = %e, "Failed to store memory");
                 false
             }
         }

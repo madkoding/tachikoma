@@ -40,8 +40,8 @@
 				},
 				"background": {
 					"activeOnStart": true,
-					"beginsPattern": "^\\[Running",
-					"endsPattern": "^\\s+Compiling|Listening on"
+					"beginsPattern": "Compiling|Restarting",
+					"endsPattern": "NEURO-OS Backend ready|Server:"
 				}
 			},
 			"presentation": {
@@ -66,8 +66,8 @@
 				},
 				"background": {
 					"activeOnStart": true,
-					"beginsPattern": "^VITE",
-					"endsPattern": "ready in"
+					"beginsPattern": "VITE|vite|npm",
+					"endsPattern": "ready in|Local:|localhost"
 				}
 			},
 			"presentation": {
@@ -92,8 +92,8 @@
 				},
 				"background": {
 					"activeOnStart": true,
-					"beginsPattern": "^VITE",
-					"endsPattern": "ready in"
+					"beginsPattern": "VITE|vite|npm",
+					"endsPattern": "ready in|Local:|localhost"
 				}
 			},
 			"presentation": {
@@ -110,7 +110,7 @@
 				"⚛️ User UI (Vite)",
 				"🔧 Admin UI (Vite)"
 			],
-			"dependsOrder": "sequence",
+			"dependsOrder": "parallel",
 			"problemMatcher": [],
 			"runOptions": {
 				"runOn": "default"
