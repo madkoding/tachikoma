@@ -25,6 +25,7 @@ use crate::domain::{
     },
     value_objects::relation::{GraphEdge, Relation},
 };
+use crate::infrastructure::api::events::{EventBroadcaster, MemoryEvent, MemoryEventData};
 
 /// =============================================================================
 /// MemoryService - Memory Management Application Service
@@ -54,6 +55,9 @@ pub struct MemoryService {
     
     /// LLM provider for embedding generation
     llm_provider: Arc<dyn LlmProvider>,
+    
+    /// Optional event broadcaster for SSE notifications
+    event_broadcaster: Option<Arc<EventBroadcaster>>,
 }
 
 impl MemoryService {
@@ -78,6 +82,32 @@ impl MemoryService {
         Self {
             repository,
             llm_provider,
+            event_broadcaster: None,
+        }
+    }
+    
+    /// =========================================================================
+    /// Create a new MemoryService with event broadcasting
+    /// =========================================================================
+    pub fn with_broadcaster(
+        repository: Arc<dyn MemoryRepository>,
+        llm_provider: Arc<dyn LlmProvider>,
+        broadcaster: Arc<EventBroadcaster>,
+    ) -> Self {
+        Self {
+            repository,
+            llm_provider,
+            event_broadcaster: Some(broadcaster),
+        }
+    }
+    
+    /// Emit a memory event if broadcaster is configured
+    fn emit_event(&self, event: MemoryEvent) {
+        if let Some(broadcaster) = &self.event_broadcaster {
+            info!("📡 Broadcasting memory event: {:?}", event);
+            broadcaster.broadcast(event);
+        } else {
+            debug!("No broadcaster configured, skipping event emission");
         }
     }
 
@@ -202,6 +232,15 @@ impl MemoryService {
 
                     let result = self.repository.update(updated_memory).await?;
                     info!(memory_id = %result.id, "Memory merged and updated successfully");
+                    
+                    // Emit event for updated memory
+                    self.emit_event(MemoryEvent::Updated(MemoryEventData {
+                        id: result.id.to_string(),
+                        content: result.content.clone(),
+                        memory_type: format!("{:?}", result.memory_type),
+                        created_at: result.created_at.to_rfc3339(),
+                    }));
+                    
                     return Ok(result);
                 } else {
                     // Content is essentially the same, just return the existing memory
@@ -224,6 +263,14 @@ impl MemoryService {
         let created = self.repository.create(memory).await?;
 
         info!(memory_id = %created.id, "Memory created successfully");
+        
+        // Emit event for new memory
+        self.emit_event(MemoryEvent::Created(MemoryEventData {
+            id: created.id.to_string(),
+            content: created.content.clone(),
+            memory_type: format!("{:?}", created.memory_type),
+            created_at: created.created_at.to_rfc3339(),
+        }));
 
         Ok(created)
     }
@@ -381,6 +428,14 @@ Merged result (just the merged text, nothing else):"#,
         let updated = self.repository.update(memory).await?;
 
         info!(memory_id = %id, "Memory updated successfully");
+        
+        // Emit event for updated memory
+        self.emit_event(MemoryEvent::Updated(MemoryEventData {
+            id: updated.id.to_string(),
+            content: updated.content.clone(),
+            memory_type: format!("{:?}", updated.memory_type),
+            created_at: updated.created_at.to_rfc3339(),
+        }));
 
         Ok(updated)
     }
@@ -405,6 +460,9 @@ Merged result (just the merged text, nothing else):"#,
 
         if deleted {
             info!(memory_id = %id, "Memory deleted successfully");
+            
+            // Emit event for deleted memory
+            self.emit_event(MemoryEvent::Deleted { id: id.to_string() });
         } else {
             debug!(memory_id = %id, "Memory not found for deletion");
         }

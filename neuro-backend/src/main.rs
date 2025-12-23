@@ -151,6 +151,8 @@ pub struct AppState {
     pub model_manager: Arc<ModelManager>,
     /// Voice engine for TTS synthesis
     pub voice_engine: Arc<VoiceEngine>,
+    /// Event broadcaster for SSE
+    pub event_broadcaster: Arc<crate::infrastructure::api::EventBroadcaster>,
 }
 
 /// =============================================================================
@@ -252,15 +254,21 @@ async fn main() -> Result<()> {
     print_done(6, TOTAL_STEPS, "Memory repository ready");
 
     // -------------------------------------------------------------------------
+    // Create event broadcaster for SSE (needed by services)
+    // -------------------------------------------------------------------------
+    let event_broadcaster = Arc::new(crate::infrastructure::api::EventBroadcaster::new(100));
+
+    // -------------------------------------------------------------------------
     // Create application services
     // -------------------------------------------------------------------------
     print_step(7, TOTAL_STEPS, "Creating application services...");
     
     let model_manager = Arc::new(ModelManager::new(llm_provider.clone()));
 
-    let memory_service = Arc::new(MemoryService::new(
+    let memory_service = Arc::new(MemoryService::with_broadcaster(
         memory_repository,
         llm_provider.clone(),
+        event_broadcaster.clone(),
     ));
 
     let agent_orchestrator = Arc::new(AgentOrchestrator::new(
@@ -309,6 +317,7 @@ async fn main() -> Result<()> {
         chat_service,
         model_manager,
         voice_engine,
+        event_broadcaster,
     });
 
     // -------------------------------------------------------------------------

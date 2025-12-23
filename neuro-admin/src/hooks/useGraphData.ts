@@ -61,10 +61,27 @@ function generateNodePosition(nodeId: string) {
   };
 }
 
+// Store birth times outside of React to persist across renders
+const nodeBirthTimes = new Map<string, number>();
+
+// Track if we've completed the initial load (to skip birth animation)
+let hasCompletedInitialLoad = false;
+
+// Cache node objects to preserve references between updates
+const nodeObjectCache = new Map<string, GraphNode>();
+
+// STABLE ARRAY REFERENCES - mutate these instead of creating new arrays
+// This prevents ForceGraph3D from re-creating Three.js objects
+const stableNodesArray: GraphNode[] = [];
+const stableLinksArray: GraphLink[] = [];
+
 export function useGraphData({ graphData, filterType, searchQuery }: UseGraphDataProps) {
   const { nodes, links, currentHighlightedIds } = useMemo(() => {
     if (!graphData) {
-      return { nodes: [], links: [], currentHighlightedIds: new Set<string>() };
+      // Clear arrays but keep references
+      stableNodesArray.length = 0;
+      stableLinksArray.length = 0;
+      return { nodes: stableNodesArray, links: stableLinksArray, currentHighlightedIds: new Set<string>() };
     }
 
     const { filteredNodes, highlightIds } = filterNodes(
@@ -77,24 +94,85 @@ export function useGraphData({ graphData, filterType, searchQuery }: UseGraphDat
     const realLinks = createRealLinks(graphData.edges, nodeIds);
     const virtualLinks = buildVirtualLinks(filteredNodes, realLinks);
 
-    // Asignar posiciones iniciales dispersas en un volumen 3D esférico
-    // Cada nodo siempre tendrá la misma posición basada en su ID
-    const nodesWithPositions = filteredNodes.map((n) => {
+    const now = Date.now();
+
+    // On first real data load, mark ALL nodes from graphData (not just filtered)
+    // so they don't get birth animation on page refresh
+    if (!hasCompletedInitialLoad && graphData.nodes.length > 0) {
+      graphData.nodes.forEach(n => {
+        // Set birth time far in the past so animation doesn't trigger
+        nodeBirthTimes.set(n.id, 0);
+      });
+      hasCompletedInitialLoad = true;
+    }
+
+    // Build a set of current node IDs for quick lookup
+    const currentNodeIds = new Set(filteredNodes.map(n => n.id));
+    
+    // Remove nodes that no longer exist from the stable array
+    for (let i = stableNodesArray.length - 1; i >= 0; i--) {
+      if (!currentNodeIds.has(stableNodesArray[i].id)) {
+        stableNodesArray.splice(i, 1);
+      }
+    }
+    
+    // Build set of existing IDs in stable array
+    const existingIds = new Set(stableNodesArray.map(n => n.id));
+
+    // Update existing nodes and add new ones
+    filteredNodes.forEach((n) => {
       const pos = generateNodePosition(n.id);
 
-      return {
+      // Track birth time for new nodes (for birth animation)
+      // Only set current time for truly NEW nodes (not from initial load)
+      if (!nodeBirthTimes.has(n.id)) {
+        nodeBirthTimes.set(n.id, now);
+      }
+      const birthTime = nodeBirthTimes.get(n.id)!;
+
+      // Check if we have a cached node object
+      const cachedNode = nodeObjectCache.get(n.id);
+      if (cachedNode) {
+        // Update mutable properties on the existing object
+        cachedNode.__highlighted = highlightIds.has(n.id);
+        // Update data properties that might have changed
+        cachedNode.content = n.content;
+        cachedNode.memory_type = n.memory_type;
+        cachedNode.importance_score = n.importance_score;
+        cachedNode.access_count = n.access_count;
+        cachedNode.metadata = n.metadata;
+        cachedNode.created_at = n.created_at;
+        cachedNode.updated_at = n.updated_at;
+        
+        // If not already in stable array, add it
+        if (!existingIds.has(n.id)) {
+          stableNodesArray.push(cachedNode);
+        }
+        return;
+      }
+
+      // Create new node object and cache it
+      const newNode = {
         ...n,
         ...pos,
         fx: pos.x,
         fy: pos.y,
         fz: pos.z,
         __highlighted: highlightIds.has(n.id),
-      };
+        __birthTime: birthTime,
+      } as GraphNode;
+      
+      nodeObjectCache.set(n.id, newNode);
+      stableNodesArray.push(newNode);
     });
 
+    // Update links - clear and refill the stable array
+    stableLinksArray.length = 0;
+    stableLinksArray.push(...realLinks, ...virtualLinks);
+
     return {
-      nodes: nodesWithPositions as GraphNode[],
-      links: [...realLinks, ...virtualLinks] as GraphLink[],
+      nodes: stableNodesArray,
+      links: stableLinksArray,
       currentHighlightedIds: highlightIds,
     };
   }, [graphData, filterType, searchQuery]);

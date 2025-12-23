@@ -102,7 +102,10 @@ pub async fn create_memory(
     let memory_type = parse_memory_type(&request.memory_type);
 
     match state.memory_service.create_memory(request.content, memory_type, None).await {
-        Ok(memory) => Ok((StatusCode::CREATED, Json(memory_to_dto(memory)))),
+        Ok(memory) => {
+            // SSE event is emitted by MemoryService
+            Ok((StatusCode::CREATED, Json(memory_to_dto(memory))))
+        }
         Err(e) => {
             error!(error = %e, "Failed to create memory");
             Err((
@@ -121,7 +124,10 @@ pub async fn update_memory(
     Json(request): Json<UpdateMemoryRequest>,
 ) -> Result<Json<MemoryDto>, (StatusCode, Json<ErrorResponse>)> {
     match state.memory_service.update_memory(memory_id, request.content, None, None).await {
-        Ok(memory) => Ok(Json(memory_to_dto(memory))),
+        Ok(memory) => {
+            // SSE event is emitted by MemoryService
+            Ok(Json(memory_to_dto(memory)))
+        }
         Err(e) => {
             if e.to_string().contains("not found") {
                 Err((
@@ -146,7 +152,10 @@ pub async fn delete_memory(
     Path(memory_id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
     match state.memory_service.delete_memory(memory_id).await {
-        Ok(true) => Ok(StatusCode::NO_CONTENT),
+        Ok(true) => {
+            // SSE event is emitted by MemoryService
+            Ok(StatusCode::NO_CONTENT)
+        }
         Ok(false) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new("NOT_FOUND", "Memory not found")),

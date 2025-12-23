@@ -9,5 +9,7 @@ pub mod routes;
 pub mod handlers;
 pub mod dto;
 pub mod middleware;
+pub mod events;
 
 pub use routes::create_router;
+pub use events::{EventBroadcaster, MemoryEvent, MemoryEventData, RelationEventData};

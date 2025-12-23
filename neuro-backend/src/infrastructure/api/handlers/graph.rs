@@ -7,11 +7,14 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
+    response::sse::Sse,
     Json,
 };
+use futures::stream::Stream;
 use serde::Deserialize;
+use std::convert::Infallible;
 use std::sync::Arc;
-use tracing::{error, instrument};
+use tracing::{error, info, instrument};
 use uuid::Uuid;
 
 use crate::domain::ports::memory_repository::RelationDirection;
@@ -20,6 +23,7 @@ use crate::infrastructure::api::dto::{
     CreateRelationRequest, ErrorResponse, GraphEdgeDto, GraphExportDto,
     GraphStatsDto, MemoryDto,
 };
+use crate::infrastructure::api::events;
 use crate::AppState;
 
 /// =============================================================================
@@ -330,4 +334,19 @@ fn parse_direction(direction_str: &str) -> RelationDirection {
         "outgoing" | "out" => RelationDirection::Outgoing,
         _ => RelationDirection::Both,
     }
+}
+
+/// =============================================================================
+/// Subscribe to graph events (SSE)
+/// =============================================================================
+/// GET /api/admin/graph/events
+/// =============================================================================
+/// Returns a Server-Sent Events stream of memory changes.
+/// The client receives events when memories are created, updated, or deleted.
+/// =============================================================================
+pub async fn subscribe_graph_events(
+    State(state): State<Arc<AppState>>,
+) -> Sse<impl Stream<Item = Result<axum::response::sse::Event, Infallible>>> {
+    info!("New SSE client subscribed to graph events");
+    events::create_event_stream(state.event_broadcaster.clone())
 }

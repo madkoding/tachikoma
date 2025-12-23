@@ -217,40 +217,29 @@ impl KnowledgeExtractor {
     /// Build the extraction prompt
     /// =========================================================================
     fn build_extraction_prompt(&self, message: &str) -> String {
-        format!(r#"Analiza el siguiente mensaje del usuario y extrae TODA la información personal relevante.
-Responde SOLO con JSON válido, sin explicaciones adicionales.
+        format!(r#"Extrae información personal del mensaje. Responde SOLO JSON.
 
 MENSAJE: "{}"
 
-Extrae información en estas categorías:
-- facts: Hechos sobre el usuario (nombre, edad, trabajo, ubicación, etc.)
-- preferences: Gustos, preferencias, cosas que le gustan o no
-- entities: Personas mencionadas (familia, amigos, conocidos) con su relación
-- goals: Metas, objetivos, sueños, planes
-- skills: Habilidades, conocimientos, cosas que sabe hacer
-- events: Eventos, fechas importantes, cumpleaños, aniversarios
-- opinions: Opiniones, creencias, puntos de vista
-- experiences: Experiencias vividas, viajes, historias
-- tasks: Tareas pendientes, cosas que debe hacer
-- relationships: Conexiones entre conceptos mencionados
+CATEGORÍAS:
+- facts: Hechos (nombre, edad, trabajo, ubicación)
+- preferences: Gustos de series, películas, música, comida, colores, hobbies, videojuegos, anime, deportes, etc.
+- entities: Personas mencionadas (familia, amigos)
+- goals: Metas y planes
+- skills: Habilidades
+- events: Fechas importantes
+- opinions: Opiniones
+- experiences: Experiencias vividas
+- tasks: Tareas pendientes
 
-Para cada item extraído, incluye:
-- content: El conocimiento extraído (reformulado en tercera persona: "El usuario...")
-- confidence: Qué tan seguro estás (0.0 a 1.0)
+IMPORTANTE:
+- Si dice "me gusta X", "me encanta X", "amo X", "mi favorito es X" → ES UNA PREFERENCIA MEMORABLE
+- Series, películas, anime, música, comida = SIEMPRE son preferencias importantes
+- Reformula en tercera persona: "Al usuario le gusta X"
 
-Para relationships incluye:
-- from: Concepto origen
-- to: Concepto destino  
-- relation_type: Uno de [related_to, causes, part_of, has_property, used_for, capable_of, located_in, created_by, similar_to]
-- confidence: Qué tan seguro estás
+FORMATO por item: {{"content": "Al usuario le gusta...", "confidence": 0.9}}
 
-También indica:
-- importance: Importancia general del mensaje (0.0 a 1.0)
-- is_memorable: Si vale la pena guardar algo (true/false)
-
-Si el mensaje no contiene información personal relevante, devuelve is_memorable: false.
-
-Responde SOLO con el JSON:
+Responde SOLO este JSON:
 ```json
 {{
   "facts": [],
@@ -263,8 +252,8 @@ Responde SOLO con el JSON:
   "experiences": [],
   "tasks": [],
   "relationships": [],
-  "importance": 0.0,
-  "is_memorable": false
+  "importance": 0.7,
+  "is_memorable": true
 }}
 ```"#, message)
     }

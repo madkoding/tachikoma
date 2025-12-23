@@ -8,6 +8,7 @@ export interface GraphNode extends Memory {
   vy?: number;
   vz?: number;
   __highlighted?: boolean;
+  __birthTime?: number; // Timestamp when node was first seen (for birth animation)
 }
 
 export interface GraphLink {

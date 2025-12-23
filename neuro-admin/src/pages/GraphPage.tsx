@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ForceGraph3D from 'react-force-graph-3d';
 
-import { graphApi, memoryApi } from '../api/client';
+import { graphApi, memoryApi, Memory } from '../api/client';
 import { RELATION_COLORS } from '../constants/graph';
 import { GRAPH_CONFIG } from '../constants/graphConfig';
 import type { GraphNode, GraphLink } from '../types/graph';
@@ -14,6 +14,8 @@ import { useGraphData } from '../hooks/useGraphData';
 import { useTooltip } from '../hooks/useTooltip';
 import { useDimensions } from '../hooks/useDimensions';
 import { useNodeRenderer } from '../hooks/useNodeRenderer';
+import { useHoverState } from '../hooks/useHoverState';
+import { useGraphEvents, MemoryEventData, RelationEventData } from '../hooks/useGraphEvents';
 
 import {
   GraphHeader,
@@ -38,12 +40,93 @@ export default function GraphPage() {
   const { data: graphData, isLoading } = useQuery({
     queryKey: ['graph-data'],
     queryFn: () => graphApi.getGraph(500),
-    refetchInterval: 60000,
+    // With SSE, we can reduce polling frequency significantly
+    refetchInterval: 300000, // 5 minutes instead of 1 minute
+  });
+
+  // Subscribe to real-time graph events via SSE
+  const { status: sseStatus } = useGraphEvents({
+    onMemoryCreated: useCallback((eventData: MemoryEventData) => {
+      console.log('[GraphPage] SSE: Memory created', eventData);
+      // Add new memory to the cache optimistically
+      queryClient.setQueryData<{ nodes: Memory[]; edges: any[] }>(['graph-data'], (oldData) => {
+        if (!oldData) return oldData;
+        
+        // Check if node already exists
+        const exists = oldData.nodes.some(n => n.id === eventData.id);
+        if (exists) {
+          console.log('[GraphPage] Node already exists, skipping');
+          return oldData;
+        }
+        
+        // Create a new memory from event data
+        const newMemory: Memory = {
+          id: eventData.id,
+          content: eventData.content,
+          memory_type: eventData.memory_type,
+          importance_score: 0.5, // Default
+          access_count: 0,
+          metadata: {},
+          created_at: eventData.created_at,
+          updated_at: eventData.created_at,
+        };
+        
+        console.log('[GraphPage] Adding new node to graph:', newMemory);
+        return {
+          ...oldData,
+          nodes: [...oldData.nodes, newMemory],
+        };
+      });
+    }, [queryClient]),
+    
+    onMemoryUpdated: useCallback((eventData: MemoryEventData) => {
+      console.log('[GraphPage] SSE: Memory updated', eventData);
+      // Update memory in cache
+      queryClient.setQueryData<{ nodes: Memory[]; edges: any[] }>(['graph-data'], (oldData) => {
+        if (!oldData) return oldData;
+        
+        return {
+          ...oldData,
+          nodes: oldData.nodes.map(n => 
+            n.id === eventData.id 
+              ? { ...n, content: eventData.content, memory_type: eventData.memory_type }
+              : n
+          ),
+        };
+      });
+    }, [queryClient]),
+    
+    onMemoryDeleted: useCallback((id: string) => {
+      console.log('[GraphPage] SSE: Memory deleted', id);
+      // Remove memory from cache
+      queryClient.setQueryData<{ nodes: Memory[]; edges: any[] }>(['graph-data'], (oldData) => {
+        if (!oldData) return oldData;
+        
+        return {
+          ...oldData,
+          nodes: oldData.nodes.filter(n => n.id !== id),
+          edges: oldData.edges.filter(e => e.source !== id && e.target !== id),
+        };
+      });
+    }, [queryClient]),
+    
+    onRelationCreated: useCallback((relationData: RelationEventData) => {
+      console.log('[GraphPage] SSE: Relation created', relationData);
+      // Add new relation to cache
+      queryClient.setQueryData<{ nodes: Memory[]; edges: any[] }>(['graph-data'], (oldData) => {
+        if (!oldData) return oldData;
+        
+        return {
+          ...oldData,
+          edges: [...oldData.edges, relationData],
+        };
+      });
+    }, [queryClient]),
   });
 
   const dimensions = useDimensions({ containerRef });
 
-  const { nodes, links, currentHighlightedIds, memoryTypes } = useGraphData({
+  const { nodes, links, memoryTypes } = useGraphData({
     graphData,
     filterType,
     searchQuery,
@@ -56,7 +139,17 @@ export default function GraphPage() {
     containerRef,
   });
 
-  const nodeThreeObject = useNodeRenderer(currentHighlightedIds);
+  const { hoveredNodeId, handleNodeHover } = useHoverState();
+
+  const nodeThreeObject = useNodeRenderer({
+    hoveredNodeId,
+  });
+
+  // Combined hover handler for tooltip and visual effects
+  const onNodeHover = useCallback((node: GraphNode | null) => {
+    showTooltip(node);
+    handleNodeHover(node);
+  }, [showTooltip, handleNodeHover]);
 
   // Calcular el centro de todos los nodos (bounding box center)
   const nodesCenter = useMemo(() => {
@@ -285,7 +378,7 @@ export default function GraphPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <GraphHeader nodeCount={nodes.length} linkCount={links.length} />
+      <GraphHeader nodeCount={nodes.length} linkCount={links.length} connectionStatus={sseStatus} />
 
       <GraphControls
         searchQuery={searchQuery}
@@ -314,6 +407,7 @@ export default function GraphPage() {
               nodeLabel=""
               nodeThreeObject={nodeThreeObject}
               nodeThreeObjectExtend={false}
+              nodeRelSize={20}
               linkColor={(link: GraphLink) => RELATION_COLORS[link.relation] || '#00f5ff'}
               linkWidth={1}
               linkOpacity={0.25}
@@ -328,7 +422,7 @@ export default function GraphPage() {
               cooldownTicks={simulation.cooldownTicks}
               cooldownTime={simulation.cooldownTime}
               onNodeClick={handleNodeClick}
-              onNodeHover={showTooltip}
+              onNodeHover={onNodeHover}
               onBackgroundClick={handleBackgroundClick}
               backgroundColor="rgba(0,0,0,0)"
               showNavInfo={false}

@@ -65,6 +65,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         // Graph Admin
         .route("/admin/graph/stats", get(handlers::get_graph_stats))
         .route("/admin/graph/export", get(handlers::export_graph))
+        .route("/admin/graph/events", get(handlers::subscribe_graph_events))
         
         // Agent Tools
         .route("/agent/search", post(handlers::web_search))

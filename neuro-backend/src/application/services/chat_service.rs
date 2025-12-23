@@ -597,7 +597,7 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
     #[instrument(skip(self, user_message), fields(message_len = user_message.len()))]
     pub async fn extract_and_store_memories(&self, user_message: &str) {
         // Use the intelligent knowledge extractor
-        info!("🧠 Starting intelligent knowledge extraction...");
+        info!("🧠 Starting intelligent knowledge extraction for: {}...", &user_message[..user_message.len().min(50)]);
         
         match self.knowledge_extractor.learn_from_message(user_message).await {
             Ok(knowledge) => {
@@ -616,7 +616,9 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
                         "✅ Intelligent extraction completed"
                     );
                 } else {
-                    debug!("Message not deemed memorable by intelligent extractor");
+                    // LLM said not memorable, but try pattern fallback anyway for common cases
+                    info!("🔄 LLM extraction returned is_memorable=false, trying pattern fallback...");
+                    self.extract_with_patterns(user_message).await;
                 }
             }
             Err(e) => {
@@ -658,8 +660,13 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         // Check preferences
         for keyword in preference_keywords {
             if msg_lower.contains(keyword) {
+                info!("📝 Pattern matched preference keyword: '{}'", keyword);
                 if let Some(content) = self.extract_simple_content(user_message) {
-                    let _ = self.store_memory(&content, MemoryType::Preference).await;
+                    info!("💾 Storing preference via pattern: {}", content);
+                    let stored = self.store_memory(&content, MemoryType::Preference).await;
+                    if stored {
+                        info!("✅ Preference stored successfully via pattern fallback");
+                    }
                     return;
                 }
             }
@@ -668,6 +675,7 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         // Check identity facts
         for keyword in identity_keywords {
             if msg_lower.contains(keyword) {
+                info!("📝 Pattern matched identity keyword: '{}'", keyword);
                 if let Some(content) = self.extract_simple_content(user_message) {
                     let _ = self.store_memory(&content, MemoryType::Fact).await;
                     return;
@@ -691,8 +699,26 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         // Take the whole message if it's reasonable length
         let content = message.trim();
         if content.len() >= 10 && content.len() <= 500 {
-            // Convert to third person format
-            Some(format!("El usuario dice: {}", content))
+            // Convert to third person format - better reformulation
+            let reformulated = content
+                .replace("me gusta", "le gusta")
+                .replace("Me gusta", "Al usuario le gusta")
+                .replace("me encanta", "le encanta")
+                .replace("Me encanta", "Al usuario le encanta")
+                .replace("mi favorito", "su favorito")
+                .replace("mi favorita", "su favorita")
+                .replace("prefiero", "prefiere")
+                .replace("odio", "odia")
+                .replace("no me gusta", "no le gusta");
+            
+            // Add "Al usuario" prefix if not already reformulated
+            if reformulated.starts_with("le ") || reformulated.starts_with("su ") {
+                Some(format!("Al usuario {}", reformulated))
+            } else if reformulated == content {
+                Some(format!("El usuario dice: {}", content))
+            } else {
+                Some(reformulated)
+            }
         } else {
             None
         }
