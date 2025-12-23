@@ -76,6 +76,7 @@ services:
     networks:
       - neuro-network
     # GPU support (requires nvidia-container-toolkit)
+    runtime: nvidia
     deploy:
       resources:
         reservations:
