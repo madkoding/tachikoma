@@ -45,6 +45,39 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
+# Function to wait for port to be free
+wait_for_port_free() {
+    local port=$1
+    local max_wait=10
+    local waited=0
+    
+    while lsof -ti :$port >/dev/null 2>&1; do
+        if [ $waited -ge $max_wait ]; then
+            echo -e "${YELLOW}Warning: Port $port still in use after ${max_wait}s, killing process...${NC}"
+            fuser -k $port/tcp 2>/dev/null || true
+            sleep 1
+            break
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+}
+
+# Ensure critical ports are free before starting
+print_step "Checking if ports are available..."
+if lsof -ti :3000 >/dev/null 2>&1 || lsof -ti :5173 >/dev/null 2>&1 || lsof -ti :5174 >/dev/null 2>&1; then
+    echo -e "  ${YELLOW}Some ports are in use. Cleaning up...${NC}"
+    fuser -k 3000/tcp 2>/dev/null || true
+    fuser -k 5173/tcp 2>/dev/null || true
+    fuser -k 5174/tcp 2>/dev/null || true
+    wait_for_port_free 3000
+    wait_for_port_free 5173
+    wait_for_port_free 5174
+    echo -e "  ${GREEN}Ports cleaned${NC}"
+else
+    echo -e "  ${GREEN}All ports available${NC}"
+fi
+
 # Function to run docker commands (handles group membership issue)
 run_docker() {
     if docker ps >/dev/null 2>&1; then

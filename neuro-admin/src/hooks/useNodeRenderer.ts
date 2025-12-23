@@ -6,6 +6,9 @@ import type { GraphNode } from '../types/graph';
 // Animation duration for birth effect (ms)
 const BIRTH_ANIMATION_DURATION = 6000;
 
+// Animation duration for update effect (ms) - dramatic but shorter than birth
+const UPDATE_ANIMATION_DURATION = 4500;
+
 // Cache for halo canvases to avoid recreating them
 const haloCanvasCache = new Map<string, HTMLCanvasElement>();
 
@@ -69,6 +72,7 @@ function createHaloCanvas(color: string, size: number): HTMLCanvasElement {
 const nodeAnimationState = new Map<string, {
   group: THREE.Group;
   birthTime: number;
+  updateTime: number; // Track last update time for update animation
   initialized: boolean;
   size: number;
 }>();
@@ -76,12 +80,21 @@ const nodeAnimationState = new Map<string, {
 // Store groups outside React to persist across renders and remounts
 const globalGroupsMap = new Map<string, THREE.Group>();
 
+// Store current nodes reference for animation loop to detect updates
+let currentNodesRef: GraphNode[] = [];
+
 interface UseNodeRendererProps {
   hoveredNodeId: string | null;
+  nodes?: GraphNode[]; // Add nodes to detect updates in animation loop
 }
 
-export function useNodeRenderer({ hoveredNodeId }: UseNodeRendererProps) {
+export function useNodeRenderer({ hoveredNodeId, nodes }: UseNodeRendererProps) {
   const animationFrameRef = useRef<number | null>(null);
+
+  // Update the nodes reference for animation loop (no useEffect needed, direct assignment)
+  if (nodes) {
+    currentNodesRef = nodes;
+  }
 
   // Global animation loop for all nodes
   useEffect(() => {
@@ -92,9 +105,26 @@ export function useNodeRenderer({ hoveredNodeId }: UseNodeRendererProps) {
         const state = nodeAnimationState.get(nodeId);
         if (!state) return;
 
+        // Find the current node to check for updates
+        const currentNode = currentNodesRef.find(n => n.id === nodeId);
+        const nodeUpdateTime = currentNode?.__updateTime ?? 0;
+        
+        // Check if there's a new update we haven't processed
+        if (nodeUpdateTime > state.updateTime) {
+          console.log('[useNodeRenderer] Animation loop detected update for:', nodeId, 'updateTime:', nodeUpdateTime);
+          state.updateTime = nodeUpdateTime;
+          // Get color from node
+          const color = NODE_COLORS[currentNode?.memory_type || 'default'] || NODE_COLORS.default;
+          createUpdateElements(group, state.size, color);
+        }
+
         const elapsed = now - state.birthTime;
         const isNewborn = elapsed < BIRTH_ANIMATION_DURATION;
         const isHovered = hoveredNodeId === nodeId;
+        
+        // Check for update animation
+        const updateElapsed = state.updateTime > 0 ? now - state.updateTime : Infinity;
+        const isUpdating = updateElapsed < UPDATE_ANIMATION_DURATION;
 
         // ===== HOVER HALO - Sprite always facing camera =====
         const hoverHalo = group.getObjectByName('hoverHalo') as THREE.Sprite;
@@ -114,6 +144,65 @@ export function useNodeRenderer({ hoveredNodeId }: UseNodeRendererProps) {
               material.opacity = 0;
             }
           }
+        }
+
+        // ===== UPDATE ANIMATION =====
+        if (isUpdating) {
+          const progress = updateElapsed / UPDATE_ANIMATION_DURATION;
+          const easeOut = 1 - Math.pow(1 - progress, 3);
+          
+          // Update pulse ring - expanding ring effect (more dramatic)
+          const updatePulse = group.getObjectByName('updatePulse') as THREE.Sprite;
+          if (updatePulse) {
+            const baseSize = state.size * 3;
+            const expandScale = baseSize * (1 + easeOut * 12);
+            updatePulse.scale.setScalar(expandScale);
+            updatePulse.material.rotation += 0.01; // Rotate while expanding
+            // Fade out as it expands
+            updatePulse.material.opacity = Math.pow(1 - progress, 1.2) * 1.0;
+          }
+          
+          // Second pulse ring - delayed expansion
+          const updatePulse2 = group.getObjectByName('updatePulse2') as THREE.Sprite;
+          if (updatePulse2) {
+            const delay = 0.15;
+            const pulse2Progress = Math.max(0, (progress - delay) / (1 - delay));
+            const baseSize = state.size * 2;
+            const expandScale = baseSize * (1 + pulse2Progress * 10);
+            updatePulse2.scale.setScalar(expandScale);
+            updatePulse2.material.rotation -= 0.008;
+            updatePulse2.material.opacity = Math.pow(1 - pulse2Progress, 1.5) * 0.8;
+          }
+          
+          // Update glow - intense core brightening effect
+          const updateGlow = group.getObjectByName('updateGlow') as THREE.Sprite;
+          if (updateGlow) {
+            // Quick bright flash then fade
+            const glowPhase = progress < 0.1 
+              ? progress / 0.1  // Fast ramp up
+              : Math.pow(1 - (progress - 0.1) / 0.9, 1.5);  // Slower fade out
+            updateGlow.scale.setScalar(state.size * 10 * (0.6 + glowPhase * 0.8));
+            updateGlow.material.opacity = glowPhase * 1.0;
+          }
+          
+          // Update particles - smaller burst than birth
+          const updateParticles = group.getObjectByName('updateParticles') as THREE.Points;
+          if (updateParticles) {
+            const positions = updateParticles.geometry.attributes.position.array as Float32Array;
+            const velocities = (updateParticles.userData as { velocities: Float32Array }).velocities;
+            
+            for (let i = 0; i < positions.length; i += 3) {
+              const decay = Math.pow(1 - progress, 0.3);
+              positions[i] += velocities[i] * decay * 0.3;
+              positions[i + 1] += velocities[i + 1] * decay * 0.3;
+              positions[i + 2] += velocities[i + 2] * decay * 0.3;
+            }
+            updateParticles.geometry.attributes.position.needsUpdate = true;
+            (updateParticles.material as THREE.PointsMaterial).opacity = Math.pow(1 - progress, 1.5);
+          }
+        } else if (state.updateTime > 0) {
+          // Clean up update elements after animation
+          cleanupUpdateElements(group);
         }
 
         // ===== BIRTH ANIMATION =====
@@ -201,18 +290,28 @@ export function useNodeRenderer({ hoveredNodeId }: UseNodeRendererProps) {
       const size = 4 + (node.importance_score || 0.5) * 4;
       // Use nullish coalescing to accept 0 as valid birthTime (initial load)
       const birthTime = node.__birthTime ?? Date.now();
+      const updateTime = node.__updateTime ?? 0;
       const elapsed = Date.now() - birthTime;
       const isNewborn = elapsed < BIRTH_ANIMATION_DURATION;
 
       // Reuse existing group if possible from global map
       let group = globalGroupsMap.get(node.id);
       if (group) {
+        // Check if we need to trigger update animation
+        const state = nodeAnimationState.get(node.id);
+        if (state && updateTime > state.updateTime) {
+          // New update detected! Update the state and trigger animation
+          state.updateTime = updateTime;
+          // Create update effect elements
+          createUpdateElements(group, size, color);
+          console.log('[useNodeRenderer] Triggering update animation for:', node.id);
+        }
         return group;
       }
 
       group = new THREE.Group();
       globalGroupsMap.set(node.id, group);
-      nodeAnimationState.set(node.id, { group, birthTime, initialized: true, size });
+      nodeAnimationState.set(node.id, { group, birthTime, updateTime, initialized: true, size });
 
       // ===== CORE STAR =====
       const coreGeometry = new THREE.SphereGeometry(size * 0.6, 32, 32);
@@ -634,6 +733,119 @@ function cleanupBirthElements(group: THREE.Group) {
   ];
   
   birthElementNames.forEach(name => {
+    const obj = group.getObjectByName(name);
+    if (obj) {
+      group.remove(obj);
+      disposeObject(obj);
+    }
+  });
+}
+
+// Helper function to create update animation elements (dramatic effect)
+function createUpdateElements(group: THREE.Group, size: number, color: string) {
+  console.log('[createUpdateElements] Creating update effects for group, size:', size, 'color:', color);
+  
+  // Clean up any existing update elements first
+  cleanupUpdateElements(group);
+  
+  // Update pulse ring - primary expanding ring
+  const pulseTexture = createShockwaveTexture(color);
+  const pulseMaterial = new THREE.SpriteMaterial({
+    map: pulseTexture,
+    transparent: true,
+    opacity: 1.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const updatePulse = new THREE.Sprite(pulseMaterial);
+  updatePulse.name = 'updatePulse';
+  updatePulse.scale.setScalar(size * 3);
+  group.add(updatePulse);
+  
+  // Second pulse ring - delayed, different rotation
+  const pulse2Texture = createShockwaveTexture(color);
+  const pulse2Material = new THREE.SpriteMaterial({
+    map: pulse2Texture,
+    transparent: true,
+    opacity: 0.8,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const updatePulse2 = new THREE.Sprite(pulse2Material);
+  updatePulse2.name = 'updatePulse2';
+  updatePulse2.scale.setScalar(size * 2);
+  group.add(updatePulse2);
+  
+  // Update glow - intense core brightening
+  const glowTexture = createGlowTexture(color);
+  const glowMaterial = new THREE.SpriteMaterial({
+    map: glowTexture,
+    transparent: true,
+    opacity: 1.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const updateGlow = new THREE.Sprite(glowMaterial);
+  updateGlow.name = 'updateGlow';
+  updateGlow.scale.setScalar(size * 6);
+  group.add(updateGlow);
+  
+  // Update particles - dramatic burst (100 particles)
+  const particleCount = 100;
+  const particleGeometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(particleCount * 3);
+  const colors = new Float32Array(particleCount * 3);
+  const velocities = new Float32Array(particleCount * 3);
+  
+  const tempColor = new THREE.Color(color);
+  const whiteColor = new THREE.Color('#ffffff');
+  
+  for (let i = 0; i < particleCount; i++) {
+    positions[i * 3] = 0;
+    positions[i * 3 + 1] = 0;
+    positions[i * 3 + 2] = 0;
+    
+    // Random spherical direction - faster speed for drama
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const speed = 0.4 + Math.random() * 1.8;
+    
+    velocities[i * 3] = Math.sin(phi) * Math.cos(theta) * speed;
+    velocities[i * 3 + 1] = Math.sin(phi) * Math.sin(theta) * speed;
+    velocities[i * 3 + 2] = Math.cos(phi) * speed;
+    
+    // Mix between white and the node color
+    const mixFactor = Math.random();
+    const particleColor = whiteColor.clone().lerp(tempColor, mixFactor);
+    colors[i * 3] = particleColor.r;
+    colors[i * 3 + 1] = particleColor.g;
+    colors[i * 3 + 2] = particleColor.b;
+  }
+  
+  particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  
+  const particleMaterial = new THREE.PointsMaterial({
+    size: size * 0.4,
+    transparent: true,
+    opacity: 1.0,
+    vertexColors: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+  
+  const particles = new THREE.Points(particleGeometry, particleMaterial);
+  particles.name = 'updateParticles';
+  particles.userData = { velocities };
+  group.add(particles);
+}
+
+// Helper function to cleanup update elements
+function cleanupUpdateElements(group: THREE.Group) {
+  const updateElementNames = ['updatePulse', 'updatePulse2', 'updateGlow', 'updateParticles'];
+  
+  updateElementNames.forEach(name => {
     const obj = group.getObjectByName(name);
     if (obj) {
       group.remove(obj);

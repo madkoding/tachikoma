@@ -8,6 +8,7 @@ use axum::{
     middleware,
     routing::{delete, get, patch, post},
     Router,
+    http::header,
 };
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
@@ -23,11 +24,17 @@ use crate::AppState;
 /// Builds the complete Axum router with all routes and middleware.
 /// =============================================================================
 pub fn create_router(state: Arc<AppState>) -> Router {
-    // CORS configuration
+    // CORS configuration - permissive for development
+    // Allows SSE connections from remote hosts
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_headers(Any)
+        .expose_headers([
+            header::CONTENT_TYPE,
+            header::CACHE_CONTROL,
+            header::CONNECTION,
+        ]);
 
     // Build routes
     let api_routes = Router::new()

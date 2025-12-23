@@ -10,12 +10,15 @@ export default defineConfig({
     allowedHosts: ['tachikoma', 'localhost'],
     proxy: {
       '/api': {
-        target: 'http://0.0.0.0:3000',
+        target: 'http://localhost:3000',
         changeOrigin: true,
+        secure: false,
+        ws: true,
       },
       '/voice': {
-        target: 'http://0.0.0.0:8100',
+        target: 'http://localhost:8100',
         changeOrigin: true,
+        secure: false,
         rewrite: (path) => path.replace(/^\/voice/, ''),
       },
     },

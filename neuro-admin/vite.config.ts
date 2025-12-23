@@ -10,8 +10,29 @@ export default defineConfig({
     allowedHosts: ['tachikoma', 'localhost'],
     proxy: {
       '/api': {
-        target: 'http://0.0.0.0:3000',
+        target: 'http://localhost:3000',
         changeOrigin: true,
+        secure: false,
+        ws: true,
+        // Configuración especial para Server-Sent Events (SSE)
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            // SSE necesita Accept: text/event-stream
+            if (req.url?.includes('/admin/graph/events')) {
+              proxyReq.setHeader('Accept', 'text/event-stream');
+              proxyReq.setHeader('Cache-Control', 'no-cache');
+              proxyReq.setHeader('Connection', 'keep-alive');
+            }
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            // Asegurar headers correctos para SSE
+            if (req.url?.includes('/admin/graph/events')) {
+              proxyRes.headers['content-type'] = 'text/event-stream';
+              proxyRes.headers['cache-control'] = 'no-cache';
+              proxyRes.headers['connection'] = 'keep-alive';
+            }
+          });
+        },
       },
     },
   },

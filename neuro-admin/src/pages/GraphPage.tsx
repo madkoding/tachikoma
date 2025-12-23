@@ -81,19 +81,10 @@ export default function GraphPage() {
     
     onMemoryUpdated: useCallback((eventData: MemoryEventData) => {
       console.log('[GraphPage] SSE: Memory updated', eventData);
-      // Update memory in cache
-      queryClient.setQueryData<{ nodes: Memory[]; edges: any[] }>(['graph-data'], (oldData) => {
-        if (!oldData) return oldData;
-        
-        return {
-          ...oldData,
-          nodes: oldData.nodes.map(n => 
-            n.id === eventData.id 
-              ? { ...n, content: eventData.content, memory_type: eventData.memory_type }
-              : n
-          ),
-        };
-      });
+      // Instead of manually updating the cache (which can break ForceGraph3D's node references),
+      // we invalidate the query to trigger a refetch. The useGraphData hook will then
+      // properly detect the content change and trigger the update animation.
+      queryClient.invalidateQueries({ queryKey: ['graph-data'] });
     }, [queryClient]),
     
     onMemoryDeleted: useCallback((id: string) => {
@@ -143,6 +134,7 @@ export default function GraphPage() {
 
   const nodeThreeObject = useNodeRenderer({
     hoveredNodeId,
+    nodes, // Pass nodes to detect updates in animation loop
   });
 
   // Combined hover handler for tooltip and visual effects

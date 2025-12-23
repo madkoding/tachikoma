@@ -28,6 +28,13 @@ function hashString(str: string): number {
 }
 
 /**
+ * Genera un hash del contenido de un nodo para detectar cambios
+ */
+function hashNodeContent(node: { content: string; memory_type: string; importance_score: number }): string {
+  return `${node.content}|${node.memory_type}|${node.importance_score}`;
+}
+
+/**
  * Genera un número pseudo-aleatorio determinístico entre 0 y 1
  * basado en una semilla (seed)
  */
@@ -63,6 +70,12 @@ function generateNodePosition(nodeId: string) {
 
 // Store birth times outside of React to persist across renders
 const nodeBirthTimes = new Map<string, number>();
+
+// Store update times for update animation effects
+const nodeUpdateTimes = new Map<string, number>();
+
+// Store content hashes to detect real changes
+const nodeContentHashes = new Map<string, string>();
 
 // Track if we've completed the initial load (to skip birth animation)
 let hasCompletedInitialLoad = false;
@@ -129,10 +142,35 @@ export function useGraphData({ graphData, filterType, searchQuery }: UseGraphDat
         nodeBirthTimes.set(n.id, now);
       }
       const birthTime = nodeBirthTimes.get(n.id)!;
+      
+      // Always ensure we have a content hash for the node
+      const currentHash = hashNodeContent(n);
+      if (!nodeContentHashes.has(n.id)) {
+        // First time seeing this node's content - store hash without triggering animation
+        nodeContentHashes.set(n.id, currentHash);
+      }
 
       // Check if we have a cached node object
       const cachedNode = nodeObjectCache.get(n.id);
       if (cachedNode) {
+        // Check if content has actually changed (for update animation)
+        const previousHash = nodeContentHashes.get(n.id);
+        
+        console.log('[useGraphData] Checking node:', n.id.substring(0, 8), 
+          'prevHash:', previousHash?.substring(0, 30), 
+          'currHash:', currentHash.substring(0, 30),
+          'changed:', previousHash !== currentHash);
+        
+        if (previousHash && currentHash !== previousHash) {
+          // Content changed! Set update time for animation
+          const updateTime = now;
+          nodeUpdateTimes.set(n.id, updateTime);
+          nodeContentHashes.set(n.id, currentHash);
+          // Update the cached node's update time
+          cachedNode.__updateTime = updateTime;
+          console.log('[useGraphData] 🎆 Node updated, triggering animation:', n.id, 'updateTime:', updateTime);
+        }
+        
         // Update mutable properties on the existing object
         cachedNode.__highlighted = highlightIds.has(n.id);
         // Update data properties that might have changed
@@ -166,9 +204,53 @@ export function useGraphData({ graphData, filterType, searchQuery }: UseGraphDat
       stableNodesArray.push(newNode);
     });
 
-    // Update links - clear and refill the stable array
-    stableLinksArray.length = 0;
-    stableLinksArray.push(...realLinks, ...virtualLinks);
+    // Update links intelligently - preserve ForceGraph3D's internal node references
+    const allNewLinks = [...realLinks, ...virtualLinks];
+    
+    // Create a key for each link to identify it
+    const getLinkKey = (link: GraphLink): string => {
+      const srcId = typeof link.source === 'string' ? link.source : (link.source as any).id;
+      const tgtId = typeof link.target === 'string' ? link.target : (link.target as any).id;
+      return `${srcId}::${tgtId}::${link.relation}`;
+    };
+    
+    // Build set of new link keys
+    const newLinkKeys = new Set(allNewLinks.map(getLinkKey));
+    
+    // Remove links that no longer exist
+    for (let i = stableLinksArray.length - 1; i >= 0; i--) {
+      const key = getLinkKey(stableLinksArray[i]);
+      if (!newLinkKeys.has(key)) {
+        stableLinksArray.splice(i, 1);
+      }
+    }
+    
+    // Build set of existing link keys
+    const existingLinkKeys = new Set(stableLinksArray.map(getLinkKey));
+    
+    // Add new links that don't exist yet, using node object references
+    for (const link of allNewLinks) {
+      const key = getLinkKey(link);
+      if (!existingLinkKeys.has(key)) {
+        // Get the source and target IDs
+        const srcId = typeof link.source === 'string' ? link.source : (link.source as any).id;
+        const tgtId = typeof link.target === 'string' ? link.target : (link.target as any).id;
+        
+        // Get node object references from cache
+        const srcNode = nodeObjectCache.get(srcId);
+        const tgtNode = nodeObjectCache.get(tgtId);
+        
+        // Only add link if both nodes exist in cache
+        if (srcNode && tgtNode) {
+          stableLinksArray.push({
+            source: srcNode,
+            target: tgtNode,
+            relation: link.relation,
+            weight: link.weight,
+          } as GraphLink);
+        }
+      }
+    }
 
     return {
       nodes: stableNodesArray,

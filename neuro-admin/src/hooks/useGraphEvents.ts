@@ -23,7 +23,7 @@ type MemoryEvent =
   | { type: 'RelationCreated'; data: RelationEventData }
   | { type: 'Heartbeat' };
 
-export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error' | 'disabled';
 
 interface UseGraphEventsOptions {
   onMemoryCreated?: (data: MemoryEventData) => void;
@@ -40,10 +40,36 @@ interface UseGraphEventsReturn {
 }
 
 /**
+ * Get the SSE endpoint URL based on current location
+ * When accessing remotely, we need to connect directly to the backend
+ * since Vite proxy doesn't handle SSE well
+ */
+function getSSEEndpoint(): string {
+  const hostname = window.location.hostname;
+  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+  
+  if (isLocalhost) {
+    // Local development - can use proxy
+    return '/api/admin/graph/events';
+  } else {
+    // Remote access - connect directly to backend on port 3000
+    // Use same hostname but backend port
+    return `http://${hostname}:3000/api/admin/graph/events`;
+  }
+}
+
+// Maximum retry attempts before giving up
+const MAX_RETRIES = 5;
+// Initial retry delay in ms
+const INITIAL_RETRY_DELAY = 2000;
+// Maximum retry delay in ms
+const MAX_RETRY_DELAY = 30000;
+
+/**
  * Hook to subscribe to real-time graph events via Server-Sent Events (SSE)
  * 
  * This replaces polling with real-time updates from the backend.
- * The connection automatically reconnects on failure.
+ * The connection automatically reconnects on failure with exponential backoff.
  */
 export function useGraphEvents({
   onMemoryCreated,
@@ -56,11 +82,13 @@ export function useGraphEvents({
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const retryCountRef = useRef(0);
+  const hasLoggedDisabledRef = useRef(false);
 
   const connect = useCallback(() => {
     // Don't connect if disabled
     if (!enabled) {
-      setStatus('disconnected');
+      setStatus('disabled');
       return;
     }
     
@@ -75,14 +103,32 @@ export function useGraphEvents({
       reconnectTimeoutRef.current = null;
     }
 
+    // Check if we've exceeded max retries
+    if (retryCountRef.current >= MAX_RETRIES) {
+      if (!hasLoggedDisabledRef.current) {
+        console.warn('[SSE] Max retries exceeded. Real-time updates disabled. Graph will still work with manual refresh.');
+        hasLoggedDisabledRef.current = true;
+      }
+      setStatus('disabled');
+      return;
+    }
+
     setStatus('connecting');
-    console.log('[SSE] Connecting to graph events...');
-    const eventSource = new EventSource('/api/admin/graph/events');
+    const endpoint = getSSEEndpoint();
+    
+    // Only log on first attempt
+    if (retryCountRef.current === 0) {
+      console.log(`[SSE] Connecting to graph events via ${endpoint}...`);
+    }
+    
+    const eventSource = new EventSource(endpoint);
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
       console.log('[SSE] Connected to graph events');
       setStatus('connected');
+      retryCountRef.current = 0; // Reset retry count on successful connection
+      hasLoggedDisabledRef.current = false;
     };
 
     eventSource.onmessage = (event) => {
@@ -123,24 +169,41 @@ export function useGraphEvents({
       }
     };
 
-    eventSource.onerror = (error) => {
-      console.error('[SSE] Connection error:', error);
+    eventSource.onerror = () => {
       setStatus('error');
-      onError?.(new Error('SSE connection error'));
       
-      // Close and schedule reconnect
+      // Close the failed connection
       eventSource.close();
       eventSourceRef.current = null;
       
-      // Reconnect after 5 seconds
+      retryCountRef.current++;
+      
+      // Check if we should give up
+      if (retryCountRef.current >= MAX_RETRIES) {
+        if (!hasLoggedDisabledRef.current) {
+          console.warn('[SSE] Could not connect to graph events. Real-time updates disabled.');
+          hasLoggedDisabledRef.current = true;
+        }
+        setStatus('disabled');
+        onError?.(new Error('SSE connection failed after max retries'));
+        return;
+      }
+      
+      // Calculate exponential backoff delay
+      const baseDelay = INITIAL_RETRY_DELAY * Math.pow(2, retryCountRef.current);
+      const delay = Math.min(baseDelay, MAX_RETRY_DELAY);
+      
+      // Schedule reconnect with backoff
       reconnectTimeoutRef.current = globalThis.setTimeout(() => {
-        console.log('[SSE] Attempting to reconnect...');
         connect();
-      }, 5000);
+      }, delay);
     };
   }, [enabled, onMemoryCreated, onMemoryUpdated, onMemoryDeleted, onRelationCreated, onError]);
 
   const reconnect = useCallback(() => {
+    // Reset retry counters for manual reconnect
+    retryCountRef.current = 0;
+    hasLoggedDisabledRef.current = false;
     connect();
   }, [connect]);
 

@@ -17,14 +17,24 @@ NC='\033[0m'
 
 echo -e "${CYAN}Stopping NEURO-OS services...${NC}"
 
-# Kill backend first
+# Kill backend first (más agresivo)
 echo -e "${YELLOW}▶${NC} Stopping backend..."
-pkill -f "neuro-backend" 2>/dev/null || true
+pkill -9 -f "neuro-backend" 2>/dev/null || true
+pkill -9 -f "cargo.*run.*neuro-backend" 2>/dev/null || true
 
-# Kill any running Node/Vite processes
+# Kill any running Node/Vite processes (más agresivo)
 echo -e "${YELLOW}▶${NC} Stopping frontend dev servers..."
-pkill -f "vite" 2>/dev/null || true
-pkill -f "esbuild" 2>/dev/null || true
+pkill -9 -f "vite.*neuro-ui" 2>/dev/null || true
+pkill -9 -f "vite.*neuro-admin" 2>/dev/null || true
+pkill -9 -f "node.*vite" 2>/dev/null || true
+pkill -9 -f "esbuild" 2>/dev/null || true
+
+# Liberar puertos específicos
+echo -e "${YELLOW}▶${NC} Freeing ports..."
+fuser -k 3000/tcp 2>/dev/null || true
+fuser -k 5173/tcp 2>/dev/null || true
+fuser -k 5174/tcp 2>/dev/null || true
+sleep 1
 
 # Stop Voice Service container
 echo -e "${YELLOW}▶${NC} Stopping Voice Service..."

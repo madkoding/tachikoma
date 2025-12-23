@@ -13,6 +13,19 @@ import { useVoiceStream } from '../hooks/useVoiceStream';
 // Helper to detect complete sentences for progressive voice synthesis
 const SENTENCE_ENDINGS = /[.!?。！？]+\s*/g;
 
+// Fallback UUID generator for non-secure contexts (HTTP)
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for non-secure contexts
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export default function ChatPage() {
   const { t } = useTranslation();
   const { conversationId } = useParams<{ conversationId?: string }>();
@@ -111,7 +124,7 @@ export default function ChatPage() {
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return;
 
-    const convId = currentConversationId || crypto.randomUUID();
+    const convId = currentConversationId || generateUUID();
     
     // If new conversation, create it
     if (!currentConversationId) {
@@ -127,7 +140,7 @@ export default function ChatPage() {
 
     // Add user message
     const userMessage: Message = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       role: 'user',
       content,
       createdAt: new Date(),
@@ -141,7 +154,7 @@ export default function ChatPage() {
     spokenSentencesRef.current = new Set();
 
     // Create placeholder for assistant message that will be updated during streaming
-    const assistantMessageId = crypto.randomUUID();
+    const assistantMessageId = generateUUID();
     const assistantMessage: Message = {
       id: assistantMessageId,
       role: 'assistant',
