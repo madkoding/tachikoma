@@ -280,7 +280,7 @@ export function useVoiceStream(initialConfig?: Partial<VoiceConfig>): UseVoiceSt
   const processAudioChunk = useCallback(async (data: any, audioFormat: 'wav' | 'opus') => {
     if (data.type === 'audio' && data.data) {
       const bytes = decodeBase64Audio(data.data);
-      const audioBuffer = await decodeAudioToBuffer(bytes.buffer, audioFormat);
+      const audioBuffer = await decodeAudioToBuffer(bytes.buffer as ArrayBuffer, audioFormat);
       audioQueueRef.current.push(audioBuffer);
       setState(prev => ({ 
         ...prev, 
