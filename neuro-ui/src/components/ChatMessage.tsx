@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { memo } from 'react';
 import StreamingText from './StreamingText';
+import ChecklistDetector from './ChecklistDetector';
 
 interface ChatMessageProps {
   readonly message: Message;
@@ -54,6 +55,11 @@ function ChatMessage({ message, isStreaming = false }: Readonly<ChatMessageProps
         )}>
           <StreamingText content={message.content} isStreaming={isStreaming && !isUser} />
         </div>
+
+        {/* Checklist detector - only for assistant messages */}
+        {!isUser && (
+          <ChecklistDetector content={message.content} isStreaming={isStreaming} />
+        )}
 
         {/* Token info for assistant messages */}
         {!isUser && (message.model || message.tokensPrompt !== undefined || message.processingTimeMs !== undefined) && (

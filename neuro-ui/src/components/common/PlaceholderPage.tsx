@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import TypewriterText from './TypewriterText';
 
 interface PlaceholderPageProps {
   readonly titleKey: string;
@@ -15,10 +16,10 @@ export default function PlaceholderPage({ titleKey, icon }: PlaceholderPageProps
           {icon}
         </div>
         <h1 className="text-2xl font-cyber font-bold text-cyber-cyan mb-2">
-          {t(titleKey)}
+          <TypewriterText text={t(titleKey)} speed={20} />
         </h1>
         <p className="text-cyber-cyan/50 font-mono text-sm">
-          {t('common.comingSoon')}
+          <TypewriterText text={t('common.comingSoon')} delay={500} speed={25} />
         </p>
         <div className="mt-8 flex justify-center gap-1">
           <span className="w-2 h-2 rounded-full bg-cyber-cyan/30 animate-pulse"></span>

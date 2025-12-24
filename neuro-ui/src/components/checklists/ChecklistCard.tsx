@@ -1,4 +1,5 @@
 import { Checklist } from '../../stores/checklistStore';
+import TypewriterText from '../common/TypewriterText';
 import clsx from 'clsx';
 
 interface ChecklistCardProps {
@@ -35,6 +36,21 @@ export default function ChecklistCard({
     }
   };
 
+  const getPriorityLabel = (priority: number) => {
+    switch (priority) {
+      case 5:
+        return 'Urgente';
+      case 4:
+        return 'Alta';
+      case 3:
+        return 'Media';
+      case 2:
+        return 'Baja';
+      default:
+        return 'Muy baja';
+    }
+  };
+
   return (
     <button
       onClick={onClick}
@@ -49,9 +65,9 @@ export default function ChecklistCard({
       )}
     >
       {/* Drag handle indicator */}
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <div className="flex flex-col gap-0.5 opacity-30 hover:opacity-60 transition-opacity cursor-grab">
+      <div className="flex items-start justify-between mb-2 gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="flex flex-col gap-0.5 opacity-30 hover:opacity-60 transition-opacity cursor-grab shrink-0">
             <div className="flex gap-0.5">
               <div className="w-1 h-1 rounded-full bg-cyber-cyan" />
               <div className="w-1 h-1 rounded-full bg-cyber-cyan" />
@@ -65,7 +81,9 @@ export default function ChecklistCard({
               <div className="w-1 h-1 rounded-full bg-cyber-cyan" />
             </div>
           </div>
-          <h3 className="font-semibold text-cyber-cyan truncate pr-2">{checklist.title}</h3>
+          <h3 className="font-semibold text-cyber-cyan truncate min-w-0">
+            <TypewriterText text={checklist.title} speed={12} />
+          </h3>
         </div>
         <span
           className={clsx(
@@ -73,12 +91,14 @@ export default function ChecklistCard({
             getPriorityColor(checklist.priority)
           )}
         >
-          P{checklist.priority}
+          {getPriorityLabel(checklist.priority)}
         </span>
       </div>
 
       {checklist.description && (
-        <p className="text-sm text-cyber-cyan/50 line-clamp-2 mb-3">{checklist.description}</p>
+        <p className="text-sm text-cyber-cyan/50 line-clamp-2 mb-3">
+          <TypewriterText text={checklist.description} speed={8} delay={100} />
+        </p>
       )}
 
       {/* Progress bar */}

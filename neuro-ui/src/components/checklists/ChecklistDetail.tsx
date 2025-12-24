@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Checklist, useChecklistStore, ChecklistItem } from '../../stores/checklistStore';
 import ChecklistItemRow from './ChecklistItemRow';
+import TypewriterText from '../common/TypewriterText';
 import clsx from 'clsx';
 
 interface ChecklistDetailProps {
@@ -9,11 +10,14 @@ interface ChecklistDetailProps {
   readonly onBack: () => void;
 }
 
+type Priority = 1 | 2 | 3 | 4 | 5;
+
 // Helper to generate UUID
 function generateUUID(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
+  // eslint-disable-next-line prefer-string-replace-all
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c: string) => {
     const r = Math.trunc(Math.random() * 16);
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -23,12 +27,15 @@ function generateUUID(): string {
 
 export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailProps) {
   const { t } = useTranslation();
-  const { updateChecklist, deleteChecklist, addItem, deleteItem, toggleItem } = useChecklistStore();
+  const { updateChecklist, deleteChecklist, addItem, deleteItem, toggleItem, updateItem, reorderItems } = useChecklistStore();
   const [newItemContent, setNewItemContent] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(checklist.title);
   const [editDescription, setEditDescription] = useState(checklist.description || '');
+  const [editPriority, setEditPriority] = useState<Priority>(checklist.priority as Priority);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+  const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
 
   const completedCount = checklist.items.filter((item) => item.isCompleted).length;
   const totalCount = checklist.items.length;
@@ -54,6 +61,7 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
     updateChecklist(checklist.id, {
       title: editTitle,
       description: editDescription || undefined,
+      priority: editPriority,
     });
     setIsEditing(false);
   };
@@ -65,6 +73,63 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
 
   const handleArchiveToggle = () => {
     updateChecklist(checklist.id, { isArchived: !checklist.isArchived });
+  };
+
+  // Item drag and drop handlers
+  const handleItemDragStart = (itemId: string) => (e: React.DragEvent) => {
+    setDraggedItemId(itemId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', itemId);
+  };
+
+  const handleItemDragEnd = () => {
+    setDraggedItemId(null);
+    setDragOverItemId(null);
+  };
+
+  const handleItemDragOver = (itemId: string) => (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (itemId !== draggedItemId) {
+      setDragOverItemId(itemId);
+    }
+  };
+
+  const handleItemDragLeave = () => {
+    setDragOverItemId(null);
+  };
+
+  const handleItemDrop = (targetItemId: string) => (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!draggedItemId || draggedItemId === targetItemId) {
+      setDraggedItemId(null);
+      setDragOverItemId(null);
+      return;
+    }
+
+    const sortedItems = [...checklist.items].sort((a, b) => a.order - b.order);
+    const draggedIndex = sortedItems.findIndex((item) => item.id === draggedItemId);
+    const targetIndex = sortedItems.findIndex((item) => item.id === targetItemId);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    // Remove dragged item and insert at target position
+    const [draggedItem] = sortedItems.splice(draggedIndex, 1);
+    sortedItems.splice(targetIndex, 0, draggedItem);
+
+    // Update order values
+    const reorderedItems = sortedItems.map((item, index) => ({
+      ...item,
+      order: index,
+    }));
+
+    reorderItems(checklist.id, reorderedItems);
+    setDraggedItemId(null);
+    setDragOverItemId(null);
+  };
+
+  const handleItemUpdate = (itemId: string) => (content: string) => {
+    updateItem(checklist.id, itemId, { content });
   };
 
   return (
@@ -88,7 +153,7 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
             />
           ) : (
             <h2 className="flex-1 text-xl font-cyber font-bold text-cyber-cyan truncate">
-              {checklist.title}
+              <TypewriterText text={checklist.title} speed={18} />
             </h2>
           )}
 
@@ -106,6 +171,7 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
                     setIsEditing(false);
                     setEditTitle(checklist.title);
                     setEditDescription(checklist.description || '');
+                    setEditPriority(checklist.priority as Priority);
                   }}
                   className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
                 >
@@ -146,23 +212,60 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
         </div>
 
         {isEditing ? (
-          <textarea
-            value={editDescription}
-            onChange={(e) => setEditDescription(e.target.value)}
-            placeholder={t('checklists.descriptionPlaceholder')}
-            className="w-full bg-cyber-bg/50 text-sm text-cyber-cyan/70 p-2 rounded-lg border border-cyber-cyan/20 focus:outline-none focus:border-cyber-cyan/50 resize-none"
-            rows={2}
-          />
+          <>
+            <textarea
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              placeholder={t('checklists.descriptionPlaceholder')}
+              className="w-full bg-cyber-bg/50 text-sm text-cyber-cyan/70 p-2 rounded-lg border border-cyber-cyan/20 focus:outline-none focus:border-cyber-cyan/50 resize-none"
+              rows={2}
+            />
+            {/* Priority selector */}
+            <div className="mt-3">
+              <label className="block text-xs font-mono text-cyber-cyan/50 mb-2">
+                {t('checklists.priorityLabel')}
+              </label>
+              <div className="flex gap-2">
+                {([1, 2, 3, 4, 5] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setEditPriority(p)}
+                    className={clsx(
+                      'flex-1 py-1.5 rounded-lg border text-xs font-mono transition-all',
+                      editPriority === p
+                        ? getPriorityActiveClass(p)
+                        : 'border-cyber-cyan/20 text-cyber-cyan/50 hover:border-cyber-cyan/40'
+                    )}
+                  >
+                    {getPriorityLabel(p)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
         ) : (
-          checklist.description && (
-            <p className="text-sm text-cyber-cyan/50">{checklist.description}</p>
-          )
+          <div className="flex items-center gap-3">
+            {checklist.description && (
+              <p className="text-sm text-cyber-cyan/50 flex-1">
+                <TypewriterText text={checklist.description} speed={10} delay={200} />
+              </p>
+            )}
+            <span
+              className={clsx(
+                'text-xs px-2 py-0.5 rounded-full border shrink-0',
+                getPriorityBadgeClass(checklist.priority)
+              )}
+            >
+              {getPriorityLabel(checklist.priority)}
+            </span>
+          </div>
         )}
 
         {/* Progress */}
         <div className="mt-4">
           <div className="flex items-center justify-between text-xs text-cyber-cyan/50 mb-1">
-            <span>{t('checklists.progress')}</span>
+            <span><TypewriterText text={t('checklists.progress')} speed={15} /></span>
             <span>
               {completedCount}/{totalCount} ({Math.round(progress)}%)
             </span>
@@ -178,7 +281,7 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
 
       {/* Items List */}
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="space-y-2">
+        <ul className="space-y-2">
           {checklist.items
             .sort((a, b) => a.order - b.order)
             .map((item) => (
@@ -187,13 +290,23 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
                 item={item}
                 onToggle={() => toggleItem(checklist.id, item.id)}
                 onDelete={() => deleteItem(checklist.id, item.id)}
+                onUpdate={handleItemUpdate(item.id)}
+                isDragging={draggedItemId === item.id}
+                isDragOver={dragOverItemId === item.id}
+                onDragStart={handleItemDragStart(item.id)}
+                onDragEnd={handleItemDragEnd}
+                onDragOver={handleItemDragOver(item.id)}
+                onDragLeave={handleItemDragLeave}
+                onDrop={handleItemDrop(item.id)}
               />
             ))}
-        </div>
+        </ul>
 
         {checklist.items.length === 0 && (
           <div className="text-center py-12 text-cyber-cyan/40">
-            <p className="font-mono text-sm">{t('checklists.noItems')}</p>
+            <p className="font-mono text-sm">
+              <TypewriterText text={t('checklists.noItems')} speed={12} />
+            </p>
           </div>
         )}
       </div>
@@ -223,10 +336,10 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-cyber-surface border border-cyber-cyan/30 rounded-xl p-6 max-w-sm mx-4">
             <h3 className="text-lg font-cyber font-bold text-cyber-cyan mb-2">
-              {t('checklists.deleteConfirm.title')}
+              <TypewriterText text={t('checklists.deleteConfirm.title')} speed={20} />
             </h3>
             <p className="text-cyber-cyan/70 text-sm mb-6">
-              {t('checklists.deleteConfirm.message')}
+              <TypewriterText text={t('checklists.deleteConfirm.message')} delay={200} speed={10} />
             </p>
             <div className="flex gap-3 justify-end">
               <button
@@ -319,4 +432,49 @@ function PlusIcon() {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
     </svg>
   );
+}
+
+function getPriorityActiveClass(priority: number): string {
+  switch (priority) {
+    case 5:
+      return 'bg-red-500/20 text-red-400 border-red-500/50';
+    case 4:
+      return 'bg-orange-500/20 text-orange-400 border-orange-500/50';
+    case 3:
+      return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
+    case 2:
+      return 'bg-green-500/20 text-green-400 border-green-500/50';
+    default:
+      return 'bg-cyber-cyan/20 text-cyber-cyan border-cyber-cyan/50';
+  }
+}
+
+function getPriorityBadgeClass(priority: number): string {
+  switch (priority) {
+    case 5:
+      return 'bg-red-500/20 text-red-400 border-red-500/30';
+    case 4:
+      return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+    case 3:
+      return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+    case 2:
+      return 'bg-green-500/20 text-green-400 border-green-500/30';
+    default:
+      return 'bg-cyber-cyan/20 text-cyber-cyan border-cyber-cyan/30';
+  }
+}
+
+function getPriorityLabel(priority: number): string {
+  switch (priority) {
+    case 5:
+      return 'Urgente';
+    case 4:
+      return 'Alta';
+    case 3:
+      return 'Media';
+    case 2:
+      return 'Baja';
+    default:
+      return 'Muy baja';
+  }
 }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useChatStore, Conversation } from '../stores/chatStore';
 import { chatApi } from '../api/client';
 import clsx from 'clsx';
+import TypewriterText from './common/TypewriterText';
 
 interface SidebarProps {
   readonly isOpen: boolean;
@@ -88,7 +89,9 @@ export default function Sidebar({ isOpen, onToggle }: Readonly<SidebarProps>) {
         <div className="flex flex-col h-full relative">
           {/* Header */}
           <div className="h-14 flex items-center justify-between px-4 border-b border-cyber-cyan/20">
-            <span className="font-bold neon-cyan font-cyber tracking-wider text-sm">TACHIKOMA</span>
+            <span className="font-bold neon-cyan font-cyber tracking-wider text-sm">
+              <TypewriterText text="TACHIKOMA" speed={30} />
+            </span>
             <button
               onClick={onToggle}
               className="p-1 hover:bg-cyber-cyan/10 rounded lg:hidden text-cyber-cyan"
@@ -108,7 +111,7 @@ export default function Sidebar({ isOpen, onToggle }: Readonly<SidebarProps>) {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              {t('sidebar.newChat')}
+              <TypewriterText text={t('sidebar.newChat')} speed={20} />
             </button>
           </div>
 
@@ -160,7 +163,7 @@ function ConversationGroup({ title, conversations, currentId, onSelect, onDelete
   return (
     <div className="mb-4">
       <h3 className="px-2 py-1 text-xs font-medium text-cyber-cyan/50 uppercase tracking-wider font-mono">
-        {title}
+        <TypewriterText text={title} speed={15} />
       </h3>
       <ul className="space-y-1">
         {conversations.map((conv) => (

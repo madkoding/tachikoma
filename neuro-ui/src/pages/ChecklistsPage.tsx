@@ -5,6 +5,7 @@ import ChecklistCard from '../components/checklists/ChecklistCard';
 import ChecklistDetail from '../components/checklists/ChecklistDetail';
 import CreateChecklistModal from '../components/checklists/CreateChecklistModal';
 import ImportMarkdownModal from '../components/checklists/ImportMarkdownModal';
+import TypewriterText from '../components/common/TypewriterText';
 
 export default function ChecklistsPage() {
   const { t } = useTranslation();
@@ -104,7 +105,7 @@ export default function ChecklistsPage() {
         <div className="p-4 border-b border-cyber-cyan/20">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-xl font-cyber font-bold text-cyber-cyan">
-              {t('checklists.title')}
+              <TypewriterText text={t('checklists.title')} speed={20} />
             </h1>
             <div className="flex gap-2">
               <button
@@ -219,10 +220,10 @@ function EmptyState({
         <ChecklistIcon />
       </div>
       <h3 className="text-lg font-cyber font-bold text-cyber-cyan mb-2">
-        {t('checklists.empty.title')}
+        <TypewriterText text={t('checklists.empty.title')} speed={20} />
       </h3>
       <p className="text-cyber-cyan/50 text-sm mb-6 max-w-xs">
-        {t('checklists.empty.description')}
+        <TypewriterText text={t('checklists.empty.description')} delay={300} speed={12} />
       </p>
       <div className="flex gap-3">
         <button
@@ -266,7 +267,7 @@ function EmptyDetailState() {
         </svg>
       </div>
       <p className="text-cyber-cyan/40 font-mono text-sm">
-        {t('checklists.selectToView')}
+        <TypewriterText text={t('checklists.selectToView')} speed={15} />
       </p>
     </div>
   );

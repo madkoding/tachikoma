@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useChecklistStore, Checklist } from '../../stores/checklistStore';
+import TypewriterText from '../common/TypewriterText';
 
 interface CreateChecklistModalProps {
   readonly isOpen: boolean;
@@ -61,7 +62,7 @@ export default function CreateChecklistModal({ isOpen, onClose }: CreateChecklis
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-cyber-surface border border-cyber-cyan/30 rounded-xl p-6 w-full max-w-md">
         <h2 className="text-xl font-cyber font-bold text-cyber-cyan mb-6">
-          {t('checklists.createTitle')}
+          <TypewriterText text={t('checklists.createTitle')} speed={20} />
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -111,7 +112,7 @@ export default function CreateChecklistModal({ isOpen, onClose }: CreateChecklis
                       : 'border-cyber-cyan/20 text-cyber-cyan/50 hover:border-cyber-cyan/40'
                   }`}
                 >
-                  P{p}
+                  {getPriorityLabel(p)}
                 </button>
               ))}
             </div>
@@ -152,5 +153,20 @@ function getPriorityActiveClass(priority: number): string {
       return 'bg-green-500/20 text-green-400 border-green-500/50';
     default:
       return 'bg-cyber-cyan/20 text-cyber-cyan border-cyber-cyan/50';
+  }
+}
+
+function getPriorityLabel(priority: number): string {
+  switch (priority) {
+    case 5:
+      return 'Urgente';
+    case 4:
+      return 'Alta';
+    case 3:
+      return 'Media';
+    case 2:
+      return 'Baja';
+    default:
+      return 'Muy baja';
   }
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useChecklistStore } from '../../stores/checklistStore';
+import TypewriterText from '../common/TypewriterText';
 
 interface ImportMarkdownModalProps {
   readonly isOpen: boolean;
@@ -70,10 +71,10 @@ export default function ImportMarkdownModal({ isOpen, onClose }: ImportMarkdownM
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-cyber-surface border border-cyber-cyan/30 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-cyber font-bold text-cyber-cyan mb-2">
-          {t('checklists.import.title')}
+          <TypewriterText text={t('checklists.import.title')} speed={20} />
         </h2>
         <p className="text-sm text-cyber-cyan/50 mb-6">
-          {t('checklists.import.description')}
+          <TypewriterText text={t('checklists.import.description')} delay={300} speed={10} />
         </p>
 
         {/* Success Message */}

@@ -348,6 +348,76 @@ body {
   position: relative;
 }
 
+/* ============================================
+   TYPEWRITER TEXT ANIMATION
+   Spectacular glow effect for each character
+   ============================================ */
+
+/* New character with intense glow */
+.typewriter-char-new {
+  animation: typewriterGlow 400ms ease-out forwards;
+  display: inline;
+}
+
+@keyframes typewriterGlow {
+  0% {
+    color: #ffffff;
+    text-shadow: 
+      0 0 4px rgba(0, 255, 255, 1),
+      0 0 8px rgba(0, 255, 255, 1),
+      0 0 16px rgba(0, 255, 255, 0.9),
+      0 0 24px rgba(0, 255, 255, 0.7),
+      0 0 32px rgba(0, 255, 255, 0.5),
+      0 0 48px rgba(0, 255, 255, 0.3);
+    filter: brightness(1.5);
+  }
+  30% {
+    color: #66ffff;
+    text-shadow: 
+      0 0 3px rgba(0, 255, 255, 0.9),
+      0 0 8px rgba(0, 255, 255, 0.7),
+      0 0 16px rgba(0, 255, 255, 0.5),
+      0 0 24px rgba(0, 255, 255, 0.3);
+    filter: brightness(1.2);
+  }
+  100% {
+    color: inherit;
+    text-shadow: none;
+    filter: none;
+  }
+}
+
+/* Blinking cursor for typewriter */
+.typewriter-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: linear-gradient(180deg, rgba(0, 255, 255, 0.3), rgba(0, 255, 255, 1), rgba(0, 255, 255, 0.3));
+  margin-left: 1px;
+  vertical-align: middle;
+  animation: typewriterCursorBlink 0.6s ease-in-out infinite;
+  box-shadow: 
+    0 0 4px rgba(0, 255, 255, 0.8),
+    0 0 8px rgba(0, 255, 255, 0.5),
+    0 0 12px rgba(0, 255, 255, 0.3);
+}
+
+@keyframes typewriterCursorBlink {
+  0%, 100% { 
+    opacity: 1;
+    box-shadow: 
+      0 0 4px rgba(0, 255, 255, 0.8),
+      0 0 8px rgba(0, 255, 255, 0.5),
+      0 0 12px rgba(0, 255, 255, 0.3);
+  }
+  50% { 
+    opacity: 0.3;
+    box-shadow: 
+      0 0 2px rgba(0, 255, 255, 0.4),
+      0 0 4px rgba(0, 255, 255, 0.2);
+  }
+}
+
 /* Message content streaming animation - blinking cursor */
 .message-streaming .prose > *:last-child::after {
   content: '▊';

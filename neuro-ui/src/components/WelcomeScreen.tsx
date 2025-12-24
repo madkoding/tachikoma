@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import TypewriterText from './common/TypewriterText';
 
 export default function WelcomeScreen() {
   const { t } = useTranslation();
@@ -24,10 +25,10 @@ export default function WelcomeScreen() {
         </svg>
       </div>
       <h2 className="text-3xl font-bold mb-2 neon-cyan font-cyber tracking-wider glitch" data-text="TACHIKOMA">
-        TACHIKOMA
+        <TypewriterText text="TACHIKOMA" speed={40} />
       </h2>
       <p className="text-cyber-cyan/60 max-w-md font-mono text-sm">
-        {t('chat.welcomeDesc')}
+        <TypewriterText text={t('chat.welcomeDesc')} delay={700} speed={10} />
       </p>
       
       <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
@@ -40,6 +41,7 @@ export default function WelcomeScreen() {
           }
           title={t('feature.memory')}
           description={t('feature.memoryDesc')}
+          delay={1500}
         />
         <FeatureCard
           icon={
@@ -50,6 +52,7 @@ export default function WelcomeScreen() {
           }
           title={t('feature.search')}
           description={t('feature.searchDesc')}
+          delay={1700}
         />
         <FeatureCard
           icon={
@@ -60,6 +63,7 @@ export default function WelcomeScreen() {
           }
           title={t('feature.cmd')}
           description={t('feature.cmdDesc')}
+          delay={1900}
         />
         <FeatureCard
           icon={
@@ -70,6 +74,7 @@ export default function WelcomeScreen() {
           }
           title={t('feature.model')}
           description={t('feature.modelDesc')}
+          delay={2100}
         />
       </div>
     </div>
@@ -80,14 +85,19 @@ interface FeatureCardProps {
   readonly icon: React.ReactNode;
   readonly title: string;
   readonly description: string;
+  readonly delay?: number;
 }
 
-function FeatureCard({ icon, title, description }: Readonly<FeatureCardProps>) {
+function FeatureCard({ icon, title, description, delay = 0 }: Readonly<FeatureCardProps>) {
   return (
     <div className="cyber-card text-left hover:border-cyber-cyan/50 transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,245,255,0.2)]">
       <div className="text-cyber-cyan mb-2">{icon}</div>
-      <h3 className="font-medium mb-1 text-cyber-cyan font-mono text-sm">{title}</h3>
-      <p className="text-sm text-cyber-cyan/50">{description}</p>
+      <h3 className="font-medium mb-1 text-cyber-cyan font-mono text-sm">
+        <TypewriterText text={title} delay={delay} speed={15} />
+      </h3>
+      <p className="text-sm text-cyber-cyan/50">
+        <TypewriterText text={description} delay={delay + 200} speed={8} />
+      </p>
     </div>
   );
 }
