@@ -124,6 +124,39 @@ services:
       retries: 3
       start_period: 60s
 
+  # ===========================================================================
+  # Checklists Service - Checklist Management Microservice (Rust)
+  # ===========================================================================
+  # Independent microservice for managing checklists with its own database
+  # namespace in SurrealDB. Accessed via API Gateway in neuro-backend.
+  # ===========================================================================
+  checklists-service:
+    build:
+      context: ./neuro-checklists
+      dockerfile: Dockerfile
+    container_name: neuro-checklists
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=info
+      - PORT=3001
+      - DATABASE_URL=ws://surrealdb:8000
+      - DATABASE_USER=${SURREAL_USER:-root}
+      - DATABASE_PASS=${SURREAL_PASS:-neuroos_secret_2024}
+      - DATABASE_NAMESPACE=neuro
+      - DATABASE_NAME=checklists
+    ports:
+      - "3001:3001"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
 # =============================================================================
 # Networks Configuration
 # =============================================================================

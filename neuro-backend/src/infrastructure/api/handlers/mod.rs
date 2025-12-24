@@ -10,6 +10,7 @@ pub mod graph;
 pub mod agent;
 pub mod system;
 pub mod voice;
+pub mod proxy;
 
 pub use chat::*;
 pub use memory::*;
@@ -17,3 +18,4 @@ pub use graph::*;
 pub use agent::*;
 pub use system::*;
 pub use voice::*;
+pub use proxy::*;

@@ -23,6 +23,9 @@ pub struct Config {
     
     /// Searxng configuration
     pub searxng: SearxngConfig,
+    
+    /// Microservices configuration (API Gateway)
+    pub microservices: MicroservicesConfig,
 }
 
 impl Config {
@@ -54,6 +57,7 @@ impl Config {
             database: DatabaseConfig::from_env()?,
             ollama: OllamaConfig::from_env()?,
             searxng: SearxngConfig::from_env()?,
+            microservices: MicroservicesConfig::from_env(),
         })
     }
 }
@@ -204,5 +208,24 @@ impl SearxngConfig {
                 .parse()
                 .unwrap_or(10),
         })
+    }
+}
+
+/// =============================================================================
+/// Microservices URLs for API Gateway
+/// =============================================================================
+#[derive(Debug, Clone, Deserialize)]
+pub struct MicroservicesConfig {
+    /// Checklists service URL
+    pub checklists_url: String,
+}
+
+impl MicroservicesConfig {
+    /// Load microservices configuration from environment
+    pub fn from_env() -> Self {
+        Self {
+            checklists_url: std::env::var("CHECKLISTS_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3001".to_string()),
+        }
     }
 }

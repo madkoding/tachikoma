@@ -153,6 +153,8 @@ pub struct AppState {
     pub voice_engine: Arc<VoiceEngine>,
     /// Event broadcaster for SSE
     pub event_broadcaster: Arc<crate::infrastructure::api::EventBroadcaster>,
+    /// Microservices configuration (API Gateway)
+    pub microservices_config: crate::infrastructure::config::MicroservicesConfig,
 }
 
 /// =============================================================================
@@ -318,6 +320,7 @@ async fn main() -> Result<()> {
         model_manager,
         voice_engine,
         event_broadcaster,
+        microservices_config: config.microservices.clone(),
     });
 
     // -------------------------------------------------------------------------

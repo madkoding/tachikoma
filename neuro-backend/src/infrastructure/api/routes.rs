@@ -6,7 +6,7 @@
 
 use axum::{
     middleware,
-    routing::{delete, get, patch, post},
+    routing::{any, delete, get, patch, post},
     Router,
     http::header,
 };
@@ -78,7 +78,14 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/agent/search", post(handlers::web_search))
         .route("/agent/search/categories", get(handlers::get_search_categories))
         .route("/agent/execute", post(handlers::execute_command))
-        .route("/agent/commands", get(handlers::get_allowed_commands));
+        .route("/agent/commands", get(handlers::get_allowed_commands))
+        
+        // =====================================================================
+        // API Gateway - Proxy to Microservices
+        // =====================================================================
+        // Checklists microservice proxy
+        .route("/checklists", any(handlers::proxy_checklists))
+        .route("/checklists/*path", any(handlers::proxy_checklists));
 
     // Compose final router
     Router::new()
