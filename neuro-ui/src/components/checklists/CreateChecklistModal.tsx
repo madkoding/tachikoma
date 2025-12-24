@@ -37,6 +37,7 @@ export default function CreateChecklistModal({ isOpen, onClose }: CreateChecklis
       description: description.trim() || undefined,
       items: [],
       priority,
+      order: 0, // New checklists go to the top
       isArchived: false,
       createdAt: now,
       updatedAt: now,

@@ -16,6 +16,7 @@ export interface Checklist {
   description?: string;
   items: ChecklistItem[];
   priority: 1 | 2 | 3 | 4 | 5;
+  order: number;
   dueDate?: Date;
   notificationInterval?: number; // in minutes
   lastReminded?: Date;
@@ -54,6 +55,9 @@ interface ChecklistState {
   deleteItem: (checklistId: string, itemId: string) => void;
   toggleItem: (checklistId: string, itemId: string) => void;
   reorderItems: (checklistId: string, items: ChecklistItem[]) => void;
+  
+  // Reorder checklists
+  reorderChecklists: (checklists: Checklist[]) => void;
   
   // Import from markdown (returns first checklist for backwards compatibility)
   importFromMarkdown: (markdown: string, title?: string) => Checklist;
@@ -363,6 +367,25 @@ export const useChecklistStore = create<ChecklistState>()(
           ),
         })),
 
+      reorderChecklists: (reorderedChecklists) =>
+        set((state) => {
+          // Create a map of new order positions
+          const orderMap = new Map(
+            reorderedChecklists.map((c, index) => [c.id, index])
+          );
+          
+          // Update order on all checklists that were reordered
+          return {
+            checklists: state.checklists.map((checklist) => {
+              const newOrder = orderMap.get(checklist.id);
+              if (newOrder !== undefined && newOrder !== checklist.order) {
+                return { ...checklist, order: newOrder };
+              }
+              return checklist;
+            }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+          };
+        }),
+
       importFromMarkdown: (markdown, customTitle) => {
         const { title, description, priority, items } = parseMarkdownChecklist(markdown);
         const now = new Date();
@@ -378,10 +401,19 @@ export const useChecklistStore = create<ChecklistState>()(
             createdAt: now,
           })),
           priority,
+          order: 0, // New checklists go to the top
           isArchived: false,
           createdAt: now,
           updatedAt: now,
         };
+
+        // Shift existing checklists down
+        set((state) => ({
+          checklists: state.checklists.map((c) => ({
+            ...c,
+            order: (c.order ?? 0) + 1,
+          })),
+        }));
 
         get().addChecklist(newChecklist);
         return newChecklist;
@@ -392,7 +424,16 @@ export const useChecklistStore = create<ChecklistState>()(
         const now = new Date();
         const createdChecklists: Checklist[] = [];
 
-        for (const section of result.checklists) {
+        // Shift existing checklists down to make room
+        set((state) => ({
+          checklists: state.checklists.map((c) => ({
+            ...c,
+            order: (c.order ?? 0) + result.checklists.length,
+          })),
+        }));
+
+        for (let i = 0; i < result.checklists.length; i++) {
+          const section = result.checklists[i];
           const newChecklist: Checklist = {
             id: generateUUID(),
             title: section.title,
@@ -404,6 +445,7 @@ export const useChecklistStore = create<ChecklistState>()(
               createdAt: now,
             })),
             priority: section.priority,
+            order: i, // Order based on section position
             isArchived: false,
             createdAt: now,
             updatedAt: now,

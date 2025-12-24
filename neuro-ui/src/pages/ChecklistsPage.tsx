@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useChecklistStore, Checklist } from '../stores/checklistStore';
 import ChecklistCard from '../components/checklists/ChecklistCard';
@@ -8,13 +8,18 @@ import ImportMarkdownModal from '../components/checklists/ImportMarkdownModal';
 
 export default function ChecklistsPage() {
   const { t } = useTranslation();
-  const { checklists, selectedChecklistId, setSelectedChecklist } = useChecklistStore();
+  const { checklists, selectedChecklistId, setSelectedChecklist, reorderChecklists } = useChecklistStore();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const selectedChecklist = checklists.find((c) => c.id === selectedChecklistId);
-  const activeChecklists = checklists.filter((c) => !c.isArchived);
-  const archivedChecklists = checklists.filter((c) => c.isArchived);
+  
+  // Sort by order field
+  const sortedChecklists = [...checklists].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const activeChecklists = sortedChecklists.filter((c) => !c.isArchived);
+  const archivedChecklists = sortedChecklists.filter((c) => c.isArchived);
 
   const handleSelectChecklist = (checklist: Checklist) => {
     setSelectedChecklist(checklist.id);
@@ -23,6 +28,69 @@ export default function ChecklistsPage() {
   const handleBack = () => {
     setSelectedChecklist(null);
   };
+
+  // Drag and drop handlers
+  const handleDragStart = useCallback((e: React.DragEvent, checklistId: string) => {
+    setDraggedId(checklistId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', checklistId);
+    // Add visual feedback
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.5';
+    }
+  }, []);
+
+  const handleDragEnd = useCallback((e: React.DragEvent) => {
+    setDraggedId(null);
+    setDragOverId(null);
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1';
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, checklistId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedId && draggedId !== checklistId) {
+      setDragOverId(checklistId);
+    }
+  }, [draggedId]);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverId(null);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    
+    if (!draggedId || draggedId === targetId) {
+      setDraggedId(null);
+      setDragOverId(null);
+      return;
+    }
+
+    // Reorder only active checklists
+    const draggedIndex = activeChecklists.findIndex((c) => c.id === draggedId);
+    const targetIndex = activeChecklists.findIndex((c) => c.id === targetId);
+
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedId(null);
+      setDragOverId(null);
+      return;
+    }
+
+    // Create new order
+    const reordered = [...activeChecklists];
+    const [removed] = reordered.splice(draggedIndex, 1);
+    reordered.splice(targetIndex, 0, removed);
+
+    // Update order values
+    const updated = reordered.map((c, index) => ({ ...c, order: index }));
+    reorderChecklists(updated);
+
+    setDraggedId(null);
+    setDragOverId(null);
+  }, [draggedId, activeChecklists, reorderChecklists]);
 
   return (
     <div className="flex h-full bg-cyber-bg">
@@ -67,12 +135,26 @@ export default function ChecklistsPage() {
           ) : (
             <>
               {activeChecklists.map((checklist) => (
-                <ChecklistCard
+                <div
                   key={checklist.id}
-                  checklist={checklist}
-                  isSelected={selectedChecklistId === checklist.id}
-                  onClick={() => handleSelectChecklist(checklist)}
-                />
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, checklist.id)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => handleDragOver(e, checklist.id)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, checklist.id)}
+                  className={`transition-all duration-200 ${
+                    dragOverId === checklist.id ? 'transform translate-y-1 opacity-70' : ''
+                  } ${draggedId === checklist.id ? 'cursor-grabbing' : 'cursor-grab'}`}
+                >
+                  <ChecklistCard
+                    checklist={checklist}
+                    isSelected={selectedChecklistId === checklist.id}
+                    onClick={() => handleSelectChecklist(checklist)}
+                    isDragging={draggedId === checklist.id}
+                    isDragOver={dragOverId === checklist.id}
+                  />
+                </div>
               ))}
 
               {archivedChecklists.length > 0 && (
