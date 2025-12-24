@@ -31,11 +31,17 @@ export default function GraphPage() {
   const graphRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const savedCameraRef = useRef<{ position: {x: number, y: number, z: number}, rotation: number } | null>(null);
+  const resumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fadeInStartTimeRef = useRef<number | null>(null);
+  const currentAngleRef = useRef<number>(0); // Ángulo actual de rotación
+  const currentDistanceRef = useRef<number>(GRAPH_CONFIG.camera.initialDistance); // Distancia actual de la cámara
+  const currentHeightRef = useRef<number>(0); // Altura actual de la cámara (Y)
 
   const [modalNode, setModalNode] = useState<GraphNode | null>(null);
   const [filterType, setFilterType] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isAutoRotating, setIsAutoRotating] = useState(false);
+  const [isRotationPaused, setIsRotationPaused] = useState(false);
 
   const { data: graphData, isLoading } = useQuery({
     queryKey: ['graph-data'],
@@ -173,27 +179,48 @@ export default function GraphPage() {
     };
   }, [nodes]);
 
-  // Rotación automática basada en tiempo real
-  // El ángulo se calcula desde el timestamp actual, así al recargar
-  // la página el grafo continúa desde la posición correcta
+  // Rotación automática incremental
+  // Guarda el ángulo actual y continúa desde ahí al reanudar
+  // Con fade-in suave al reanudar después de interacción
   useEffect(() => {
-    if (!isAutoRotating || !graphRef.current) return;
+    if (!isAutoRotating || isRotationPaused || !graphRef.current) return;
 
-    const { initialDistance, rotationSpeed } = GRAPH_CONFIG.camera;
+    const { rotationSpeed } = GRAPH_CONFIG.camera;
+    const FADE_IN_DURATION = 4000; // 4 segundos para alcanzar velocidad completa (transición más suave)
+    const radiansPerMs = rotationSpeed * 60 / 1000;
     let frameId: number;
+    let lastTime = Date.now();
 
     const rotate = () => {
       if (graphRef.current) {
-        // Calcular ángulo basado en tiempo real
         const now = Date.now();
-        const radiansPerMs = rotationSpeed * 60 / 1000;
-        const angle = (now * radiansPerMs) % (Math.PI * 2);
+        const deltaTime = now - lastTime;
+        lastTime = now;
         
-        // Orbitar alrededor del centro de los nodos
-        const x = nodesCenter.x + initialDistance * Math.sin(angle);
-        const z = nodesCenter.z + initialDistance * Math.cos(angle);
+        // Calcular multiplicador de velocidad para fade-in suave
+        let speedMultiplier = 1;
+        if (fadeInStartTimeRef.current !== null) {
+          const elapsed = now - fadeInStartTimeRef.current;
+          if (elapsed < FADE_IN_DURATION) {
+            // Ease-out cubic para transición suave
+            const progress = elapsed / FADE_IN_DURATION;
+            speedMultiplier = 1 - Math.pow(1 - progress, 3);
+          } else {
+            fadeInStartTimeRef.current = null; // Fade-in completado
+          }
+        }
+        
+        // Incrementar ángulo basado en tiempo transcurrido y velocidad
+        currentAngleRef.current += radiansPerMs * deltaTime * speedMultiplier;
+        currentAngleRef.current = currentAngleRef.current % (Math.PI * 2);
+        
+        // Orbitar alrededor del centro de los nodos usando distancia y altura actuales
+        const distance = currentDistanceRef.current;
+        const height = currentHeightRef.current;
+        const x = nodesCenter.x + distance * Math.sin(currentAngleRef.current);
+        const z = nodesCenter.z + distance * Math.cos(currentAngleRef.current);
         graphRef.current.cameraPosition(
-          { x, y: nodesCenter.y, z },
+          { x, y: height, z },
           nodesCenter,
           0
         );
@@ -203,21 +230,20 @@ export default function GraphPage() {
 
     frameId = requestAnimationFrame(rotate);
     return () => cancelAnimationFrame(frameId);
-  }, [isAutoRotating, nodesCenter]);
+  }, [isAutoRotating, isRotationPaused, nodesCenter]);
 
   // Inicializar cámara cuando el grafo esté listo
-  // Posiciona inmediatamente usando la misma fórmula de tiempo real para evitar cortes
   useEffect(() => {
     if (dimensions && graphData && graphRef.current && nodes.length > 0) {
-      const { initialDistance, rotationSpeed } = GRAPH_CONFIG.camera;
+      const { initialDistance } = GRAPH_CONFIG.camera;
       
-      // Calcular posición inicial basada en tiempo real (misma fórmula que rotación)
-      const now = Date.now();
-      const radiansPerMs = rotationSpeed * 60 / 1000;
-      const angle = (now * radiansPerMs) % (Math.PI * 2);
+      // Iniciar desde ángulo 0 con distancia y altura iniciales
+      currentAngleRef.current = 0;
+      currentDistanceRef.current = initialDistance;
+      currentHeightRef.current = nodesCenter.y;
       
-      const x = nodesCenter.x + initialDistance * Math.sin(angle);
-      const z = nodesCenter.z + initialDistance * Math.cos(angle);
+      const x = nodesCenter.x + initialDistance * Math.sin(currentAngleRef.current);
+      const z = nodesCenter.z + initialDistance * Math.cos(currentAngleRef.current);
       
       graphRef.current.cameraPosition(
         { x, y: nodesCenter.y, z },
@@ -228,30 +254,83 @@ export default function GraphPage() {
     }
   }, [dimensions, graphData, nodesCenter, nodes.length]);
 
-  // Pausar rotación en interacción
+  // Pausar rotación en interacción del usuario
+  // Cancela timeout anterior, pausa inmediatamente, y reanuda suavemente después de 5s
+  // Captura el ángulo actual de la cámara AL REANUDAR para continuar desde donde el usuario dejó la vista
   const pauseRotation = useCallback(() => {
-    setIsAutoRotating(false);
-    setTimeout(() => {
-      if (!modalNode) {
-        setIsAutoRotating(true);
+    console.log('[GraphPage] pauseRotation called, isRotationPaused:', isRotationPaused);
+    
+    // Cancelar cualquier timeout de reanudación pendiente
+    if (resumeTimeoutRef.current) {
+      clearTimeout(resumeTimeoutRef.current);
+      resumeTimeoutRef.current = null;
+    }
+    
+    // Pausar rotación inmediatamente
+    setIsRotationPaused(true);
+    
+    // Programar reanudación después de 5 segundos
+    resumeTimeoutRef.current = setTimeout(() => {
+      if (!modalNode && graphRef.current) {
+        console.log('[GraphPage] Resuming rotation after timeout');
+        
+        // Capturar posición ACTUAL de la cámara justo antes de reanudar
+        // para continuar desde donde el usuario dejó la vista
+        const camPos = graphRef.current.cameraPosition();
+        const dx = camPos.x - nodesCenter.x;
+        const dz = camPos.z - nodesCenter.z;
+        
+        // Calcular ángulo, distancia y altura actuales
+        currentAngleRef.current = Math.atan2(dx, dz);
+        currentDistanceRef.current = Math.hypot(dx, dz);
+        currentHeightRef.current = camPos.y;
+        
+        console.log('[GraphPage] Captured camera state - angle:', currentAngleRef.current, 'distance:', currentDistanceRef.current, 'height:', currentHeightRef.current);
+        
+        // Iniciar fade-in suave
+        fadeInStartTimeRef.current = Date.now();
+        setIsRotationPaused(false);
       }
+      resumeTimeoutRef.current = null;
     }, GRAPH_CONFIG.camera.resumeDelay);
-  }, [modalNode]);
+  }, [modalNode, nodesCenter, isRotationPaused]);
 
+  // Limpiar timeout al desmontar
+  useEffect(() => {
+    return () => {
+      if (resumeTimeoutRef.current) {
+        clearTimeout(resumeTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Escuchar eventos de interacción en el container con capture para interceptar antes del canvas
+  // Usar dimensions como dependencia porque se actualiza cuando el container está montado
   useEffect(() => {
     const container = containerRef.current;
+    console.log('[GraphPage] Setting up event listeners, container:', !!container, 'dimensions:', !!dimensions);
     if (!container) return;
 
-    container.addEventListener('wheel', pauseRotation);
-    container.addEventListener('mousedown', pauseRotation);
-    container.addEventListener('touchstart', pauseRotation);
+    // Usar capture: true para interceptar eventos antes de que lleguen al canvas de ForceGraph3D
+    const options = { capture: true, passive: true };
+    
+    const handleInteraction = (e: Event) => {
+      console.log('[GraphPage] Interaction detected:', e.type);
+      pauseRotation();
+    };
+    
+    container.addEventListener('wheel', handleInteraction, options);
+    container.addEventListener('mousedown', handleInteraction, options);
+    container.addEventListener('touchstart', handleInteraction, options);
+    container.addEventListener('pointerdown', handleInteraction, options);
 
     return () => {
-      container.removeEventListener('wheel', pauseRotation);
-      container.removeEventListener('mousedown', pauseRotation);
-      container.removeEventListener('touchstart', pauseRotation);
+      container.removeEventListener('wheel', handleInteraction, options);
+      container.removeEventListener('mousedown', handleInteraction, options);
+      container.removeEventListener('touchstart', handleInteraction, options);
+      container.removeEventListener('pointerdown', handleInteraction, options);
     };
-  }, [pauseRotation]);
+  }, [pauseRotation, dimensions]); // Agregar dimensions como dependencia para re-ejecutar cuando el container esté listo
 
   // Mutations
   const updateMutation = useMutation({
@@ -387,7 +466,7 @@ export default function GraphPage() {
           className="flex-1 cyber-card overflow-hidden relative nebula-background"
           style={{ minHeight: '300px' }}
         >
-          <GraphBackground />
+          <GraphBackground graphRef={graphRef} />
 
           {dimensions && (
             <ForceGraph3D
@@ -401,12 +480,12 @@ export default function GraphPage() {
               nodeThreeObjectExtend={false}
               nodeRelSize={20}
               linkColor={(link: GraphLink) => RELATION_COLORS[link.relation] || '#00f5ff'}
-              linkWidth={1}
-              linkOpacity={0.25}
+              linkWidth={2.5}
+              linkOpacity={0.4}
               linkDirectionalArrowLength={0}
-              linkDirectionalParticles={2}
-              linkDirectionalParticleWidth={1.5}
-              linkDirectionalParticleSpeed={0.006}
+              linkDirectionalParticles={3}
+              linkDirectionalParticleWidth={3}
+              linkDirectionalParticleSpeed={0.004}
               linkDirectionalParticleColor={() => '#00f5ff'}
               d3AlphaDecay={simulation.alphaDecay}
               d3VelocityDecay={simulation.velocityDecay}
@@ -418,9 +497,9 @@ export default function GraphPage() {
               onBackgroundClick={handleBackgroundClick}
               backgroundColor="rgba(0,0,0,0)"
               showNavInfo={false}
-              enableNodeDrag={true}
+              enableNodeDrag={false}
               enableNavigationControls={true}
-              controlType="trackball"
+              controlType="orbit"
             />
           )}
 

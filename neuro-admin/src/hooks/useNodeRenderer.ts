@@ -12,7 +12,7 @@ const UPDATE_ANIMATION_DURATION = 4500;
 // Cache for halo canvases to avoid recreating them
 const haloCanvasCache = new Map<string, HTMLCanvasElement>();
 
-// Create a circular halo texture using canvas with proper transparency
+// Create a circular halo texture using canvas with proper transparency and glow
 function createHaloCanvas(color: string, size: number): HTMLCanvasElement {
   const cacheKey = `${color}-${size}`;
   if (haloCanvasCache.has(cacheKey)) {
@@ -28,41 +28,27 @@ function createHaloCanvas(color: string, size: number): HTMLCanvasElement {
   const centerX = resolution / 2;
   const centerY = resolution / 2;
   const outerRadius = resolution / 2 - 8;
-  const innerRadius = outerRadius * 0.7;
 
   // Ensure canvas is fully transparent
   ctx.clearRect(0, 0, resolution, resolution);
 
-  // Draw soft outer glow
+  // Draw soft radial glow from center - bright core fading outward
   const glowGradient = ctx.createRadialGradient(
-    centerX, centerY, innerRadius * 0.8,
-    centerX, centerY, outerRadius * 1.2
+    centerX, centerY, 0,
+    centerX, centerY, outerRadius
   );
-  glowGradient.addColorStop(0, 'rgba(255,255,255,0)');
-  glowGradient.addColorStop(0.4, color + '30');
-  glowGradient.addColorStop(0.6, color + '60');
-  glowGradient.addColorStop(0.8, color + '30');
-  glowGradient.addColorStop(1, 'rgba(255,255,255,0)');
+  glowGradient.addColorStop(0, 'rgba(255,255,255,0.9)');
+  glowGradient.addColorStop(0.1, 'rgba(255,255,255,0.7)');
+  glowGradient.addColorStop(0.25, color);
+  glowGradient.addColorStop(0.4, color + 'BB');
+  glowGradient.addColorStop(0.6, color + '66');
+  glowGradient.addColorStop(0.8, color + '22');
+  glowGradient.addColorStop(1, 'rgba(0,0,0,0)');
 
   ctx.beginPath();
-  ctx.arc(centerX, centerY, outerRadius * 1.2, 0, Math.PI * 2);
+  ctx.arc(centerX, centerY, outerRadius, 0, Math.PI * 2);
   ctx.fillStyle = glowGradient;
   ctx.fill();
-
-  // Draw main ring with gradient stroke
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, (innerRadius + outerRadius) / 2, 0, Math.PI * 2);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = (outerRadius - innerRadius) * 0.5;
-  ctx.lineCap = 'round';
-  ctx.stroke();
-
-  // Inner bright highlight
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, (innerRadius + outerRadius) / 2, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-  ctx.lineWidth = (outerRadius - innerRadius) * 0.15;
-  ctx.stroke();
 
   haloCanvasCache.set(cacheKey, canvas);
   return canvas;
@@ -287,7 +273,7 @@ export function useNodeRenderer({ hoveredNodeId, nodes }: UseNodeRendererProps) 
   const nodeThreeObject = useCallback(
     (node: GraphNode) => {
       const color = NODE_COLORS[node.memory_type] || NODE_COLORS.default;
-      const size = 4 + (node.importance_score || 0.5) * 4;
+      const size = 8 + (node.importance_score || 0.5) * 8;
       // Use nullish coalescing to accept 0 as valid birthTime (initial load)
       const birthTime = node.__birthTime ?? Date.now();
       const updateTime = node.__updateTime ?? 0;
@@ -313,8 +299,8 @@ export function useNodeRenderer({ hoveredNodeId, nodes }: UseNodeRendererProps) 
       globalGroupsMap.set(node.id, group);
       nodeAnimationState.set(node.id, { group, birthTime, updateTime, initialized: true, size });
 
-      // ===== CORE STAR =====
-      const coreGeometry = new THREE.SphereGeometry(size * 0.6, 32, 32);
+      // ===== CORE STAR - Small bright center =====
+      const coreGeometry = new THREE.SphereGeometry(size * 0.4, 32, 32);
       const coreMaterial = new THREE.MeshBasicMaterial({
         color: '#ffffff',
         transparent: true,
@@ -324,40 +310,45 @@ export function useNodeRenderer({ hoveredNodeId, nodes }: UseNodeRendererProps) 
       core.name = 'core';
       group.add(core);
 
-      // Inner colored glow
-      const innerGlowGeometry = new THREE.SphereGeometry(size, 32, 32);
-      const innerGlowMaterial = new THREE.MeshBasicMaterial({
-        color: color,
+      // ===== GLOW SPRITE - Additive blending for true glow effect =====
+      const glowTexture = createGlowTexture(color);
+      const glowMaterial = new THREE.SpriteMaterial({
+        map: glowTexture,
         transparent: true,
-        opacity: 0.6,
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
       });
-      const innerGlow = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
-      innerGlow.name = 'innerGlow';
-      group.add(innerGlow);
+      const glowSprite = new THREE.Sprite(glowMaterial);
+      glowSprite.name = 'glowSprite';
+      glowSprite.scale.setScalar(size * 5);
+      group.add(glowSprite);
 
-      // Outer atmospheric glow
-      const outerGlowGeometry = new THREE.SphereGeometry(size * 2, 32, 32);
-      const outerGlowMaterial = new THREE.MeshBasicMaterial({
-        color: color,
+      // ===== OUTER GLOW SPRITE - Larger, softer glow =====
+      const outerGlowMaterial = new THREE.SpriteMaterial({
+        map: glowTexture,
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.3,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
       });
-      const outerGlow = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
-      outerGlow.name = 'outerGlow';
-      group.add(outerGlow);
+      const outerGlowSprite = new THREE.Sprite(outerGlowMaterial);
+      outerGlowSprite.name = 'outerGlowSprite';
+      outerGlowSprite.scale.setScalar(size * 8);
+      group.add(outerGlowSprite);
 
-      // Star rays (cross pattern)
+      // Star rays (cross pattern) - small bright points
       const rayCount = 4;
       for (let i = 0; i < rayCount; i++) {
-        const rayGeometry = new THREE.SphereGeometry(size * 0.15, 8, 8);
+        const rayGeometry = new THREE.SphereGeometry(size * 0.12, 8, 8);
         const rayMaterial = new THREE.MeshBasicMaterial({
           color: '#ffffff',
           transparent: true,
-          opacity: 0.7,
+          opacity: 0.8,
         });
         const ray = new THREE.Mesh(rayGeometry, rayMaterial);
         const angle = (i / rayCount) * Math.PI * 2;
-        const rayDistance = size * 1.8;
+        const rayDistance = size * 1.2;
         ray.position.x = Math.cos(angle) * rayDistance;
         ray.position.y = Math.sin(angle) * rayDistance;
         group.add(ray);
@@ -386,14 +377,15 @@ export function useNodeRenderer({ hoveredNodeId, nodes }: UseNodeRendererProps) 
         createBirthElements(group, size, color);
       }
 
-      // Ambient twinkle animation
+      // Ambient twinkle animation - only affects glow, not core
       const twinkle = () => {
         if (!globalGroupsMap.has(node.id)) return;
         
         const time = Date.now() * 0.003;
         const twinkleValue = 0.7 + Math.sin(time + (node.id.codePointAt(0) || 0)) * 0.3;
-        coreMaterial.opacity = twinkleValue * 0.95;
-        innerGlowMaterial.opacity = 0.6 * twinkleValue;
+        // Core stays at full intensity
+        glowMaterial.opacity = 0.8 * twinkleValue;
+        outerGlowMaterial.opacity = 0.3 * twinkleValue;
         
         requestAnimationFrame(twinkle);
       };

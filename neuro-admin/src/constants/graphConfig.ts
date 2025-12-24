@@ -11,7 +11,7 @@ export const GRAPH_CONFIG = {
     initialDistance: 1500, // Distancia inicial de la cámara (debe ser ~3x el radio max)
     initialY: 0, // Altura inicial de la cámara (0 = centrado verticalmente)
     rotationSpeed: 0.001, // Velocidad de rotación automática
-    resumeDelay: 10000, // Tiempo para reanudar rotación (ms)
+    resumeDelay: 5000, // Tiempo para reanudar rotación después de interacción (ms)
   },
 
   // Fuerzas de simulación D3
