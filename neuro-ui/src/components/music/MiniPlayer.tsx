@@ -162,18 +162,18 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-xl border-t border-cyber-cyan/30 safe-area-inset-bottom overflow-hidden">
         {/* Spectrum Background - Blurred */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 blur-sm">
+          <div className="absolute inset-0 blur-xl scale-150">
             <SpectrumAnalyzer 
               barCount={32} 
               compact 
               showReflection={false}
-              className="h-full w-full opacity-40"
+              className="h-full w-full opacity-60"
             />
           </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-gray-900/40 to-gray-900/80" />
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/60 via-transparent to-gray-900/60" />
         </div>
         
-        {/* Progress bar at top - clickable */}
+        {/* Progress bar at top - clickable */}}
         <div 
           ref={mobileProgressRef}
           onClick={handleMobileProgressClick}
@@ -283,15 +283,15 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
       <div className="bg-gray-900/95 backdrop-blur-xl border border-cyber-cyan/30 shadow-2xl shadow-cyber-cyan/20 overflow-hidden w-80 relative">
         {/* Spectrum Background - Blurred */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 blur-sm">
+          <div className="absolute inset-0 blur-xl scale-150">
             <SpectrumAnalyzer 
               barCount={32} 
               compact 
               showReflection={false}
-              className="h-full w-full opacity-40"
+              className="h-full w-full opacity-60"
             />
           </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-gray-900/40 to-gray-900/80" />
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/60 via-transparent to-gray-900/60" />
         </div>
         
         {/* Progress bar at top */}
