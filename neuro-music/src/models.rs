@@ -124,11 +124,16 @@ pub struct UpdateSong {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YouTubeMetadata {
-    pub id: String,
+    pub youtube_id: String,
     pub title: String,
+    #[serde(rename = "artist")]
     pub uploader: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub album: Option<String>,
     pub duration: i64,
+    #[serde(rename = "thumbnail_url")]
     pub thumbnail: Option<String>,
+    #[serde(skip_serializing)]
     pub description: Option<String>,
 }
 

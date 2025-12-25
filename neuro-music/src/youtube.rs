@@ -78,9 +78,10 @@ impl YouTubeService {
             .map_err(|e| format!("Failed to parse yt-dlp output: {}", e))?;
 
         Ok(YouTubeMetadata {
-            id: video_id,
+            youtube_id: video_id,
             title: json["title"].as_str().unwrap_or("Unknown").to_string(),
             uploader: json["uploader"].as_str().map(|s| s.to_string()),
+            album: json["album"].as_str().map(|s| s.to_string()),
             duration: json["duration"].as_f64().map(|d| d as i64).or_else(|| json["duration"].as_i64()).unwrap_or(0),
             thumbnail: json["thumbnail"].as_str().map(|s| s.to_string()),
             description: json["description"].as_str().map(|s| s.to_string()),

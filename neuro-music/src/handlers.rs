@@ -150,7 +150,7 @@ pub async fn add_song(
         })?;
 
     // Check if song already exists in playlist
-    if let Ok(Some(_)) = state.client.get_song_by_youtube_id(&metadata.id, playlist_id).await {
+    if let Ok(Some(_)) = state.client.get_song_by_youtube_id(&metadata.youtube_id, playlist_id).await {
         return Err(StatusCode::CONFLICT);
     }
 
