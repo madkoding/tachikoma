@@ -13,9 +13,10 @@ import {
 } from 'lucide-react';
 import { useMusicStore, formatDuration, RepeatMode } from '../../stores/musicStore';
 import { musicApi } from '../../api/client';
+import { SpectrumAnalyzer } from './SpectrumAnalyzer';
 
-// Equalizer frequency bands in Hz
-const EQ_FREQUENCIES = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000, 20, 45, 90, 180, 350, 700];
+// Equalizer frequency bands in Hz (8 bands)
+const EQ_FREQUENCIES = [60, 170, 310, 600, 1000, 3000, 6000, 12000];
 
 interface MusicPlayerProps {
   compact?: boolean;
@@ -395,11 +396,25 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
     <div className={`
       bg-gray-900/90 backdrop-blur-xl border-t border-cyan-500/30
       ${compact ? 'p-2' : 'p-2 sm:p-4 pt-3 sm:pt-4'}
-      w-full relative
+      w-full relative overflow-hidden
     `}>
+      {/* Spectrum Background - Blurred */}
+      {player.isPlaying && (
+        <div className="absolute inset-0 overflow-hidden opacity-30 pointer-events-none">
+          <div className="absolute inset-0 blur-md scale-110">
+            <SpectrumAnalyzer 
+              barCount={32} 
+              compact 
+              showReflection={false}
+              className="h-full w-full"
+            />
+          </div>
+        </div>
+      )}
+      
       {/* Audio element is now in AudioPlayer component (global) */}
 
-      <div className="max-w-screen-xl mx-auto flex items-center gap-2 sm:gap-4">
+      <div className="max-w-screen-xl mx-auto flex items-center gap-2 sm:gap-4 relative z-10">
         {/* Song Info */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           {/* Cover Art */}

@@ -95,7 +95,7 @@ const initialPlayerState: PlayerState = {
 const initialEqualizerSettings: EqualizerSettingsDto = {
   enabled: true,
   preset: undefined,
-  bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  bands: [0, 0, 0, 0, 0, 0, 0, 0], // 8 bands
 };
 
 const initialAudioFilters: AudioFilters = {
@@ -809,11 +809,13 @@ export function formatDurationLong(seconds: number): string {
   return `${mins} min`;
 }
 
-// Equalizer frequency labels
+// Equalizer frequency labels (8 bands)
 export const EQUALIZER_FREQUENCIES = [
-  '32', '64', '125', '250', '500', '1K', '2K', '4K', '8K', '16K',
-  '20', '45', '90', '180', '350', '700'
+  '60', '170', '310', '600', '1K', '3K', '6K', '12K'
 ];
+
+// Equalizer frequency values in Hz (8 bands)
+export const EQUALIZER_FREQ_VALUES = [60, 170, 310, 600, 1000, 3000, 6000, 12000];
 
 export const EQUALIZER_PRESETS = [
   { name: 'flat', label: 'Flat' },

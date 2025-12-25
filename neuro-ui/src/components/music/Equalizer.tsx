@@ -72,7 +72,7 @@ export const Equalizer: React.FC<EqualizerProps> = ({ className = '' }) => {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-cyan-400 font-bold text-sm tracking-wider uppercase font-cyber">
-          Ecualizador 16 Bandas
+          Ecualizador 8 Bandas
         </h3>
         
         {/* Enable toggle */}
@@ -204,11 +204,11 @@ export const Equalizer: React.FC<EqualizerProps> = ({ className = '' }) => {
 
       {/* Sliders */}
       <div 
-        className="flex items-end gap-1"
+        className="flex items-end gap-2"
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        {equalizer.bands.slice(0, 16).map((value, index) => (
+        {equalizer.bands.slice(0, 8).map((value, index) => (
           <div key={index} className="flex-1 flex flex-col items-center">
             {/* dB value */}
             <span className="text-[10px] text-gray-500 mb-1 h-4">
