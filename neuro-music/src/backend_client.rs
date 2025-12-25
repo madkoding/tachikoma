@@ -188,14 +188,30 @@ impl BackendClient {
     pub async fn create_song(&self, playlist_id: Uuid, data: CreateSong, metadata: YouTubeMetadata) -> Result<Song, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/playlists/{}/songs", self.base_url, playlist_id);
         
+        // Send exactly what the backend expects:
+        // { "youtube_url": "...", "metadata": { "youtube_id": "...", ... } }
+        // The backend uses #[serde(flatten)] on its CreateSong which only has youtube_url
         #[derive(Serialize)]
         struct Request {
-            #[serde(flatten)]
-            song: CreateSong,
+            youtube_url: String,
             metadata: YouTubeMetadata,
         }
         
-        let request = Request { song: data, metadata };
+        let request = Request { 
+            youtube_url: data.youtube_url,
+            metadata,
+        };
+        
+        // Log the JSON being sent for debugging
+        let json_str = serde_json::to_string(&request).unwrap_or_default();
+        tracing::info!(
+            url = %url,
+            json_length = %json_str.len(),
+            youtube_id = ?request.metadata.youtube_id,
+            "Sending create song request to backend"
+        );
+        tracing::info!(json = %json_str, "Full Request JSON");
+        
         let response = self.client.post(&url).json(&request).send().await?;
         
         if !response.status().is_success() {

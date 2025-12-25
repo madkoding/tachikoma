@@ -9,4 +9,9 @@
 export { useVoiceStream } from './useVoiceStream';
 export type { VoiceConfig, VoiceState, UseVoiceStreamReturn } from './useVoiceStream';
 
+export { useConnectionStatus } from './useConnectionStatus';
+export type { ConnectionStatus } from './useConnectionStatus';
+
+export { useMediaSession } from './useMediaSession';
+
 export { useMediaSession } from './useMediaSession';

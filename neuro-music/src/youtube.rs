@@ -77,14 +77,14 @@ impl YouTubeService {
         let json: serde_json::Value = serde_json::from_str(&json_str)
             .map_err(|e| format!("Failed to parse yt-dlp output: {}", e))?;
 
+        // Build YouTubeMetadata with fields matching backend expectations
         Ok(YouTubeMetadata {
             youtube_id: video_id,
             title: json["title"].as_str().unwrap_or("Unknown").to_string(),
-            uploader: json["uploader"].as_str().map(|s| s.to_string()),
+            artist: json["uploader"].as_str().map(|s| s.to_string()),
             album: json["album"].as_str().map(|s| s.to_string()),
             duration: json["duration"].as_f64().map(|d| d as i64).or_else(|| json["duration"].as_i64()).unwrap_or(0),
-            thumbnail: json["thumbnail"].as_str().map(|s| s.to_string()),
-            description: json["description"].as_str().map(|s| s.to_string()),
+            thumbnail_url: json["thumbnail"].as_str().map(|s| s.to_string()),
         })
     }
 

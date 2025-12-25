@@ -161,7 +161,7 @@ pub async fn add_song(
     if create_data.cover_url.is_none() {
         let cover = state.cover_art.search_cover(
             &metadata.title,
-            metadata.uploader.as_deref()
+            metadata.artist.as_deref()
         ).await;
         
         if let Some(cover) = cover {

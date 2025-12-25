@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
 import { Layout } from './components/layout';
+import { NoConnectionScreen } from './components/NoConnectionScreen';
+import { useConnectionStatus } from './hooks/useConnectionStatus';
 import ChatPage from './pages/ChatPage';
 import ChecklistsPage from './pages/ChecklistsPage';
 import KanbanPage from './pages/KanbanPage';
@@ -18,6 +20,7 @@ import { useThemeStore } from './stores/themeStore';
 
 function App() {
   const { theme } = useThemeStore();
+  const { isConnected, isChecking, error, retry } = useConnectionStatus();
 
   // Apply theme to document
   useEffect(() => {
@@ -60,6 +63,15 @@ function App() {
         
         {/* Global audio player - always mounted for continuous playback */}
         <AudioPlayer />
+
+        {/* No connection screen - covers everything when backend is unavailable */}
+        {!isConnected && (
+          <NoConnectionScreen 
+            error={error}
+            onRetry={retry}
+            isChecking={isChecking}
+          />
+        )}
       </div>
     </BrowserRouter>
   );

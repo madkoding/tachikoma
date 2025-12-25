@@ -122,19 +122,40 @@ pub struct UpdateSong {
 // YouTube Metadata (fetched via yt-dlp)
 // =============================================================================
 
+/// Metadata from yt-dlp (for deserialization)
+#[derive(Debug, Clone, Deserialize)]
+pub struct YtDlpMetadata {
+    pub id: String,
+    pub title: String,
+    pub uploader: Option<String>,
+    pub album: Option<String>,
+    pub duration: i64,
+    pub thumbnail: Option<String>,
+    pub description: Option<String>,
+}
+
+/// Metadata to send to backend (matches backend's YouTubeMetadata)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YouTubeMetadata {
     pub youtube_id: String,
     pub title: String,
-    #[serde(rename = "artist")]
-    pub uploader: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artist: Option<String>,
     pub album: Option<String>,
     pub duration: i64,
-    #[serde(rename = "thumbnail_url")]
-    pub thumbnail: Option<String>,
-    #[serde(skip_serializing)]
-    pub description: Option<String>,
+    pub thumbnail_url: Option<String>,
+}
+
+impl From<YtDlpMetadata> for YouTubeMetadata {
+    fn from(m: YtDlpMetadata) -> Self {
+        YouTubeMetadata {
+            youtube_id: m.id,
+            title: m.title,
+            artist: m.uploader,
+            album: m.album,
+            duration: m.duration,
+            thumbnail_url: m.thumbnail,
+        }
+    }
 }
 
 // =============================================================================
