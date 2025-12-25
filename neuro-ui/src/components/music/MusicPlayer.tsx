@@ -399,18 +399,18 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
       w-full relative overflow-hidden
     `}>
       {/* Spectrum Background - Blurred */}
-      {player.isPlaying && (
-        <div className="absolute inset-0 overflow-hidden opacity-30 pointer-events-none">
-          <div className="absolute inset-0 blur-md scale-110">
-            <SpectrumAnalyzer 
-              barCount={32} 
-              compact 
-              showReflection={false}
-              className="h-full w-full"
-            />
-          </div>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 blur-sm">
+          <SpectrumAnalyzer 
+            barCount={32} 
+            compact 
+            showReflection={false}
+            className="h-full w-full opacity-40"
+          />
         </div>
-      )}
+        {/* Gradient overlay to fade spectrum */}
+        <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-gray-900/40 to-gray-900/80" />
+      </div>
       
       {/* Audio element is now in AudioPlayer component (global) */}
 
