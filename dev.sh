@@ -179,6 +179,9 @@ start_docker_dev() {
     echo -e "  Voice:      ${YELLOW}http://localhost:8100${NC}"
     echo -e "  Music:      ${YELLOW}http://localhost:3002${NC}"
     echo -e "  Checklists: ${YELLOW}http://localhost:3001${NC}"
+    echo -e "  Chat:       ${YELLOW}http://localhost:3003${NC}"
+    echo -e "  Memory:     ${YELLOW}http://localhost:3004${NC}"
+    echo -e "  Agent:      ${YELLOW}http://localhost:3005${NC}"
 }
 
 # Rebuild a specific service in dev mode (fast)
@@ -201,6 +204,9 @@ clean_cargo_cache() {
     docker volume rm neuro-cargo-cache-voice neuro-cargo-git-voice neuro-voice-target 2>/dev/null || true
     docker volume rm neuro-cargo-cache-music neuro-cargo-git-music neuro-music-target 2>/dev/null || true
     docker volume rm neuro-cargo-cache-checklists neuro-cargo-git-checklists neuro-checklists-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-chat neuro-cargo-git-chat neuro-chat-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-memory neuro-cargo-git-memory neuro-memory-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-agent neuro-cargo-git-agent neuro-agent-target 2>/dev/null || true
     
     echo -e "  ${GREEN}Cache cleaned! Next build will be slower but fresh.${NC}"
 }
@@ -302,6 +308,15 @@ case "${1:-all}" in
     rebuild-checklists|rc)
         rebuild_service_dev checklists-service
         ;;
+    rebuild-chat|rch)
+        rebuild_service_dev chat-service
+        ;;
+    rebuild-memory|rmem)
+        rebuild_service_dev memory-service
+        ;;
+    rebuild-agent|ra)
+        rebuild_service_dev agent-service
+        ;;
     clean-cache|cc)
         clean_cargo_cache
         ;;
@@ -322,6 +337,9 @@ case "${1:-all}" in
         echo -e "  ${YELLOW}rebuild-voice${NC}  Rebuild voice service (fast dev mode)"
         echo -e "  ${YELLOW}rebuild-music${NC}  Rebuild music service (fast dev mode)"
         echo -e "  ${YELLOW}rebuild-checklists${NC}  Rebuild checklists service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-chat${NC}   Rebuild chat service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-memory${NC} Rebuild memory service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-agent${NC}  Rebuild agent service (fast dev mode)"
         echo -e "  ${YELLOW}clean-cache${NC}    Clean persistent cargo cache"
         echo -e ""
         echo -e "${CYAN}Legacy (slower):${NC}"

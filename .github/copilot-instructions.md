@@ -116,6 +116,27 @@ cargo build
 - **🔨 Rebuild Backend (Clean)**: Limpia cache y recompila desde cero
 - **🎵 Rebuild Music Service**: Reconstruye el contenedor de música
 
+### ⚠️ IMPORTANTE: NO iniciar servicios manualmente por terminal
+
+**NUNCA** ejecutes comandos como:
+```bash
+# ❌ INCORRECTO - Esto interfiere con los tasks de VS Code
+cargo run
+./target/debug/neuro-backend
+cargo watch -x run
+```
+
+**SIEMPRE** usa los tasks de VS Code:
+- Si el task "🦀 Backend (after Docker)" ya está corriendo, cargo watch detectará los cambios automáticamente
+- Si necesitas reiniciar, usa el task "🔨 Rebuild Backend (Clean)"
+- Para ver logs, usa la terminal del task en VS Code
+
+Si ejecutas comandos manuales:
+1. Pisas el proceso del task
+2. Los logs se pierden en múltiples terminales
+3. El cargo watch deja de funcionar
+4. Puedes tener múltiples instancias compitiendo por el mismo puerto
+
 ## Desarrollo Rápido de Microservicios Docker
 
 ### ⚡ FAST DEV MODE (3-5x más rápido)

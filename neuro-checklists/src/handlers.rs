@@ -1,17 +1,46 @@
-//! HTTP Handlers
+//! HTTP Handlers for Checklists Microservice
+//! Uses BackendClient for data persistence
 
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::models::*;
 use crate::AppState;
+
+// =============================================================================
+// Response DTOs
+// =============================================================================
+
+#[derive(Debug, Serialize)]
+pub struct ErrorResponse {
+    pub code: String,
+    pub message: String,
+}
+
+impl ErrorResponse {
+    pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct PaginatedResponse<T> {
+    pub data: Vec<T>,
+    pub total: usize,
+    pub page: usize,
+    pub per_page: usize,
+    pub total_pages: usize,
+}
 
 // =============================================================================
 // Query Parameters
@@ -51,18 +80,21 @@ pub async fn list_checklists(
     State(state): State<Arc<AppState>>,
     Query(params): Query<ListParams>,
 ) -> Result<Json<PaginatedResponse<ChecklistResponse>>, (StatusCode, Json<ErrorResponse>)> {
+    debug!(page = params.page, per_page = params.per_page, "Listing checklists");
+
     let offset = (params.page.saturating_sub(1)) * params.per_page;
-
-    match state.db.get_all_checklists(params.per_page, offset, params.include_archived).await {
+    
+    match state.client.get_all_checklists(params.per_page, offset, params.include_archived).await {
         Ok(checklists) => {
-            let total = state.db.count_checklists(params.include_archived).await.unwrap_or(0);
-            let total_pages = (total + params.per_page - 1) / params.per_page;
+            // Get total count for pagination
+            let total = state.client.count_checklists(params.include_archived).await.unwrap_or(checklists.len());
+            let total_pages = (total + params.per_page - 1) / params.per_page.max(1);
 
-            // Get items for each checklist to calculate counts
+            // Get items for each checklist
             let mut responses = Vec::new();
             for checklist in checklists {
-                let items = state.db.get_items(checklist.id).await.unwrap_or_default();
-                responses.push(checklist.to_response(&items));
+                let items = state.client.get_items(checklist.id).await.unwrap_or_default();
+                responses.push(ChecklistResponse::from_checklist_with_items(checklist, items));
             }
 
             Ok(Json(PaginatedResponse {
@@ -77,7 +109,7 @@ pub async fn list_checklists(
             error!(error = %e, "Failed to list checklists");
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new("DATABASE_ERROR", e.to_string())),
+                Json(ErrorResponse::new("BACKEND_ERROR", e.to_string())),
             ))
         }
     }
@@ -87,11 +119,13 @@ pub async fn list_checklists(
 pub async fn get_checklist(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<ChecklistWithItemsResponse>, (StatusCode, Json<ErrorResponse>)> {
-    match state.db.get_checklist(id).await {
+) -> Result<Json<ChecklistResponse>, (StatusCode, Json<ErrorResponse>)> {
+    debug!(id = %id, "Getting checklist");
+
+    match state.client.get_checklist(id).await {
         Ok(Some(checklist)) => {
-            let items = state.db.get_items(id).await.unwrap_or_default();
-            Ok(Json(checklist.to_response_with_items(items)))
+            let items = state.client.get_items(id).await.unwrap_or_default();
+            Ok(Json(ChecklistResponse::from_checklist_with_items(checklist, items)))
         }
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
@@ -101,7 +135,7 @@ pub async fn get_checklist(
             error!(error = %e, "Failed to get checklist");
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new("DATABASE_ERROR", e.to_string())),
+                Json(ErrorResponse::new("BACKEND_ERROR", e.to_string())),
             ))
         }
     }
@@ -111,22 +145,22 @@ pub async fn get_checklist(
 pub async fn create_checklist(
     State(state): State<Arc<AppState>>,
     Json(request): Json<CreateChecklist>,
-) -> Result<(StatusCode, Json<ChecklistWithItemsResponse>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<ChecklistResponse>), (StatusCode, Json<ErrorResponse>)> {
     debug!(title = %request.title, "Creating new checklist");
 
     let items_to_create = request.items.clone();
 
-    match state.db.create_checklist(request).await {
+    match state.client.create_checklist(request).await {
         Ok(checklist) => {
             // Add initial items
             let mut created_items = Vec::new();
             for item_data in items_to_create {
-                if let Ok(item) = state.db.add_item(checklist.id, item_data).await {
+                if let Ok(item) = state.client.add_item(checklist.id, item_data).await {
                     created_items.push(item);
                 }
             }
 
-            Ok((StatusCode::CREATED, Json(checklist.to_response_with_items(created_items))))
+            Ok((StatusCode::CREATED, Json(ChecklistResponse::from_checklist_with_items(checklist, created_items))))
         }
         Err(e) => {
             error!(error = %e, "Failed to create checklist");
@@ -143,11 +177,13 @@ pub async fn update_checklist(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
     Json(request): Json<UpdateChecklist>,
-) -> Result<Json<ChecklistWithItemsResponse>, (StatusCode, Json<ErrorResponse>)> {
-    match state.db.update_checklist(id, request).await {
+) -> Result<Json<ChecklistResponse>, (StatusCode, Json<ErrorResponse>)> {
+    debug!(id = %id, "Updating checklist");
+
+    match state.client.update_checklist(id, request).await {
         Ok(Some(checklist)) => {
-            let items = state.db.get_items(id).await.unwrap_or_default();
-            Ok(Json(checklist.to_response_with_items(items)))
+            let items = state.client.get_items(id).await.unwrap_or_default();
+            Ok(Json(ChecklistResponse::from_checklist_with_items(checklist, items)))
         }
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
@@ -168,7 +204,9 @@ pub async fn delete_checklist(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    match state.db.delete_checklist(id).await {
+    debug!(id = %id, "Deleting checklist");
+
+    match state.client.delete_checklist(id).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err((
             StatusCode::NOT_FOUND,
@@ -193,9 +231,11 @@ pub async fn add_item(
     State(state): State<Arc<AppState>>,
     Path(checklist_id): Path<Uuid>,
     Json(request): Json<CreateChecklistItem>,
-) -> Result<(StatusCode, Json<ChecklistItemResponse>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<ChecklistItem>), (StatusCode, Json<ErrorResponse>)> {
+    debug!(checklist_id = %checklist_id, "Adding item to checklist");
+
     // Verify checklist exists
-    match state.db.get_checklist(checklist_id).await {
+    match state.client.get_checklist(checklist_id).await {
         Ok(Some(_)) => {}
         Ok(None) => {
             return Err((
@@ -207,13 +247,13 @@ pub async fn add_item(
             error!(error = %e, "Failed to get checklist");
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new("DATABASE_ERROR", e.to_string())),
+                Json(ErrorResponse::new("BACKEND_ERROR", e.to_string())),
             ));
         }
     }
 
-    match state.db.add_item(checklist_id, request).await {
-        Ok(item) => Ok((StatusCode::CREATED, Json(item.to_response()))),
+    match state.client.add_item(checklist_id, request).await {
+        Ok(item) => Ok((StatusCode::CREATED, Json(item))),
         Err(e) => {
             error!(error = %e, "Failed to add item");
             Err((
@@ -229,9 +269,11 @@ pub async fn update_item(
     State(state): State<Arc<AppState>>,
     Path((_, item_id)): Path<(Uuid, Uuid)>,
     Json(request): Json<UpdateChecklistItem>,
-) -> Result<Json<ChecklistItemResponse>, (StatusCode, Json<ErrorResponse>)> {
-    match state.db.update_item(item_id, request).await {
-        Ok(Some(item)) => Ok(Json(item.to_response())),
+) -> Result<Json<ChecklistItem>, (StatusCode, Json<ErrorResponse>)> {
+    debug!(item_id = %item_id, "Updating item");
+
+    match state.client.update_item(item_id, request).await {
+        Ok(Some(item)) => Ok(Json(item)),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new("NOT_FOUND", "Item not found")),
@@ -250,9 +292,11 @@ pub async fn update_item(
 pub async fn toggle_item(
     State(state): State<Arc<AppState>>,
     Path((_, item_id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<ChecklistItemResponse>, (StatusCode, Json<ErrorResponse>)> {
-    match state.db.toggle_item(item_id).await {
-        Ok(Some(item)) => Ok(Json(item.to_response())),
+) -> Result<Json<ChecklistItem>, (StatusCode, Json<ErrorResponse>)> {
+    debug!(item_id = %item_id, "Toggling item");
+
+    match state.client.toggle_item(item_id).await {
+        Ok(Some(item)) => Ok(Json(item)),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new("NOT_FOUND", "Item not found")),
@@ -272,7 +316,9 @@ pub async fn delete_item(
     State(state): State<Arc<AppState>>,
     Path((_, item_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    match state.db.delete_item(item_id).await {
+    debug!(item_id = %item_id, "Deleting item");
+
+    match state.client.delete_item(item_id).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err((
             StatusCode::NOT_FOUND,
@@ -296,7 +342,7 @@ pub async fn delete_item(
 pub async fn import_from_markdown(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ImportMarkdown>,
-) -> Result<(StatusCode, Json<ChecklistWithItemsResponse>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<ChecklistResponse>), (StatusCode, Json<ErrorResponse>)> {
     debug!("Importing checklist from markdown");
 
     let (parsed_title, items) = parse_markdown_checklist(&request.markdown);
@@ -319,4 +365,51 @@ pub async fn import_from_markdown(
     };
 
     create_checklist(State(state), Json(create_request)).await
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/// Parse a markdown checklist into title and items
+fn parse_markdown_checklist(markdown: &str) -> (String, Vec<CreateChecklistItem>) {
+    let mut title = String::from("Imported Checklist");
+    let mut items = Vec::new();
+    let mut order = 0;
+
+    for line in markdown.lines() {
+        let trimmed = line.trim();
+        
+        // Check for title (# header)
+        if trimmed.starts_with("# ") {
+            title = trimmed[2..].trim().to_string();
+            continue;
+        }
+
+        // Check for checkbox items: - [ ] or - [x] or * [ ] or * [x]
+        let checkbox_patterns = [
+            ("- [ ] ", false),
+            ("- [x] ", true),
+            ("- [X] ", true),
+            ("* [ ] ", false),
+            ("* [x] ", true),
+            ("* [X] ", true),
+        ];
+
+        for (pattern, _is_completed) in checkbox_patterns {
+            if trimmed.starts_with(pattern) {
+                let content = trimmed[pattern.len()..].trim().to_string();
+                if !content.is_empty() {
+                    items.push(CreateChecklistItem {
+                        content,
+                        order: Some(order),
+                    });
+                    order += 1;
+                }
+                break;
+            }
+        }
+    }
+
+    (title, items)
 }

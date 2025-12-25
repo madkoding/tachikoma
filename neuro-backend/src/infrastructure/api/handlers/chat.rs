@@ -105,18 +105,7 @@ pub async fn stream_message(
     let memory_service = state.memory_service.clone();
     let chat_service = state.chat_service.clone();
     
-    // =========================================================================
-    // TOOL DETECTION - Run before streaming to check if we need to execute tools
-    // =========================================================================
-    let tools_used = chat_service.detect_and_execute_tools(&message).await;
-    let tools_context = if !tools_used.is_empty() {
-        info!("🔧 Tools executed before streaming: {:?}", tools_used.iter().map(|(n, _)| n).collect::<Vec<_>>());
-        Some(tools_used)
-    } else {
-        None
-    };
-    
-    // Create a channel for streaming
+    // Create a channel for streaming IMMEDIATELY (don't block on tool execution)
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(100);
     
     // Spawn task to handle streaming
@@ -124,6 +113,41 @@ pub async fn stream_message(
     
     tokio::spawn(async move {
         let start = Instant::now();
+        
+        // =========================================================================
+        // PARALLEL TOOL EXECUTION - Execute tools while preparing context
+        // =========================================================================
+        
+        // Quick keyword detection (instant) to know if tool is needed
+        let needs_tool = chat_service.quick_tool_check(&message);
+        
+        if needs_tool {
+            // Send "thinking" event immediately so UI shows feedback
+            let thinking_data = serde_json::json!({
+                "type": "thinking",
+                "message": "Ejecutando herramienta...",
+            });
+            let _ = tx.send(Ok(Event::default().event("message").data(thinking_data.to_string()))).await;
+        }
+        
+        // Execute tool detection and execution (with templates, this is fast now)
+        let tools_used = chat_service.detect_and_execute_tools(&message).await;
+        let tools_names: Vec<String> = tools_used.iter().map(|(n, _)| n.clone()).collect();
+        let tools_context = if !tools_used.is_empty() {
+            info!("🔧 Tools executed: {:?}", tools_names);
+            Some(tools_used)
+        } else {
+            None
+        };
+        
+        // Send tool_executed event if tools were run
+        if !tools_names.is_empty() {
+            let tool_data = serde_json::json!({
+                "type": "tool_executed",
+                "tools": tools_names,
+            });
+            let _ = tx.send(Ok(Event::default().event("message").data(tool_data.to_string()))).await;
+        }
         
         // Get conversation history
         let conversation = chat_service.get_conversation(conversation_id).await;

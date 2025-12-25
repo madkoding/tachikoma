@@ -50,11 +50,13 @@ use crate::domain::ports::{
     llm_provider::LlmProvider,
     memory_repository::MemoryRepository,
     search_provider::SearchProvider,
+    checklist_repository::ChecklistRepository,
+    music_repository::MusicRepository,
 };
 use crate::infrastructure::{
     api::{create_router, handlers::system::init_start_time},
     config::Config,
-    database::{DatabasePool, SurrealDbRepository},
+    database::{DatabasePool, SurrealDbRepository, SurrealChecklistRepository, SurrealMusicRepository},
     services::{OllamaClient, SafeCommandExecutor, SearxngClient, VoiceEngine, VoiceConfig},
 };
 
@@ -155,6 +157,10 @@ pub struct AppState {
     pub event_broadcaster: Arc<crate::infrastructure::api::EventBroadcaster>,
     /// Microservices configuration (API Gateway)
     pub microservices_config: crate::infrastructure::config::MicroservicesConfig,
+    /// Checklist repository for data layer
+    pub checklist_repository: Arc<dyn ChecklistRepository + Send + Sync>,
+    /// Music repository for data layer
+    pub music_repository: Arc<dyn MusicRepository + Send + Sync>,
 }
 
 /// =============================================================================
@@ -250,10 +256,16 @@ async fn main() -> Result<()> {
     // -------------------------------------------------------------------------
     // Create memory repository
     // -------------------------------------------------------------------------
-    print_step(6, TOTAL_STEPS, "Initializing memory repository...");
+    print_step(6, TOTAL_STEPS, "Initializing repositories...");
     let surreal_repository = Arc::new(SurrealDbRepository::new(database_pool.clone()));
     let memory_repository: Arc<dyn MemoryRepository + Send + Sync> = surreal_repository.clone();
-    print_done(6, TOTAL_STEPS, "Memory repository ready");
+    
+    // Create checklist and music repositories
+    let checklist_repository: Arc<dyn ChecklistRepository + Send + Sync> = 
+        Arc::new(SurrealChecklistRepository::new(database_pool.clone()));
+    let music_repository: Arc<dyn MusicRepository + Send + Sync> = 
+        Arc::new(SurrealMusicRepository::new(database_pool.clone()));
+    print_done(6, TOTAL_STEPS, "All repositories ready");
 
     // -------------------------------------------------------------------------
     // Create event broadcaster for SSE (needed by services)
@@ -321,6 +333,8 @@ async fn main() -> Result<()> {
         voice_engine,
         event_broadcaster,
         microservices_config: config.microservices.clone(),
+        checklist_repository,
+        music_repository,
     });
 
     // -------------------------------------------------------------------------

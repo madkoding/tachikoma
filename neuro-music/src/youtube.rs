@@ -186,12 +186,12 @@ impl YouTubeService {
                 let title = json["title"].as_str()?.to_string();
                 let duration = json["duration"].as_f64().map(|d| d as i64).or_else(|| json["duration"].as_i64()).unwrap_or(0);
                 
-                // Filter out videos >= 1 hour (3600 seconds)
-                if duration >= 3600 {
+                // Filter out lives (duration 0) and videos > 30 minutes (1800 seconds)
+                if duration == 0 || duration > 1800 {
                     return None;
                 }
                 
-                // Filter out compilations, MV, and AMV
+                // Filter out compilations, MV, AMV, playlists, and long videos
                 let title_lower = title.to_lowercase();
                 let excluded_patterns = [
                     "compilacion", "compilación", "compilation", "compilaciones",
@@ -201,6 +201,8 @@ impl YouTubeService {
                     "music video", "official video",
                     "1 hour", "1hour", "2 hour", "2hour",
                     "full album", "álbum completo", "album completo",
+                    "playlist", "play list",
+                    "live", "en vivo", "en directo", "concierto", "concert",
                 ];
                 
                 for pattern in excluded_patterns {

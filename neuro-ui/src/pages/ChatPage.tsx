@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { useChatStore, Message, Conversation } from '../stores/chatStore';
 import { useMusicStore } from '../stores/musicStore';
+import { useNotificationStore } from '../stores/notificationStore';
 import { chatApi, StreamCompleteResponse } from '../api/client';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
@@ -212,7 +213,7 @@ export default function ChatPage() {
         }
       },
       // On complete - update with final metadata and speak any remaining text
-      (response: StreamCompleteResponse) => {
+      async (response: StreamCompleteResponse) => {
         useChatStore.getState().updateMessage(convId, assistantMessageId, (msg) => ({
           ...msg,
           id: response.message_id,
@@ -241,10 +242,42 @@ export default function ChatPage() {
         console.error('Streaming error:', error);
         setError(error);
         setLoading(false);
+      },
+      // On tool executed - handle tool notifications and specific actions
+      async (tools: string[]) => {
+        console.log('🔧 Tools executed:', tools);
+        
+        // Notify sidebar about tool execution (makes icon glow)
+        useNotificationStore.getState().notifyFromTools(tools);
+        
+        if (tools.includes('create_playlist')) {
+          console.log('🎵 Playlist tool detected! Starting polling...');
+          try {
+            // Wait a bit for the playlist to be created
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Fetch updated playlists
+            await useMusicStore.getState().fetchPlaylists();
+            
+            // Find the newest playlist (first one after refresh)
+            const playlists = useMusicStore.getState().playlists;
+            if (playlists.length > 0) {
+              const newestPlaylist = playlists[0]; // Sorted by created_at desc
+              console.log('🎵 Starting polling for playlist:', newestPlaylist.name);
+              
+              // Fetch full playlist detail
+              await useMusicStore.getState().fetchPlaylistDetail(newestPlaylist.id);
+              
+              // Start polling for new songs
+              useMusicStore.getState().startPolling(newestPlaylist.id);
+            }
+          } catch (error) {
+            console.error('Failed to start playlist polling:', error);
+          }
+        }
       }
     );
   };
-
   return (
     <div className="flex h-screen bg-cyber-bg">
       {/* Sidebar */}

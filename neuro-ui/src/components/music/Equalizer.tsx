@@ -260,7 +260,7 @@ export const Equalizer: React.FC<EqualizerProps> = ({ className = '' }) => {
               
               {/* Scale markers */}
               <div className="absolute left-1/2 transform -translate-x-1/2 w-8 h-full flex flex-col justify-between pointer-events-none">
-                {['+12', '+6', '0', '-6', '-12'].map((label, i) => (
+                {['+12', '+6', '0', '-6', '-12'].map((label) => (
                   <div key={label} className="flex items-center justify-end w-full">
                     <div className="w-1 h-px bg-gray-700" />
                   </div>

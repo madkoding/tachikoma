@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { useMusicStore } from '../../stores/musicStore';
+import { useNotificationStore } from '../../stores/notificationStore';
 import SettingsModal from './SettingsModal';
 
 // Navigation items configuration
@@ -25,6 +26,7 @@ export default function MainSidebar() {
   const { t } = useTranslation();
   const location = useLocation();
   const currentSong = useMusicStore(state => state.player.currentSong);
+  const activeNotifications = useNotificationStore(state => state.activeNotifications);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   // Show extra padding when mini player is visible (not on music page and has song)
@@ -60,6 +62,7 @@ export default function MainSidebar() {
               to={item.path}
               icon={<NavIcon type={item.icon} />}
               label={t(item.labelKey)}
+              hasNotification={!!activeNotifications[item.path]}
             />
           ))}
         </nav>
@@ -75,9 +78,10 @@ interface NavItemProps {
   readonly to: string;
   readonly icon: React.ReactNode;
   readonly label: string;
+  readonly hasNotification?: boolean;
 }
 
-function NavItem({ to, icon, label }: Readonly<NavItemProps>) {
+function NavItem({ to, icon, label, hasNotification }: Readonly<NavItemProps>) {
   return (
     <NavLink
       to={to}
@@ -85,14 +89,19 @@ function NavItem({ to, icon, label }: Readonly<NavItemProps>) {
       end={to === '/'}
       className={({ isActive }) =>
         clsx(
-          'flex items-center justify-center px-1.5 sm:px-2 py-2 sm:py-2.5 rounded-xl transition-all font-mono text-sm tracking-wide',
+          'relative flex items-center justify-center px-1.5 sm:px-2 py-2 sm:py-2.5 rounded-xl transition-all font-mono text-sm tracking-wide',
           isActive
             ? 'bg-cyber-cyan/10 text-cyber-cyan border border-cyber-cyan/50 shadow-[0_0_15px_rgba(0,245,255,0.2)]'
-            : 'text-cyber-cyan/60 hover:text-cyber-cyan hover:bg-cyber-cyan/5 border border-transparent hover:border-cyber-cyan/20'
+            : 'text-cyber-cyan/60 hover:text-cyber-cyan hover:bg-cyber-cyan/5 border border-transparent hover:border-cyber-cyan/20',
+          hasNotification && !isActive && 'notification-pulse'
         )
       }
     >
       {icon}
+      {/* Notification indicator dot */}
+      {hasNotification && (
+        <span className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 w-2 h-2 bg-cyber-magenta rounded-full animate-ping-slow shadow-[0_0_8px_rgba(255,0,128,0.8)]" />
+      )}
     </NavLink>
   );
 }
@@ -233,14 +242,6 @@ function ImagesIcon() {
   return (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-    </svg>
-  );
-}
-
-function LanguageIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
     </svg>
   );
 }

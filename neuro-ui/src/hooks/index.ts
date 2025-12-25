@@ -8,3 +8,5 @@
 
 export { useVoiceStream } from './useVoiceStream';
 export type { VoiceConfig, VoiceState, UseVoiceStreamReturn } from './useVoiceStream';
+
+export { useMediaSession } from './useMediaSession';

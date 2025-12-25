@@ -1,6 +1,6 @@
 import { memo, useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useChecklistStore, Checklist, ChecklistItem } from '../stores/checklistStore';
+import { useChecklistStore } from '../stores/checklistStore';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 
@@ -121,7 +121,7 @@ function detectChecklists(content: string): DetectedChecklist[] {
 function ChecklistDetector({ content, isStreaming }: ChecklistDetectorProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { addChecklist, setSelectedChecklist, checklists: existingChecklists } = useChecklistStore();
+  const { createChecklist, setSelectedChecklist } = useChecklistStore();
   const [savedChecklists, setSavedChecklists] = useState<Set<string>>(new Set());
   const [expandedChecklists, setExpandedChecklists] = useState<Set<string>>(new Set());
   const [editableChecklists, setEditableChecklists] = useState<Map<string, DetectedChecklist>>(new Map());
@@ -212,32 +212,25 @@ function ChecklistDetector({ content, isStreaming }: ChecklistDetectorProps) {
     return null;
   }
   
-  const handleSaveChecklist = (originalChecklist: DetectedChecklist) => {
+  const handleSaveChecklist = async (originalChecklist: DetectedChecklist) => {
     const checklist = getChecklist(originalChecklist);
-    const now = new Date();
-    const items: ChecklistItem[] = checklist.items.map((item, idx) => ({
-      id: generateUUID(),
-      content: item.content,
-      isCompleted: item.isCompleted,
-      order: idx,
-      createdAt: now,
-    }));
     
-    const newChecklist: Checklist = {
-      id: generateUUID(),
-      title: checklist.title,
-      description: checklist.description,
-      items,
-      priority: 3,
-      order: existingChecklists.length,
-      isArchived: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    
-    addChecklist(newChecklist);
-    setSelectedChecklist(newChecklist.id);
-    setSavedChecklists(prev => new Set(prev).add(originalChecklist.id));
+    try {
+      // Create the checklist via API
+      const newChecklist = await createChecklist(
+        checklist.title,
+        checklist.description,
+        3 // default priority
+      );
+      
+      // TODO: Add items to the checklist via API if needed
+      // For now, items are created separately
+      
+      setSelectedChecklist(newChecklist.id);
+      setSavedChecklists(prev => new Set(prev).add(originalChecklist.id));
+    } catch (error) {
+      console.error('Failed to save checklist:', error);
+    }
   };
   
   const handleGoToChecklists = () => {

@@ -220,6 +220,12 @@ pub struct MicroservicesConfig {
     pub checklists_url: String,
     /// Music service URL
     pub music_url: String,
+    /// Memory service URL
+    pub memory_url: String,
+    /// Chat service URL
+    pub chat_url: String,
+    /// Agent service URL
+    pub agent_url: String,
 }
 
 impl MicroservicesConfig {
@@ -230,6 +236,12 @@ impl MicroservicesConfig {
                 .unwrap_or_else(|_| "http://localhost:3001".to_string()),
             music_url: std::env::var("MUSIC_SERVICE_URL")
                 .unwrap_or_else(|_| "http://localhost:3002".to_string()),
+            memory_url: std::env::var("MEMORY_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3004".to_string()),
+            chat_url: std::env::var("CHAT_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3003".to_string()),
+            agent_url: std::env::var("AGENT_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3005".to_string()),
         }
     }
 }

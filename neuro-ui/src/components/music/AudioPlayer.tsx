@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { useMusicStore, useHasHydrated } from '../../stores/musicStore';
 import { musicApi } from '../../api/client';
+import { useMediaSession } from '../../hooks/useMediaSession';
 
 // Equalizer frequency bands in Hz (8 bands)
 const EQ_FREQUENCIES = [60, 170, 310, 600, 1000, 3000, 6000, 12000];
@@ -26,6 +27,9 @@ export const AudioPlayer: React.FC = () => {
 
   // Track hydration state using the proper Zustand API
   const hasHydrated = useHasHydrated();
+
+  // Media Session API for background playback and notification controls
+  useMediaSession();
 
   // Audio context for spectrum analysis and equalizer
   const audioContextRef = useRef<AudioContext | null>(null);

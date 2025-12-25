@@ -118,7 +118,8 @@ export const chatApi = {
     request: ChatMessageRequest,
     onChunk: (chunk: string) => void,
     onComplete: (response: StreamCompleteResponse) => void,
-    onError: (error: string) => void
+    onError: (error: string) => void,
+    onToolExecuted?: (tools: string[]) => void
   ): (() => void) => {
     const controller = new AbortController();
     
@@ -171,6 +172,13 @@ export const chatApi = {
                       tokens_completion: parsed.tokens_completion,
                       processing_time_ms: parsed.processing_time_ms,
                     });
+                  } else if (parsed.type === 'tool_executed') {
+                    if (onToolExecuted) {
+                      onToolExecuted(parsed.tools);
+                    }
+                  } else if (parsed.type === 'thinking') {
+                    // Tool is being executed - UI can show a "thinking" indicator
+                    console.log('🔧 Tool executing:', parsed.message);
                   } else if (parsed.type === 'error') {
                     onError(parsed.error);
                   }

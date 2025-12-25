@@ -8,7 +8,8 @@ import {
   Music,
   Clock,
   ListMusic,
-  Shuffle
+  Shuffle,
+  Loader2
 } from 'lucide-react';
 import { useMusicStore, formatDurationLong } from '../../stores/musicStore';
 import { PlaylistDto } from '../../api/client';
@@ -24,7 +25,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
   selectedPlaylistId,
   onCreatePlaylist,
 }) => {
-  const { playlists, isLoadingPlaylists, deletePlaylist } = useMusicStore();
+  const { playlists, isLoadingPlaylists, deletePlaylist, pollingPlaylistId } = useMusicStore();
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
@@ -103,6 +104,10 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
                       alt={playlist.name}
                       className="w-full h-full object-cover"
                     />
+                  ) : pollingPlaylistId === playlist.id ? (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-cyan-500/20 to-purple-500/20">
+                      <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
+                    </div>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-cyan-500/20 to-purple-500/20">
                       <Music className="w-6 h-6 text-gray-500" />

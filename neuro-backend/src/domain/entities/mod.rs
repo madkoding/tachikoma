@@ -6,4 +6,6 @@
 
 pub mod agent;
 pub mod chat;
+pub mod checklist;
 pub mod memory;
+pub mod music;

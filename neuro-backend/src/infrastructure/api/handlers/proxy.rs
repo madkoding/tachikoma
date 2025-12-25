@@ -144,3 +144,59 @@ pub async fn proxy_music(
         is_stream,
     ).await
 }
+
+/// Proxy requests to the memory microservice
+/// Handles: /api/memories/*
+pub async fn proxy_memory(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Response, StatusCode> {
+    let path = request.uri().path();
+    debug!("🧠 Proxying memory request: {}", path);
+    
+    // Enable streaming for SSE events endpoint
+    let is_stream = path.contains("/events");
+    
+    proxy_to_service(
+        &state.microservices_config.memory_url,
+        "memory",
+        request,
+        is_stream,
+    ).await
+}
+
+/// Proxy requests to the chat microservice
+/// Handles: /api/chat/*
+pub async fn proxy_chat(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Response, StatusCode> {
+    let path = request.uri().path();
+    debug!("💬 Proxying chat request: {}", path);
+    
+    // Enable streaming for SSE chat stream endpoint
+    let is_stream = path.contains("/stream");
+    
+    proxy_to_service(
+        &state.microservices_config.chat_url,
+        "chat",
+        request,
+        is_stream,
+    ).await
+}
+
+/// Proxy requests to the agent microservice
+/// Handles: /api/agent/*
+pub async fn proxy_agent(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Response, StatusCode> {
+    debug!("🤖 Proxying agent request: {}", request.uri().path());
+    
+    proxy_to_service(
+        &state.microservices_config.agent_url,
+        "agent",
+        request,
+        false, // No streaming for agent
+    ).await
+}

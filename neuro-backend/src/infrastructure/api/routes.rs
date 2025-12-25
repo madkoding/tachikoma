@@ -6,7 +6,7 @@
 
 use axum::{
     middleware,
-    routing::{any, delete, get, patch, post},
+    routing::{any, delete, get, patch, post, put},
     Router,
     http::header,
 };
@@ -79,6 +79,45 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/agent/search/categories", get(handlers::get_search_categories))
         .route("/agent/execute", post(handlers::execute_command))
         .route("/agent/commands", get(handlers::get_allowed_commands))
+        
+        // =====================================================================
+        // Data Layer - Direct Database Access for Microservices
+        // =====================================================================
+        // Checklists data layer
+        .route("/data/checklists", get(handlers::list_checklists))
+        .route("/data/checklists", post(handlers::create_checklist))
+        .route("/data/checklists/:id", get(handlers::get_checklist))
+        .route("/data/checklists/:id", patch(handlers::update_checklist))
+        .route("/data/checklists/:id", delete(handlers::delete_checklist))
+        .route("/data/checklists/:id/items", get(handlers::list_checklist_items))
+        .route("/data/checklists/:id/items", post(handlers::create_checklist_item))
+        .route("/data/checklists/items/:id", patch(handlers::update_checklist_item))
+        .route("/data/checklists/items/:id/toggle", post(handlers::toggle_checklist_item))
+        .route("/data/checklists/items/:id", delete(handlers::delete_checklist_item))
+        
+        // Music data layer - Playlists
+        .route("/data/playlists", get(handlers::list_playlists))
+        .route("/data/playlists", post(handlers::create_playlist))
+        .route("/data/playlists/:id", get(handlers::get_playlist))
+        .route("/data/playlists/:id", patch(handlers::update_playlist))
+        .route("/data/playlists/:id", delete(handlers::delete_playlist))
+        .route("/data/playlists/:id/songs", get(handlers::list_playlist_songs))
+        .route("/data/playlists/:id/songs", post(handlers::create_song))
+        .route("/data/playlists/:id/reorder", post(handlers::reorder_songs))
+        
+        // Music data layer - Songs
+        .route("/data/songs/by-youtube-id", get(handlers::get_song_by_youtube_id))
+        .route("/data/songs/:id", get(handlers::get_song))
+        .route("/data/songs/:id", patch(handlers::update_song))
+        .route("/data/songs/:id", delete(handlers::delete_song))
+        .route("/data/songs/:id/play", post(handlers::increment_song_play_count))
+        
+        // Music data layer - History & Stats
+        .route("/data/music/history", get(handlers::get_listening_history))
+        .route("/data/music/history", post(handlers::add_listening_entry))
+        .route("/data/music/top-songs", get(handlers::get_most_played_songs))
+        .route("/data/music/equalizer", get(handlers::get_equalizer_settings))
+        .route("/data/music/equalizer", put(handlers::save_equalizer_settings))
         
         // =====================================================================
         // API Gateway - Proxy to Microservices

@@ -123,7 +123,7 @@ impl ModelTier {
     /// =========================================================================
     pub fn default_model(&self) -> &'static str {
         match self {
-            ModelTier::Light => "ministral-3:3b",
+            ModelTier::Light => "qwen2.5:3b",
             ModelTier::Standard => "qwen2.5-coder:7b",
             ModelTier::Heavy => "qwen2.5-coder:14b",
             ModelTier::Embedding => "nomic-embed-text",

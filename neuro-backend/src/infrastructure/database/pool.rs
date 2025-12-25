@@ -8,7 +8,7 @@ use anyhow::Result;
 use surrealdb::engine::remote::ws::{Client, Ws};
 use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
-use tracing::{info, debug};
+use tracing::{info, debug, error};
 
 use crate::infrastructure::config::DatabaseConfig;
 
@@ -67,8 +67,8 @@ impl DatabasePool {
             .use_db(&config.database)
             .await?;
 
-        debug!(
-            "Selected namespace '{}' and database '{}'",
+        info!(
+            "🗄️ Selected namespace '{}' and database '{}'",
             config.namespace, config.database
         );
 
@@ -98,128 +98,134 @@ impl DatabasePool {
     async fn initialize_schema(&self) -> Result<()> {
         info!("Initializing database schema...");
 
-        // Define the memory table with vector index
-        // Note: SurrealDB 1.5.x doesn't support IF NOT EXISTS or TYPE RELATION syntax
-        let schema = r#"
-            -- Memory node table
-            DEFINE TABLE memory SCHEMAFULL;
+        // Define schema statements separately for better error handling
+        let statements = vec![
+            // =====================================================================
+            // Memory tables
+            // =====================================================================
+            "DEFINE TABLE memory SCHEMAFULL",
+            "DEFINE FIELD content ON memory TYPE string",
+            "DEFINE FIELD vector ON memory TYPE array<float>",
+            "DEFINE FIELD memory_type ON memory TYPE string",
+            "DEFINE FIELD metadata ON memory TYPE object",
+            "DEFINE FIELD created_at ON memory TYPE datetime",
+            "DEFINE FIELD updated_at ON memory TYPE datetime",
+            "DEFINE FIELD access_count ON memory TYPE int DEFAULT 0",
+            "DEFINE FIELD importance_score ON memory TYPE float DEFAULT 0.5",
+            // Memory indexes
+            "DEFINE INDEX memory_type_idx ON memory FIELDS memory_type",
+            "DEFINE INDEX memory_created_idx ON memory FIELDS created_at",
+            "DEFINE INDEX memory_importance_idx ON memory FIELDS importance_score",
+            // Relation tables
+            "DEFINE TABLE related_to SCHEMAFULL",
+            "DEFINE FIELD in ON related_to TYPE record<memory>",
+            "DEFINE FIELD out ON related_to TYPE record<memory>",
+            "DEFINE FIELD confidence ON related_to TYPE float DEFAULT 1.0",
+            "DEFINE FIELD created_at ON related_to TYPE datetime",
+            "DEFINE FIELD metadata ON related_to TYPE object",
             
-            DEFINE FIELD id ON memory TYPE string;
-            DEFINE FIELD content ON memory TYPE string;
-            DEFINE FIELD vector ON memory TYPE array<float>;
-            DEFINE FIELD memory_type ON memory TYPE string;
-            DEFINE FIELD metadata ON memory TYPE object;
-            DEFINE FIELD created_at ON memory TYPE datetime;
-            DEFINE FIELD updated_at ON memory TYPE datetime;
-            DEFINE FIELD access_count ON memory TYPE int DEFAULT 0;
-            DEFINE FIELD importance_score ON memory TYPE float DEFAULT 0.5;
+            // =====================================================================
+            // Chat/Conversation tables
+            // =====================================================================
+            "DEFINE TABLE conversation SCHEMAFULL",
+            "DEFINE FIELD title ON conversation TYPE option<string>",
+            "DEFINE FIELD created_at ON conversation TYPE datetime",
+            "DEFINE FIELD updated_at ON conversation TYPE datetime",
+            "DEFINE FIELD archived ON conversation TYPE bool DEFAULT false",
+            // Chat message table
+            "DEFINE TABLE chat_message SCHEMAFULL",
+            "DEFINE FIELD conversation_id ON chat_message TYPE string",
+            "DEFINE FIELD role ON chat_message TYPE string",
+            "DEFINE FIELD content ON chat_message TYPE string",
+            "DEFINE FIELD metadata ON chat_message TYPE object",
+            "DEFINE FIELD created_at ON chat_message TYPE datetime",
+            "DEFINE INDEX message_conversation_idx ON chat_message FIELDS conversation_id",
             
-            -- Indexes for efficient queries
-            DEFINE INDEX memory_id_idx ON memory FIELDS id UNIQUE;
-            DEFINE INDEX memory_type_idx ON memory FIELDS memory_type;
-            DEFINE INDEX memory_created_idx ON memory FIELDS created_at;
-            DEFINE INDEX memory_importance_idx ON memory FIELDS importance_score;
+            // =====================================================================
+            // Checklist tables
+            // =====================================================================
+            "DEFINE TABLE checklist SCHEMAFULL",
+            "DEFINE FIELD title ON TABLE checklist TYPE string",
+            "DEFINE FIELD description ON TABLE checklist TYPE option<string>",
+            "DEFINE FIELD priority ON TABLE checklist TYPE int DEFAULT 3",
+            "DEFINE FIELD due_date ON TABLE checklist TYPE option<datetime>",
+            "DEFINE FIELD notification_interval ON TABLE checklist TYPE option<int>",
+            "DEFINE FIELD last_reminded ON TABLE checklist TYPE option<datetime>",
+            "DEFINE FIELD is_archived ON TABLE checklist TYPE bool DEFAULT false",
+            "DEFINE FIELD created_at ON TABLE checklist TYPE datetime DEFAULT time::now()",
+            "DEFINE FIELD updated_at ON TABLE checklist TYPE datetime DEFAULT time::now()",
+            // Checklist item table
+            "DEFINE TABLE checklist_item SCHEMAFULL",
+            "DEFINE FIELD checklist_id ON TABLE checklist_item TYPE string",
+            "DEFINE FIELD content ON TABLE checklist_item TYPE string",
+            "DEFINE FIELD is_completed ON TABLE checklist_item TYPE bool DEFAULT false",
+            "DEFINE FIELD completed_at ON TABLE checklist_item TYPE option<datetime>",
+            "DEFINE FIELD item_order ON TABLE checklist_item TYPE int DEFAULT 0",
+            "DEFINE FIELD created_at ON TABLE checklist_item TYPE datetime DEFAULT time::now()",
+            "DEFINE INDEX idx_item_checklist ON TABLE checklist_item COLUMNS checklist_id",
             
-            -- Relation tables (graph edges) - using regular tables with from/to fields
-            DEFINE TABLE related_to SCHEMAFULL;
-            DEFINE FIELD in ON related_to TYPE record(memory);
-            DEFINE FIELD out ON related_to TYPE record(memory);
-            DEFINE FIELD confidence ON related_to TYPE float DEFAULT 1.0;
-            DEFINE FIELD created_at ON related_to TYPE datetime;
-            DEFINE FIELD metadata ON related_to TYPE object;
-            
-            DEFINE TABLE causes SCHEMAFULL;
-            DEFINE FIELD in ON causes TYPE record(memory);
-            DEFINE FIELD out ON causes TYPE record(memory);
-            DEFINE FIELD confidence ON causes TYPE float DEFAULT 1.0;
-            DEFINE FIELD created_at ON causes TYPE datetime;
-            DEFINE FIELD metadata ON causes TYPE object;
-            
-            DEFINE TABLE part_of SCHEMAFULL;
-            DEFINE FIELD in ON part_of TYPE record(memory);
-            DEFINE FIELD out ON part_of TYPE record(memory);
-            DEFINE FIELD confidence ON part_of TYPE float DEFAULT 1.0;
-            DEFINE FIELD created_at ON part_of TYPE datetime;
-            DEFINE FIELD metadata ON part_of TYPE object;
-            
-            DEFINE TABLE follows SCHEMAFULL;
-            DEFINE FIELD in ON follows TYPE record(memory);
-            DEFINE FIELD out ON follows TYPE record(memory);
-            DEFINE FIELD confidence ON follows TYPE float DEFAULT 1.0;
-            DEFINE FIELD created_at ON follows TYPE datetime;
-            DEFINE FIELD metadata ON follows TYPE object;
-            
-            DEFINE TABLE contradicts SCHEMAFULL;
-            DEFINE FIELD in ON contradicts TYPE record(memory);
-            DEFINE FIELD out ON contradicts TYPE record(memory);
-            DEFINE FIELD confidence ON contradicts TYPE float DEFAULT 1.0;
-            DEFINE FIELD created_at ON contradicts TYPE datetime;
-            DEFINE FIELD metadata ON contradicts TYPE object;
-            
-            DEFINE TABLE supports SCHEMAFULL;
-            DEFINE FIELD in ON supports TYPE record(memory);
-            DEFINE FIELD out ON supports TYPE record(memory);
-            DEFINE FIELD confidence ON supports TYPE float DEFAULT 1.0;
-            DEFINE FIELD created_at ON supports TYPE datetime;
-            DEFINE FIELD metadata ON supports TYPE object;
-            
-            DEFINE TABLE derived_from SCHEMAFULL;
-            DEFINE FIELD in ON derived_from TYPE record(memory);
-            DEFINE FIELD out ON derived_from TYPE record(memory);
-            DEFINE FIELD confidence ON derived_from TYPE float DEFAULT 1.0;
-            DEFINE FIELD created_at ON derived_from TYPE datetime;
-            DEFINE FIELD metadata ON derived_from TYPE object;
-            
-            DEFINE TABLE same_as SCHEMAFULL;
-            DEFINE FIELD in ON same_as TYPE record(memory);
-            DEFINE FIELD out ON same_as TYPE record(memory);
-            DEFINE FIELD confidence ON same_as TYPE float DEFAULT 1.0;
-            DEFINE FIELD created_at ON same_as TYPE datetime;
-            DEFINE FIELD metadata ON same_as TYPE object;
-            
-            DEFINE TABLE context_of SCHEMAFULL;
-            DEFINE FIELD in ON context_of TYPE record(memory);
-            DEFINE FIELD out ON context_of TYPE record(memory);
-            DEFINE FIELD confidence ON context_of TYPE float DEFAULT 1.0;
-            DEFINE FIELD created_at ON context_of TYPE datetime;
-            DEFINE FIELD metadata ON context_of TYPE object;
-            
-            DEFINE TABLE references_rel SCHEMAFULL;
-            DEFINE FIELD in ON references_rel TYPE record(memory);
-            DEFINE FIELD out ON references_rel TYPE record(memory);
-            DEFINE FIELD confidence ON references_rel TYPE float DEFAULT 1.0;
-            DEFINE FIELD created_at ON references_rel TYPE datetime;
-            DEFINE FIELD metadata ON references_rel TYPE object;
-            
-            DEFINE TABLE supersedes SCHEMAFULL;
-            DEFINE FIELD in ON supersedes TYPE record(memory);
-            DEFINE FIELD out ON supersedes TYPE record(memory);
-            DEFINE FIELD confidence ON supersedes TYPE float DEFAULT 1.0;
-            DEFINE FIELD created_at ON supersedes TYPE datetime;
-            DEFINE FIELD metadata ON supersedes TYPE object;
-            
-            -- Conversation table
-            -- Note: Do NOT define FIELD id - SurrealDB handles record IDs automatically
-            DEFINE TABLE conversation SCHEMAFULL;
-            DEFINE FIELD title ON conversation TYPE option<string>;
-            DEFINE FIELD created_at ON conversation TYPE datetime;
-            DEFINE FIELD updated_at ON conversation TYPE datetime;
-            DEFINE FIELD archived ON conversation TYPE bool DEFAULT false;
-            
-            -- Chat message table
-            -- Note: Do NOT define FIELD id - SurrealDB handles record IDs automatically
-            DEFINE TABLE chat_message SCHEMAFULL;
-            DEFINE FIELD conversation_id ON chat_message TYPE string;
-            DEFINE FIELD role ON chat_message TYPE string;
-            DEFINE FIELD content ON chat_message TYPE string;
-            DEFINE FIELD metadata ON chat_message TYPE object;
-            DEFINE FIELD created_at ON chat_message TYPE datetime;
-            
-            DEFINE INDEX message_conversation_idx ON chat_message FIELDS conversation_id;
-        "#;
+            // =====================================================================
+            // Music tables
+            // =====================================================================
+            "DEFINE TABLE playlist SCHEMAFULL",
+            "DEFINE FIELD name ON TABLE playlist TYPE string",
+            "DEFINE FIELD description ON TABLE playlist TYPE option<string>",
+            "DEFINE FIELD cover_url ON TABLE playlist TYPE option<string>",
+            "DEFINE FIELD is_suggestions ON TABLE playlist TYPE bool DEFAULT false",
+            "DEFINE FIELD shuffle ON TABLE playlist TYPE bool DEFAULT false",
+            "DEFINE FIELD repeat_mode ON TABLE playlist TYPE string DEFAULT 'off'",
+            "DEFINE FIELD song_count ON TABLE playlist TYPE int DEFAULT 0",
+            "DEFINE FIELD total_duration ON TABLE playlist TYPE int DEFAULT 0",
+            "DEFINE FIELD created_at ON TABLE playlist TYPE datetime DEFAULT time::now()",
+            "DEFINE FIELD updated_at ON TABLE playlist TYPE datetime DEFAULT time::now()",
+            // Song table
+            "DEFINE TABLE song SCHEMAFULL",
+            "DEFINE FIELD playlist_id ON TABLE song TYPE string",
+            "DEFINE FIELD youtube_id ON TABLE song TYPE string",
+            "DEFINE FIELD youtube_url ON TABLE song TYPE string",
+            "DEFINE FIELD title ON TABLE song TYPE string",
+            "DEFINE FIELD artist ON TABLE song TYPE option<string>",
+            "DEFINE FIELD album ON TABLE song TYPE option<string>",
+            "DEFINE FIELD duration ON TABLE song TYPE int DEFAULT 0",
+            "DEFINE FIELD cover_url ON TABLE song TYPE option<string>",
+            "DEFINE FIELD thumbnail_url ON TABLE song TYPE option<string>",
+            "DEFINE FIELD song_order ON TABLE song TYPE int DEFAULT 0",
+            "DEFINE FIELD play_count ON TABLE song TYPE int DEFAULT 0",
+            "DEFINE FIELD last_played ON TABLE song TYPE option<datetime>",
+            "DEFINE FIELD created_at ON TABLE song TYPE datetime DEFAULT time::now()",
+            "DEFINE INDEX idx_song_playlist ON TABLE song COLUMNS playlist_id",
+            // Listening history
+            "DEFINE TABLE listening_history SCHEMAFULL",
+            "DEFINE FIELD song_id ON TABLE listening_history TYPE string",
+            "DEFINE FIELD youtube_id ON TABLE listening_history TYPE string",
+            "DEFINE FIELD title ON TABLE listening_history TYPE string",
+            "DEFINE FIELD artist ON TABLE listening_history TYPE option<string>",
+            "DEFINE FIELD listened_at ON TABLE listening_history TYPE datetime DEFAULT time::now()",
+            // Equalizer settings
+            "DEFINE TABLE equalizer_settings SCHEMAFULL",
+            "DEFINE FIELD enabled ON TABLE equalizer_settings TYPE bool DEFAULT true",
+            "DEFINE FIELD preset ON TABLE equalizer_settings TYPE option<string>",
+            "DEFINE FIELD bands ON TABLE equalizer_settings TYPE array DEFAULT [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]",
+        ];
 
-        // Execute schema definition
-        self.client.query(schema).await?;
+        for (i, stmt) in statements.iter().enumerate() {
+            debug!("📝 Executing schema statement {}/{}: {}", i + 1, statements.len(), stmt);
+            match self.client.query(*stmt).await {
+                Ok(mut response) => {
+                    let errors: Vec<surrealdb::Error> = response.take_errors().into_values().collect();
+                    if !errors.is_empty() {
+                        for err in &errors {
+                            error!("❌ Schema error for '{}': {}", stmt, err);
+                        }
+                    } else {
+                        debug!("✅ Success: {}", stmt);
+                    }
+                }
+                Err(e) => {
+                    error!("❌ Failed to execute '{}': {}", stmt, e);
+                }
+            }
+        }
 
         info!("Database schema initialized successfully");
 

@@ -9,7 +9,7 @@ import TypewriterText from '../components/common/TypewriterText';
 
 export default function ChecklistsPage() {
   const { t } = useTranslation();
-  const { checklists, selectedChecklistId, setSelectedChecklist, reorderChecklists, fetchChecklists, fetchChecklist, isLoading } = useChecklistStore();
+  const { checklists, selectedChecklistId, setSelectedChecklist, reorderChecklists, fetchChecklists, fetchChecklist } = useChecklistStore();
 
   // Load checklists from API on mount
   useEffect(() => {

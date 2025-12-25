@@ -14,7 +14,9 @@
 //! concerns like databases, HTTP clients, or external APIs.
 //! =============================================================================
 
+pub mod checklist_repository;
 pub mod command_executor;
 pub mod llm_provider;
 pub mod memory_repository;
+pub mod music_repository;
 pub mod search_provider;

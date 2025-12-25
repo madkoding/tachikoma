@@ -188,24 +188,43 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
     }
 
     /// =========================================================================
-    /// Tool Detection and Execution - LLM-based Intent Classification
+    /// Quick Tool Check - Instant keyword detection for UI feedback
     /// =========================================================================
-    /// Public method to detect and execute tools based on user message
+    /// Returns true if the message likely needs a tool (for showing "thinking" UI)
+    pub fn quick_tool_check(&self, message: &str) -> bool {
+        let intent = self.fallback_keyword_detection(message);
+        intent.tool != "none" && intent.confidence >= 0.7
+    }
+    
+    /// =========================================================================
+    /// Tool Detection and Execution - Fast Keywords + LLM Fallback
+    /// =========================================================================
+    /// Public method to detect and execute tools based on user message.
+    /// Uses fast keyword detection first, then LLM only for ambiguous cases.
     pub async fn detect_and_execute_tools(&self, message: &str) -> Vec<(String, String)> {
         let mut tools_used = Vec::new();
         
         info!("🔍 Starting tool detection for message: {}", message);
 
-        // Use LLM to classify intent and extract parameters
-        let intent = match self.classify_intent(message).await {
-            Ok(intent) => {
-                info!("🧠 LLM classified intent: tool={}, confidence={}", intent.tool, intent.confidence);
-                intent
-            }
-            Err(e) => {
-                // LLM classification failed, use keyword fallback
-                info!("⚠️ LLM classification failed: {}, using keyword fallback", e);
-                self.fallback_keyword_detection(message)
+        // STEP 1: Try fast keyword detection first (instant)
+        let keyword_intent = self.fallback_keyword_detection(message);
+        
+        let intent = if keyword_intent.tool != "none" && keyword_intent.confidence >= 0.7 {
+            // Keywords matched with high confidence - use it directly
+            info!("⚡ Fast keyword detection: tool={}", keyword_intent.tool);
+            keyword_intent
+        } else {
+            // STEP 2: Use LLM only for ambiguous cases
+            match self.classify_intent(message).await {
+                Ok(intent) => {
+                    info!("🧠 LLM classified intent: tool={}, confidence={}", intent.tool, intent.confidence);
+                    intent
+                }
+                Err(e) => {
+                    // LLM classification failed, use keyword result anyway
+                    info!("⚠️ LLM classification failed: {}, using keyword result", e);
+                    keyword_intent
+                }
             }
         };
 
@@ -832,80 +851,133 @@ Responde SOLO con la categoría, una sola palabra:"#,
         let metadata = self.generate_playlist_metadata(user_request).await?;
         info!("📝 Generated metadata: {:?}", metadata);
         
-        // Step 2: First search YouTube to get a thumbnail for the cover
-        let first_tag = metadata.search_tags.first()
-            .map(|s| s.as_str())
-            .unwrap_or(&metadata.title);
-        
-        let cover_url = match self.search_youtube(first_tag, 1).await {
-            Ok(results) if !results.is_empty() => {
-                let thumbnail = results[0].thumbnail.clone();
-                info!("🎨 Using thumbnail as cover: {:?}", thumbnail);
-                thumbnail
-            }
-            _ => None
-        };
-        
-        // Step 3: Create the playlist with cover
-        let playlist = self.create_music_playlist(&metadata.title, &metadata.description, cover_url.as_deref()).await?;
-        let playlist_id = playlist.id;
+        // Step 2: Create the playlist immediately WITHOUT cover (fast!)
+        let playlist = self.create_music_playlist(&metadata.title, &metadata.description, None).await?;
+        let playlist_id = playlist.id.clone();
         info!("✅ Playlist created with ID: {}", playlist_id);
         
-        // Step 4: Search and add songs for each tag
-        let mut added_songs: Vec<String> = Vec::new();
-        let max_songs = 10;
-        let songs_per_tag = 3; // Search 3 per tag, stop when we have 10 total
+        // Step 3: Spawn background task to search cover and add songs (don't wait for it)
+        let music_service_url = self.music_service_url.clone();
+        let http_client = self.http_client.clone();
+        let search_tags = metadata.search_tags.clone();
+        let playlist_title = metadata.title.clone();
+        let bg_playlist_id = playlist_id.clone();
         
-        for tag in &metadata.search_tags {
-            // Stop if we have enough songs
-            if added_songs.len() >= max_songs {
-                break;
-            }
+        // Helper function for URL encoding (moved outside closure for accessibility)
+        fn url_encode(s: &str) -> String {
+            s.chars()
+                .map(|c| match c {
+                    ' ' => "%20".to_string(),
+                    '&' => "%26".to_string(),
+                    '=' => "%3D".to_string(),
+                    '?' => "%3F".to_string(),
+                    '#' => "%23".to_string(),
+                    '+' => "%2B".to_string(),
+                    _ if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '~' => c.to_string(),
+                    _ => format!("%{:02X}", c as u8),
+                })
+                .collect()
+        }
+        
+        tokio::spawn(async move {
+            info!("🎵 Background task: Adding songs to playlist {}", bg_playlist_id);
+            let mut added_count = 0;
+            let max_songs = 10;
+            let songs_per_tag = 3;
+            let mut cover_updated = false;
             
-            info!("🔍 Searching YouTube for: {}", tag);
-            
-            match self.search_youtube(tag, songs_per_tag).await {
-                Ok(results) => {
-                    for result in results {
-                        // Stop if we have enough songs
-                        if added_songs.len() >= max_songs {
-                            break;
-                        }
-                        
-                        match self.add_song_to_playlist(&playlist_id, &result).await {
-                            Ok(song_title) => {
-                                info!("  ✅ Added: {}", song_title);
-                                added_songs.push(song_title);
-                            }
-                            Err(e) => {
-                                debug!("  ⚠️ Failed to add song: {}", e);
-                                // Continue with other songs
-                            }
+            for tag in &search_tags {
+                if added_count >= max_songs {
+                    break;
+                }
+                
+                info!("🔍 Background: Searching YouTube for: {}", tag);
+                
+                // Search YouTube
+                let search_url = format!(
+                    "{}/api/music/youtube/search?q={}&limit={}",
+                    music_service_url,
+                    url_encode(tag),
+                    songs_per_tag
+                );
+                
+                let search_response = match http_client.get(&search_url).send().await {
+                    Ok(resp) if resp.status().is_success() => resp,
+                    Ok(resp) => {
+                        error!("  ❌ Background: Search failed with status: {}", resp.status());
+                        continue;
+                    }
+                    Err(e) => {
+                        error!("  ❌ Background: Search request failed: {}", e);
+                        continue;
+                    }
+                };
+                
+                let results: Vec<YouTubeSearchResult> = match search_response.json().await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("  ❌ Background: Failed to parse search results: {}", e);
+                        continue;
+                    }
+                };
+                
+                // Update playlist cover with first result's thumbnail
+                if !cover_updated && !results.is_empty() {
+                    if let Some(thumbnail) = &results[0].thumbnail {
+                        let update_url = format!("{}/api/music/playlists/{}", music_service_url, bg_playlist_id);
+                        let body = serde_json::json!({ "cover_url": thumbnail });
+                        if http_client.patch(&update_url).json(&body).send().await.is_ok() {
+                            info!("🎨 Background: Updated playlist cover");
+                            cover_updated = true;
                         }
                     }
                 }
-                Err(e) => {
-                    error!("  ❌ Search failed for '{}': {}", tag, e);
-                    // Continue with other tags
+                
+                for result in results {
+                    if added_count >= max_songs {
+                        break;
+                    }
+                    
+                    // Add song to playlist
+                    let add_url = format!("{}/api/music/playlists/{}/songs", music_service_url, bg_playlist_id);
+                    let youtube_url = format!("https://www.youtube.com/watch?v={}", result.video_id);
+                    
+                    let body = serde_json::json!({
+                        "youtube_url": youtube_url,
+                        "title": result.title,
+                        "artist": result.channel.as_deref().unwrap_or("Unknown Artist")
+                    });
+                    
+                    match http_client.post(&add_url).json(&body).send().await {
+                        Ok(resp) if resp.status().is_success() => {
+                            info!("  ✅ Background: Added: {}", result.title);
+                            added_count += 1;
+                        }
+                        Ok(resp) if resp.status().as_u16() == 409 => {
+                            debug!("  ⚠️ Background: Song already exists: {}", result.title);
+                        }
+                        Ok(resp) => {
+                            debug!("  ⚠️ Background: Failed to add song ({}): {}", resp.status(), result.title);
+                        }
+                        Err(e) => {
+                            debug!("  ⚠️ Background: Request failed for {}: {}", result.title, e);
+                        }
+                    }
                 }
             }
-        }
+            
+            info!("🎵 Background task completed: Added {} songs to '{}'", added_count, playlist_title);
+        });
         
-        // Step 5: Generate result summary
+        // Step 5: Return immediately with initial summary
         let summary = format!(
-            "🎵 Playlist creada exitosamente!\n\n\
+            "🎵 ¡Playlist creada!\n\n\
             **{}**\n\
             _{}_\n\n\
-            Se agregaron {} canciones:\n{}\n\n\
-            Tags de búsqueda usados: {}",
+            Las canciones se están agregando en segundo plano. Puedes ver el progreso en la playlist.\n\n\
+            Tags de búsqueda: {}",
             metadata.title,
             metadata.description,
-            added_songs.len(),
-            added_songs.iter()
-                .enumerate()
-                .map(|(i, s)| format!("{}. {}", i + 1, s))
-                .collect::<Vec<_>>()
-                .join("\n"),
             metadata.search_tags.join(", ")
         );
         
@@ -975,86 +1047,25 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
         response.json::<PlaylistResponse>().await
             .map_err(|e| format!("Error parseando respuesta de playlist: {}", e))
     }
-    
-    /// URL encode a string for query parameters
-    fn url_encode(s: &str) -> String {
-        s.chars()
-            .map(|c| match c {
-                'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => c.to_string(),
-                ' ' => "+".to_string(),
-                _ => format!("%{:02X}", c as u8),
-            })
-            .collect()
-    }
-    
-    /// Search YouTube for songs
-    async fn search_youtube(&self, query: &str, limit: usize) -> Result<Vec<YouTubeSearchResult>, String> {
-        let url = format!(
-            "{}/api/music/youtube/search?q={}&limit={}",
-            self.music_service_url,
-            Self::url_encode(query),
-            limit
-        );
-        
-        let response = self.http_client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| format!("Error buscando en YouTube: {}", e))?;
-        
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response.text().await.unwrap_or_default();
-            return Err(format!("Error en búsqueda de YouTube ({}): {}", status, text));
-        }
-        
-        response.json::<Vec<YouTubeSearchResult>>().await
-            .map_err(|e| format!("Error parseando resultados de YouTube: {}", e))
-    }
-    
-    /// Add a song to a playlist
-    async fn add_song_to_playlist(&self, playlist_id: &str, song: &YouTubeSearchResult) -> Result<String, String> {
-        let url = format!("{}/api/music/playlists/{}/songs", self.music_service_url, playlist_id);
-        
-        let youtube_url = format!("https://www.youtube.com/watch?v={}", song.video_id);
-        
-        let body = serde_json::json!({
-            "youtube_url": youtube_url,
-            "title": song.title,
-            "artist": song.channel.as_deref().unwrap_or("Unknown Artist")
-        });
-        
-        let response = self.http_client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| format!("Error agregando canción: {}", e))?;
-        
-        if response.status().as_u16() == 409 {
-            return Err("Canción ya existe en la playlist".to_string());
-        }
-        
-        if !response.status().is_success() {
-            let status = response.status();
-            let text = response.text().await.unwrap_or_default();
-            return Err(format!("Error agregando canción ({}): {}", status, text));
-        }
-        
-        Ok(song.title.clone())
-    }
 
     /// =========================================================================
     /// Checklist Creation Tool
     /// =========================================================================
     
-    /// Create a checklist from a user request using LLM to generate items
+    /// Create a checklist from a user request using templates or LLM
     async fn create_checklist_from_request(&self, user_request: &str) -> Result<String, String> {
         info!("📋 Starting checklist creation from request: {}", user_request);
         
-        // Step 1: Use LLM to generate checklist metadata and items
-        let metadata = self.generate_checklist_metadata(user_request).await?;
-        info!("📝 Generated checklist metadata: {:?}", metadata);
+        // Step 1: Try to use template first (instant), fallback to LLM
+        let metadata = if let Some(template) = self.match_checklist_template(user_request) {
+            info!("⚡ Using template for checklist: {}", template.title);
+            template
+        } else {
+            info!("🧠 No template match, using LLM to generate checklist");
+            self.generate_checklist_metadata(user_request).await?
+        };
+        
+        info!("📝 Checklist metadata ready: {:?}", metadata);
         
         // Step 2: Create the checklist in the checklists service
         let checklists_service_url = std::env::var("CHECKLISTS_SERVICE_URL")
@@ -1116,7 +1127,191 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
         Ok(summary)
     }
     
-    /// Generate checklist metadata using LLM
+    /// Match user request against predefined checklist templates (instant)
+    fn match_checklist_template(&self, user_request: &str) -> Option<ChecklistMetadata> {
+        let msg = user_request.to_lowercase();
+        let msg_norm: String = msg.chars().map(|c| match c {
+            'á' | 'à' | 'ä' | 'â' => 'a',
+            'é' | 'è' | 'ë' | 'ê' => 'e',
+            'í' | 'ì' | 'ï' | 'î' => 'i',
+            'ó' | 'ò' | 'ö' | 'ô' => 'o',
+            'ú' | 'ù' | 'ü' | 'û' => 'u',
+            'ñ' => 'n',
+            _ => c,
+        }).collect();
+        
+        // Travel checklist
+        if msg_norm.contains("viaje") || msg_norm.contains("viajar") || msg_norm.contains("vacaciones") || msg_norm.contains("travel") {
+            return Some(ChecklistMetadata {
+                title: "Lista para viaje".to_string(),
+                description: "Preparativos esenciales para tu viaje".to_string(),
+                priority: 4,
+                items: vec![
+                    "Revisar documentos (pasaporte, ID, visas)".to_string(),
+                    "Reservar vuelos y alojamiento".to_string(),
+                    "Preparar maleta con ropa adecuada".to_string(),
+                    "Llevar medicamentos esenciales".to_string(),
+                    "Cargar dispositivos electrónicos".to_string(),
+                    "Notificar al banco sobre viaje".to_string(),
+                    "Verificar seguro de viaje".to_string(),
+                    "Imprimir confirmaciones importantes".to_string(),
+                ],
+            });
+        }
+        
+        // Cleaning checklist
+        if msg_norm.contains("limpiar") || msg_norm.contains("limpieza") || msg_norm.contains("asear") || msg_norm.contains("cleaning") || msg_norm.contains("casa") {
+            return Some(ChecklistMetadata {
+                title: "Limpieza del hogar".to_string(),
+                description: "Tareas de limpieza para mantener el hogar ordenado".to_string(),
+                priority: 3,
+                items: vec![
+                    "Barrer y trapear pisos".to_string(),
+                    "Limpiar baños (inodoro, lavabo, ducha)".to_string(),
+                    "Lavar platos y limpiar cocina".to_string(),
+                    "Sacar la basura".to_string(),
+                    "Ordenar habitaciones".to_string(),
+                    "Cambiar sábanas y toallas".to_string(),
+                    "Limpiar ventanas y espejos".to_string(),
+                    "Aspirar alfombras y sofás".to_string(),
+                ],
+            });
+        }
+        
+        // Study/Learning checklist
+        if msg_norm.contains("estudiar") || msg_norm.contains("estudio") || msg_norm.contains("aprender") || msg_norm.contains("examen") || msg_norm.contains("study") {
+            return Some(ChecklistMetadata {
+                title: "Plan de estudio".to_string(),
+                description: "Organiza tu sesión de estudio".to_string(),
+                priority: 4,
+                items: vec![
+                    "Revisar temario o syllabus".to_string(),
+                    "Organizar material de estudio".to_string(),
+                    "Leer y tomar notas".to_string(),
+                    "Hacer resúmenes de temas clave".to_string(),
+                    "Practicar con ejercicios".to_string(),
+                    "Repasar conceptos difíciles".to_string(),
+                    "Hacer simulacros o tests".to_string(),
+                    "Descansar entre sesiones".to_string(),
+                ],
+            });
+        }
+        
+        // Cooking/Recipe checklist
+        if msg_norm.contains("cocinar") || msg_norm.contains("receta") || msg_norm.contains("comida") || msg_norm.contains("cook") || msg_norm.contains("cena") || msg_norm.contains("almuerzo") {
+            return Some(ChecklistMetadata {
+                title: "Preparar comida".to_string(),
+                description: "Pasos para preparar una comida".to_string(),
+                priority: 3,
+                items: vec![
+                    "Decidir el menú".to_string(),
+                    "Revisar ingredientes disponibles".to_string(),
+                    "Hacer lista de compras".to_string(),
+                    "Comprar ingredientes faltantes".to_string(),
+                    "Preparar ingredientes (cortar, medir)".to_string(),
+                    "Cocinar siguiendo la receta".to_string(),
+                    "Servir y presentar".to_string(),
+                    "Limpiar cocina después".to_string(),
+                ],
+            });
+        }
+        
+        // Exercise/Workout checklist
+        if msg_norm.contains("ejercicio") || msg_norm.contains("entrenar") || msg_norm.contains("gym") || msg_norm.contains("workout") || msg_norm.contains("fitness") {
+            return Some(ChecklistMetadata {
+                title: "Rutina de ejercicio".to_string(),
+                description: "Plan para tu sesión de entrenamiento".to_string(),
+                priority: 3,
+                items: vec![
+                    "Calentar 5-10 minutos".to_string(),
+                    "Ejercicios de cardio".to_string(),
+                    "Ejercicios de fuerza".to_string(),
+                    "Ejercicios de core/abdomen".to_string(),
+                    "Estiramientos finales".to_string(),
+                    "Hidratarse bien".to_string(),
+                    "Registrar progreso".to_string(),
+                ],
+            });
+        }
+        
+        // Shopping checklist
+        if msg_norm.contains("compras") || msg_norm.contains("supermercado") || msg_norm.contains("shopping") || msg_norm.contains("comprar") {
+            return Some(ChecklistMetadata {
+                title: "Lista de compras".to_string(),
+                description: "Items para comprar".to_string(),
+                priority: 3,
+                items: vec![
+                    "Frutas y verduras".to_string(),
+                    "Lácteos y huevos".to_string(),
+                    "Carnes o proteínas".to_string(),
+                    "Pan y cereales".to_string(),
+                    "Productos de limpieza".to_string(),
+                    "Artículos de higiene personal".to_string(),
+                    "Snacks y bebidas".to_string(),
+                ],
+            });
+        }
+        
+        // Work/Project checklist
+        if msg_norm.contains("proyecto") || msg_norm.contains("trabajo") || msg_norm.contains("presentacion") || msg_norm.contains("project") || msg_norm.contains("work") {
+            return Some(ChecklistMetadata {
+                title: "Planificación de proyecto".to_string(),
+                description: "Pasos para completar tu proyecto".to_string(),
+                priority: 4,
+                items: vec![
+                    "Definir objetivos claros".to_string(),
+                    "Investigar y recopilar información".to_string(),
+                    "Crear estructura o outline".to_string(),
+                    "Desarrollar contenido principal".to_string(),
+                    "Revisar y editar".to_string(),
+                    "Preparar materiales de soporte".to_string(),
+                    "Hacer prueba o ensayo".to_string(),
+                    "Entrega final".to_string(),
+                ],
+            });
+        }
+        
+        // Event planning checklist
+        if msg_norm.contains("evento") || msg_norm.contains("fiesta") || msg_norm.contains("celebracion") || msg_norm.contains("party") || msg_norm.contains("cumpleanos") {
+            return Some(ChecklistMetadata {
+                title: "Organizar evento".to_string(),
+                description: "Preparativos para tu evento o celebración".to_string(),
+                priority: 4,
+                items: vec![
+                    "Definir fecha y hora".to_string(),
+                    "Crear lista de invitados".to_string(),
+                    "Enviar invitaciones".to_string(),
+                    "Reservar lugar si es necesario".to_string(),
+                    "Planificar menú o catering".to_string(),
+                    "Organizar decoración".to_string(),
+                    "Preparar música o entretenimiento".to_string(),
+                    "Confirmar asistencias".to_string(),
+                ],
+            });
+        }
+        
+        // Morning routine
+        if msg_norm.contains("manana") || msg_norm.contains("despertar") || msg_norm.contains("morning") || msg_norm.contains("rutina matutina") {
+            return Some(ChecklistMetadata {
+                title: "Rutina matutina".to_string(),
+                description: "Actividades para empezar bien el día".to_string(),
+                priority: 3,
+                items: vec![
+                    "Despertar a la hora planeada".to_string(),
+                    "Estirar o hacer ejercicio ligero".to_string(),
+                    "Ducharse y arreglarse".to_string(),
+                    "Desayunar saludable".to_string(),
+                    "Revisar agenda del día".to_string(),
+                    "Preparar lo necesario para salir".to_string(),
+                ],
+            });
+        }
+        
+        // No template match
+        None
+    }
+    
+    /// Generate checklist metadata using LLM (fallback when no template matches)
     async fn generate_checklist_metadata(&self, user_request: &str) -> Result<ChecklistMetadata, String> {
         let prompt = format!(
             r#"El usuario quiere crear una lista de tareas con este pedido: "{}"

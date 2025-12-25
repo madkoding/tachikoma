@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Plus, Loader2, Music, Clock, ExternalLink } from 'lucide-react';
+import { Search, Plus, Loader2, Music, ExternalLink } from 'lucide-react';
 import { useMusicStore, formatDuration } from '../../stores/musicStore';
 import { YouTubeSearchResultDto, CreateSongRequest } from '../../api/client';
 

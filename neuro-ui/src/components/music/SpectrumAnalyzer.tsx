@@ -44,7 +44,7 @@ export const SpectrumAnalyzer: React.FC<SpectrumAnalyzerProps> = ({
     }
   };
 
-  const getGlowColor = (barIndex: number, ledIndex: number) => {
+  const getGlowColor = (_barIndex: number, ledIndex: number) => {
     const levelRatio = ledIndex / ledCount;
     if (levelRatio > 0.8) {
       return 'rgba(255, 0, 128, 0.6)';

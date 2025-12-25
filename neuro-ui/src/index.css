@@ -52,6 +52,27 @@
   --cyber-purple: #9966ff;
 }
 
+/* ============================================
+   FIX: Dynamic viewport height for mobile browsers
+   Uses dvh (dynamic viewport height) with vh fallback
+   ============================================ */
+html, body, #root {
+  height: 100vh; /* Fallback for older browsers */
+  height: 100dvh; /* Dynamic viewport height - adjusts for browser chrome */
+  overflow: hidden;
+}
+
+/* Override Tailwind h-screen to use dynamic viewport */
+.h-screen {
+  height: 100vh !important;
+  height: 100dvh !important;
+}
+
+.min-h-screen {
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+}
+
 /* LED Time Display Style - Calculator look */
 .led-time {
   font-family: 'DSEG7 Classic', 'Digital-7', 'Share Tech Mono', 'Courier New', monospace;
@@ -124,7 +145,37 @@
   80%, 100% { transform: translateX(calc(-100% + 100px)); }
 }
 
-/* Scanline effect */
+/* New song slide-in animation with glow */
+@keyframes slide-in-glow {
+  0% {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.95);
+    background: linear-gradient(90deg, rgba(0, 245, 255, 0.3), rgba(153, 102, 255, 0.2), transparent);
+    box-shadow: 0 0 20px rgba(0, 245, 255, 0.5), inset 0 0 20px rgba(0, 245, 255, 0.1);
+  }
+  30% {
+    opacity: 1;
+    transform: translateX(5px) scale(1.02);
+    background: linear-gradient(90deg, rgba(0, 245, 255, 0.2), rgba(153, 102, 255, 0.15), transparent);
+    box-shadow: 0 0 30px rgba(0, 245, 255, 0.4), inset 0 0 15px rgba(0, 245, 255, 0.08);
+  }
+  60% {
+    transform: translateX(-2px) scale(1);
+    background: linear-gradient(90deg, rgba(0, 245, 255, 0.1), rgba(153, 102, 255, 0.1), transparent);
+    box-shadow: 0 0 15px rgba(0, 245, 255, 0.3), inset 0 0 10px rgba(0, 245, 255, 0.05);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+.animate-slide-in-glow {
+  animation: slide-in-glow 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  position: relative;
+}
 
 /* Scanline effect */
 body::before {
@@ -138,8 +189,8 @@ body::before {
   z-index: 9999;
   background: repeating-linear-gradient(
     0deg,
-    rgba(0, 0, 0, 0.15),
-    rgba(0, 0, 0, 0.15) 1px,
+    rgba(0, 0, 0, 0.03),
+    rgba(0, 0, 0, 0.03) 1px,
     transparent 1px,
     transparent 2px
   );
@@ -194,6 +245,63 @@ body::before {
 .neon-green {
   color: var(--cyber-green);
   text-shadow: 0 0 5px var(--cyber-green), 0 0 10px var(--cyber-green), 0 0 20px var(--cyber-green);
+}
+
+/* ============================================
+   NOTIFICATION PULSE ANIMATION
+   For sidebar icons when tool is executed
+   ============================================ */
+
+/* Slow ping animation for notification dot */
+@keyframes ping-slow {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.animate-ping-slow {
+  animation: ping-slow 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Pulse glow animation for nav item */
+@keyframes notification-glow {
+  0%, 100% {
+    background-color: rgba(255, 0, 128, 0.05);
+    border-color: rgba(255, 0, 128, 0.3);
+    box-shadow: 0 0 10px rgba(255, 0, 128, 0.3), inset 0 0 5px rgba(255, 0, 128, 0.1);
+  }
+  50% {
+    background-color: rgba(255, 0, 128, 0.15);
+    border-color: rgba(255, 0, 128, 0.6);
+    box-shadow: 0 0 20px rgba(255, 0, 128, 0.5), inset 0 0 10px rgba(255, 0, 128, 0.2);
+  }
+}
+
+.notification-pulse {
+  animation: notification-glow 1.5s ease-in-out infinite;
+  border-width: 1px !important;
+  border-style: solid !important;
+}
+
+/* Text color pulse for notification */
+.notification-pulse svg {
+  animation: notification-text-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes notification-text-pulse {
+  0%, 100% {
+    color: rgba(255, 0, 128, 0.7);
+    filter: drop-shadow(0 0 3px rgba(255, 0, 128, 0.5));
+  }
+  50% {
+    color: rgba(255, 0, 128, 1);
+    filter: drop-shadow(0 0 8px rgba(255, 0, 128, 0.8));
+  }
 }
 
 /* Cyber card component */

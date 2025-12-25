@@ -219,6 +219,9 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
             onClick={() => navigate('/music')}
             aria-label={`Reproduciendo: ${player.currentSong.title}`}
           >
+            <span className="led-time text-[9px] leading-none block mb-0.5">
+              {formatDuration(player.currentTime)}/{formatDuration(player.duration)}
+            </span>
             <div className="font-medium text-white text-xs truncate font-cyber leading-tight">
               {player.currentSong.title}
             </div>
@@ -227,43 +230,38 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
             </div>
           </button>
 
-          {/* Controls with time */}
-          <div className="flex flex-col items-center">
-            <span className="led-time text-[8px] leading-none mt-1 mb-2.5">
-              {formatDuration(player.currentTime)}/{formatDuration(player.duration)}
-            </span>
-            <div className="flex items-center">
-              <button
-                type="button"
-                onClick={previousSong}
-                className="p-1.5 text-gray-400 active:text-white transition-all"
-                aria-label="Canción anterior"
-              >
-                <SkipBack className="w-4 h-4" />
-              </button>
-              
-              <button
-                type="button"
-                onClick={togglePlay}
-                className="p-2 bg-cyber-cyan text-black active:bg-cyber-cyan/80 transition-all rounded-full mx-0.5"
-                aria-label={player.isPlaying ? 'Pausar' : 'Reproducir'}
-              >
-                {player.isPlaying ? (
-                  <Pause className="w-4 h-4" />
-                ) : (
-                  <Play className="w-4 h-4 ml-0.5" />
-                )}
-              </button>
-              
-              <button
-                type="button"
-                onClick={nextSong}
-                className="p-1.5 text-gray-400 active:text-white transition-all"
-                aria-label="Siguiente canción"
-              >
-                <SkipForward className="w-4 h-4" />
-              </button>
-            </div>
+          {/* Controls */}
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={previousSong}
+              className="p-2 text-gray-400 active:text-white transition-all"
+              aria-label="Canción anterior"
+            >
+              <SkipBack className="w-6 h-6" />
+            </button>
+            
+            <button
+              type="button"
+              onClick={togglePlay}
+              className="p-3 bg-cyber-cyan text-black active:bg-cyber-cyan/80 transition-all rounded-full mx-1"
+              aria-label={player.isPlaying ? 'Pausar' : 'Reproducir'}
+            >
+              {player.isPlaying ? (
+                <Pause className="w-6 h-6" />
+              ) : (
+                <Play className="w-6 h-6 ml-0.5" />
+              )}
+            </button>
+            
+            <button
+              type="button"
+              onClick={nextSong}
+              className="p-2 text-gray-400 active:text-white transition-all"
+              aria-label="Siguiente canción"
+            >
+              <SkipForward className="w-6 h-6" />
+            </button>
           </div>
         </div>
       </div>
@@ -340,14 +338,14 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
               onClick={() => navigate('/music')}
               aria-label={`Reproduciendo: ${player.currentSong.title}`}
             >
+              <div className="text-xs led-time mb-0.5">
+                {formatDuration(player.currentTime)} / {formatDuration(player.duration)}
+              </div>
               <div className="font-medium text-white text-sm truncate font-cyber overflow-hidden">
                 <span className="inline-block animate-marquee">{player.currentSong.title}</span>
               </div>
               <div className="text-xs text-gray-400 truncate font-mono">
                 {player.currentSong.artist || 'Artista desconocido'}
-              </div>
-              <div className="text-xs led-time mt-0.5">
-                {formatDuration(player.currentTime)} / {formatDuration(player.duration)}
               </div>
             </button>
 
@@ -356,23 +354,23 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
               <button
                 type="button"
                 onClick={togglePlay}
-                className="p-2 bg-cyber-cyan text-black hover:bg-cyber-cyan/80 transition-all"
+                className="p-2.5 bg-cyber-cyan text-black hover:bg-cyber-cyan/80 transition-all rounded-full"
                 aria-label={player.isPlaying ? 'Pausar' : 'Reproducir'}
               >
                 {player.isPlaying ? (
-                  <Pause className="w-4 h-4" />
+                  <Pause className="w-5 h-5" />
                 ) : (
-                  <Play className="w-4 h-4 ml-0.5" />
+                  <Play className="w-5 h-5 ml-0.5" />
                 )}
               </button>
               
               <button
                 type="button"
                 onClick={nextSong}
-                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 transition-all"
+                className="p-2.5 text-gray-400 hover:text-white hover:bg-gray-800 transition-all"
                 aria-label="Siguiente canción"
               >
-                <SkipForward className="w-4 h-4" />
+                <SkipForward className="w-5 h-5" />
               </button>
             </div>
           </div>

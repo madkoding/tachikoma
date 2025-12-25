@@ -72,6 +72,10 @@ export interface MusicState {
   // Queue (for shuffle mode)
   queue: SongDto[];
   queueIndex: number;
+  
+  // New songs animation tracking
+  newSongIds: Set<string>;
+  pollingPlaylistId: string | null;
 }
 
 // =============================================================================
@@ -173,7 +177,16 @@ interface MusicActions {
   // Error handling
   setError: (error: string | null) => void;
   clearError: () => void;
+  
+  // Polling for new songs
+  startPolling: (playlistId: string) => void;
+  stopPolling: () => void;
+  clearNewSongIds: () => void;
+  markSongAsSeen: (songId: string) => void;
 }
+
+// Polling interval reference (outside store)
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
 
 export const useMusicStore = create<MusicState & MusicActions>()(
   persist(
@@ -191,6 +204,8 @@ export const useMusicStore = create<MusicState & MusicActions>()(
   error: null,
   queue: [],
   queueIndex: 0,
+  newSongIds: new Set<string>(),
+  pollingPlaylistId: null,
 
   // ==========================================================================
   // Playlist Actions
@@ -739,6 +754,85 @@ export const useMusicStore = create<MusicState & MusicActions>()(
 
   clearError: () => {
     set({ error: null });
+  },
+
+  // ==========================================================================
+  // Polling for New Songs
+  // ==========================================================================
+
+  startPolling: (playlistId: string) => {
+    console.log('🎵 Starting polling for playlist:', playlistId);
+    // Stop any existing polling
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+    }
+    
+    set({ pollingPlaylistId: playlistId });
+    
+    // Poll every 2 seconds
+    pollingInterval = setInterval(async () => {
+      const state = get();
+      if (state.pollingPlaylistId !== playlistId) {
+        return;
+      }
+      
+      try {
+        const playlist = await musicApi.getPlaylist(playlistId);
+        const currentSongs = state.currentPlaylistDetail?.songs || [];
+        const currentSongIds = new Set(currentSongs.map(s => s.id));
+        
+        // Find new songs
+        const newSongs = playlist.songs.filter(s => !currentSongIds.has(s.id));
+        
+        console.log(`🎵 Polling: ${playlist.songs.length} songs in playlist, ${newSongs.length} new, cover: ${playlist.cover_url ? 'yes' : 'no'}`);
+        
+        if (newSongs.length > 0 || playlist.cover_url !== state.playlists.find(p => p.id === playlistId)?.cover_url) {
+          console.log('🎵 New songs detected:', newSongs.map(s => s.title));
+          // Add new song IDs to the set for animation
+          const newIds = new Set(state.newSongIds);
+          newSongs.forEach(s => newIds.add(s.id));
+          
+          set({ 
+            currentPlaylistDetail: playlist,
+            newSongIds: newIds,
+            // Also update the playlist in the list (including cover_url)
+            playlists: state.playlists.map(p => 
+              p.id === playlistId 
+                ? { ...p, song_count: playlist.song_count, total_duration: playlist.total_duration, cover_url: playlist.cover_url }
+                : p
+            ),
+          });
+        }
+        
+        // Stop polling if playlist has 10+ songs (likely done)
+        if (playlist.songs.length >= 10) {
+          console.log('🎵 Polling: Playlist complete, stopping polling');
+          get().stopPolling();
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+      }
+    }, 2000);
+  },
+
+  stopPolling: () => {
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+    }
+    set({ pollingPlaylistId: null });
+  },
+
+  clearNewSongIds: () => {
+    set({ newSongIds: new Set() });
+  },
+
+  markSongAsSeen: (songId: string) => {
+    set(state => {
+      const newIds = new Set(state.newSongIds);
+      newIds.delete(songId);
+      return { newSongIds: newIds };
+    });
   },
 }),
     {

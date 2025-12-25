@@ -31,7 +31,6 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
     player,
     equalizer,
     togglePlay,
-    pause,
     nextSong,
     previousSong,
     seek,
@@ -39,9 +38,6 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
     toggleMute,
     toggleShuffle,
     setRepeatMode,
-    setPlayerLoading,
-    setCurrentTime,
-    setDuration,
     setSpectrumData,
   } = useMusicStore();
 
@@ -160,6 +156,13 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
       console.error('Failed to initialize audio context:', error);
     }
   }, [setSpectrumData, equalizer.bands]);
+
+  // Initialize audio context when audio element is available
+  useEffect(() => {
+    if (audioRef.current && !isAudioInitializedRef.current) {
+      initAudioContext();
+    }
+  }, [initAudioContext]);
 
   // Update equalizer filters when bands change
   useEffect(() => {
@@ -291,52 +294,6 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
     if (!audioRef.current) return;
     audioRef.current.volume = player.isMuted ? 0 : player.volume;
   }, [player.volume, player.isMuted]);
-
-  // Audio event handlers
-  const handleLoadedMetadata = () => {
-    if (audioRef.current) {
-      // Use song duration from metadata since stream is infinite
-      // Only use audio duration if valid (not Infinity or NaN)
-      const audioDuration = audioRef.current.duration;
-      if (Number.isFinite(audioDuration) && audioDuration > 0) {
-        setDuration(audioDuration);
-      } else if (player.currentSong?.duration) {
-        // Fallback to stored song duration
-        setDuration(player.currentSong.duration);
-      }
-      setPlayerLoading(false);
-      initAudioContext();
-    }
-  };
-
-  const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
-    }
-  };
-
-  const handleEnded = () => {
-    if (player.repeatMode === 'one') {
-      if (audioRef.current) {
-        audioRef.current.currentTime = 0;
-        audioRef.current.play();
-      }
-    } else {
-      nextSong();
-    }
-  };
-
-  const handleError = () => {
-    console.error('Audio playback error');
-    setPlayerLoading(false);
-  };
-
-  const handleCanPlay = () => {
-    setPlayerLoading(false);
-    if (player.isPlaying && audioRef.current) {
-      audioRef.current.play().catch(console.error);
-    }
-  };
 
   // Progress bar click
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {

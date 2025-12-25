@@ -1,11 +1,12 @@
 //! =============================================================================
 //! Neuro-Checklists Microservice
 //! =============================================================================
-//! Independent microservice for managing checklists with SurrealDB backend.
+//! Independent microservice for managing checklists.
+//! Uses neuro-backend as data layer via HTTP client.
 //! =============================================================================
 
+mod backend_client;
 mod config;
-mod db;
 mod handlers;
 mod models;
 mod routes;
@@ -14,12 +15,12 @@ use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::backend_client::BackendClient;
 use crate::config::Config;
-use crate::db::Database;
 
 /// Application state shared across handlers
 pub struct AppState {
-    pub db: Database,
+    pub client: BackendClient,
     pub config: Config,
 }
 
@@ -40,14 +41,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("🗒️  Neuro-Checklists Microservice");
     info!("================================");
     info!("Port: {}", config.port);
-    info!("Database: {}", config.database_url);
+    info!("Backend URL: {}", config.backend_url);
 
-    // Connect to database
-    let db = Database::connect(&config).await?;
-    info!("✅ Connected to SurrealDB (namespace: checklists)");
+    // Create backend client
+    let client = BackendClient::new(&config);
+    info!("✅ Backend client initialized");
 
     // Create app state
-    let state = Arc::new(AppState { db, config: config.clone() });
+    let state = Arc::new(AppState { client, config: config.clone() });
 
     // Build router
     let app = routes::create_router(state);
@@ -58,8 +59,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     info!("🚀 Server listening on {}", addr);
     info!("  ▸ Health: GET /health");
-    info!("  ▸ Checklists: /api/checklists/*");
-
+    info!("  ▸ API: /api/checklists/*");
+    
     axum::serve(listener, app).await?;
 
     Ok(())

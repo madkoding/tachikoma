@@ -8,7 +8,8 @@ import {
   Music,
   GripVertical,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Sparkles
 } from 'lucide-react';
 import { useMusicStore, formatDuration } from '../../stores/musicStore';
 import { SongDto, PlaylistWithSongsDto } from '../../api/client';
@@ -24,7 +25,9 @@ export const SongList: React.FC<SongListProps> = ({ playlist, onEditSong }) => {
     playSong, 
     togglePlay, 
     deleteSong,
-    reorderSongs 
+    reorderSongs,
+    newSongIds,
+    markSongAsSeen
   } = useMusicStore();
   
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
@@ -99,6 +102,7 @@ export const SongList: React.FC<SongListProps> = ({ playlist, onEditSong }) => {
         const isCurrentSong = player.currentSong?.id === song.id;
         const isDragging = draggedSong === song.id;
         const isDragOver = dragOverSong === song.id;
+        const isNew = newSongIds.has(song.id);
 
         return (
           <div
@@ -108,6 +112,7 @@ export const SongList: React.FC<SongListProps> = ({ playlist, onEditSong }) => {
             onDragOver={(e) => handleDragOver(e, song.id)}
             onDragEnd={handleDragEnd}
             onClick={() => handlePlay(song)}
+            onAnimationEnd={() => isNew && markSongAsSeen(song.id)}
             className={`
               group flex items-center gap-2 sm:gap-3 p-2 sm:p-3 cursor-pointer transition-all
               ${isCurrentSong 
@@ -116,8 +121,14 @@ export const SongList: React.FC<SongListProps> = ({ playlist, onEditSong }) => {
               }
               ${isDragging ? 'opacity-50' : ''}
               ${isDragOver ? 'border-t-2 border-cyan-500' : ''}
+              ${isNew ? 'animate-slide-in-glow' : ''}
             `}
           >
+            {/* New song indicator */}
+            {isNew && (
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan-400 via-purple-500 to-pink-500 animate-pulse" />
+            )}
+            
             {/* Drag handle & Number - hidden on mobile */}
             <div className="hidden sm:flex w-8 items-center justify-center">
               <span className="group-hover:hidden text-gray-500 text-sm font-mono">
@@ -134,6 +145,8 @@ export const SongList: React.FC<SongListProps> = ({ playlist, onEditSong }) => {
                       />
                     ))}
                   </div>
+                ) : isNew ? (
+                  <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
                 ) : (
                   index + 1
                 )}

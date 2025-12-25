@@ -52,6 +52,45 @@ services:
       - music-target:/app/target
       - ./neuro-music/src:/app/src:ro
 
+  # ===========================================================================
+  # Chat Service - Development Build
+  # ===========================================================================
+  chat-service:
+    build:
+      context: ./neuro-chat
+      dockerfile: Dockerfile.dev
+    volumes:
+      - cargo-cache-chat:/root/.cargo/registry
+      - cargo-git-chat:/root/.cargo/git
+      - chat-target:/app/target
+      - ./neuro-chat/src:/app/src:ro
+
+  # ===========================================================================
+  # Memory Service - Development Build
+  # ===========================================================================
+  memory-service:
+    build:
+      context: ./neuro-memory
+      dockerfile: Dockerfile.dev
+    volumes:
+      - cargo-cache-memory:/root/.cargo/registry
+      - cargo-git-memory:/root/.cargo/git
+      - memory-target:/app/target
+      - ./neuro-memory/src:/app/src:ro
+
+  # ===========================================================================
+  # Agent Service - Development Build
+  # ===========================================================================
+  agent-service:
+    build:
+      context: ./neuro-agent
+      dockerfile: Dockerfile.dev
+    volumes:
+      - cargo-cache-agent:/root/.cargo/registry
+      - cargo-git-agent:/root/.cargo/git
+      - agent-target:/app/target
+      - ./neuro-agent/src:/app/src:ro
+
 # =============================================================================
 # Persistent Volumes for Cargo Cache
 # =============================================================================
@@ -81,3 +120,27 @@ volumes:
     name: neuro-cargo-git-music
   music-target:
     name: neuro-music-target
+
+  # Chat service cache
+  cargo-cache-chat:
+    name: neuro-cargo-cache-chat
+  cargo-git-chat:
+    name: neuro-cargo-git-chat
+  chat-target:
+    name: neuro-chat-target
+
+  # Memory service cache
+  cargo-cache-memory:
+    name: neuro-cargo-cache-memory
+  cargo-git-memory:
+    name: neuro-cargo-git-memory
+  memory-target:
+    name: neuro-memory-target
+
+  # Agent service cache
+  cargo-cache-agent:
+    name: neuro-cargo-cache-agent
+  cargo-git-agent:
+    name: neuro-cargo-git-agent
+  agent-target:
+    name: neuro-agent-target

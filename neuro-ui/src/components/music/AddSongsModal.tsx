@@ -5,10 +5,7 @@ import {
   Loader2, 
   Music, 
   X, 
-  ExternalLink,
-  CheckSquare,
-  Square,
-  MinusSquare
+  CheckSquare
 } from 'lucide-react';
 import { useMusicStore, formatDuration } from '../../stores/musicStore';
 import { YouTubeSearchResultDto, CreateSongRequest, musicApi } from '../../api/client';
@@ -28,7 +25,7 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
   onClose,
   onSongsAdded 
 }) => {
-  const { addSong } = useMusicStore();
+  const { addSong, deleteSong, currentPlaylistDetail } = useMusicStore();
   
   // Search state
   const [query, setQuery] = useState('');
@@ -38,14 +35,19 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
   const [currentLimit, setCurrentLimit] = useState(PAGE_SIZE);
   const [lastQuery, setLastQuery] = useState('');
   
-  // Selection state
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Adding/removing state
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
   
-  // Adding state
-  const [isAddingMultiple, setIsAddingMultiple] = useState(false);
-  const [addingIds, setAddingIds] = useState<Set<string>>(new Set());
-  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
-  const [addProgress, setAddProgress] = useState({ current: 0, total: 0 });
+  // Map of video_id -> song_id for songs in the playlist
+  const songIdMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    if (currentPlaylistDetail?.id === playlistId) {
+      currentPlaylistDetail.songs.forEach(song => {
+        map.set(song.youtube_id, song.id);
+      });
+    }
+    return map;
+  }, [currentPlaylistDetail, playlistId]);
   
   // Refs
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -63,8 +65,6 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
     if (!isOpen) {
       setQuery('');
       setResults([]);
-      setSelectedIds(new Set());
-      setAddedIds(new Set());
       setCurrentLimit(PAGE_SIZE);
       setLastQuery('');
       setHasMore(false);
@@ -98,8 +98,6 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     handleSearch(query, PAGE_SIZE);
-    setSelectedIds(new Set());
-    setAddedIds(new Set());
   };
   
   // Load more (infinite scroll)
@@ -122,103 +120,34 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
     }
   }, [loadMore]);
   
-  // Selection handlers
-  const toggleSelection = (videoId: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(videoId)) {
-        next.delete(videoId);
+  // Toggle song (add or remove)
+  const handleToggleSong = async (result: YouTubeSearchResultDto) => {
+    if (processingIds.has(result.video_id)) return;
+    
+    setProcessingIds(prev => new Set(prev).add(result.video_id));
+    
+    try {
+      const existingSongId = songIdMap.get(result.video_id);
+      
+      if (existingSongId) {
+        // Song exists - remove it
+        await deleteSong(playlistId, existingSongId);
       } else {
-        next.add(videoId);
+        // Song doesn't exist - add it
+        const request: CreateSongRequest = {
+          youtube_url: `https://www.youtube.com/watch?v=${result.video_id}`,
+          title: result.title,
+          artist: result.channel,
+        };
+        await addSong(playlistId, request);
       }
-      return next;
-    });
-  };
-  
-  const selectAll = () => {
-    const selectableIds = results
-      .filter(r => !addedIds.has(r.video_id))
-      .map(r => r.video_id);
-    setSelectedIds(new Set(selectableIds));
-  };
-  
-  const deselectAll = () => {
-    setSelectedIds(new Set());
-  };
-  
-  const isAllSelected = results.length > 0 && 
-    results.filter(r => !addedIds.has(r.video_id)).every(r => selectedIds.has(r.video_id));
-  const isSomeSelected = selectedIds.size > 0 && !isAllSelected;
-  
-  // Add single song
-  const handleAddSingle = async (result: YouTubeSearchResultDto) => {
-    if (addingIds.has(result.video_id) || addedIds.has(result.video_id)) return;
-    
-    setAddingIds(prev => new Set(prev).add(result.video_id));
-    
-    try {
-      const request: CreateSongRequest = {
-        youtube_url: `https://www.youtube.com/watch?v=${result.video_id}`,
-        title: result.title,
-        artist: result.channel,
-      };
-      
-      await addSong(playlistId, request);
-      setAddedIds(prev => new Set(prev).add(result.video_id));
-      setSelectedIds(prev => {
+      onSongsAdded?.();
+    } finally {
+      setProcessingIds(prev => {
         const next = new Set(prev);
         next.delete(result.video_id);
         return next;
       });
-      onSongsAdded?.();
-    } finally {
-      setAddingIds(prev => {
-        const next = new Set(prev);
-        next.delete(result.video_id);
-        return next;
-      });
-    }
-  };
-  
-  // Add selected songs
-  const handleAddSelected = async () => {
-    if (selectedIds.size === 0 || isAddingMultiple) return;
-    
-    setIsAddingMultiple(true);
-    const selectedResults = results.filter(r => selectedIds.has(r.video_id));
-    setAddProgress({ current: 0, total: selectedResults.length });
-    
-    try {
-      for (let i = 0; i < selectedResults.length; i++) {
-        const result = selectedResults[i];
-        setAddingIds(prev => new Set(prev).add(result.video_id));
-        
-        try {
-          const request: CreateSongRequest = {
-            youtube_url: `https://www.youtube.com/watch?v=${result.video_id}`,
-            title: result.title,
-            artist: result.channel,
-          };
-          
-          await addSong(playlistId, request);
-          setAddedIds(prev => new Set(prev).add(result.video_id));
-        } catch (error) {
-          console.error(`Failed to add ${result.title}:`, error);
-        }
-        
-        setAddingIds(prev => {
-          const next = new Set(prev);
-          next.delete(result.video_id);
-          return next;
-        });
-        setAddProgress({ current: i + 1, total: selectedResults.length });
-      }
-      
-      setSelectedIds(new Set());
-      onSongsAdded?.();
-    } finally {
-      setIsAddingMultiple(false);
-      setAddProgress({ current: 0, total: 0 });
     }
   };
   
@@ -232,15 +161,14 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
     
     if (match) {
       const videoId = match[1];
-      setAddingIds(prev => new Set(prev).add(videoId));
+      setProcessingIds(prev => new Set(prev).add(videoId));
       
       try {
         await addSong(playlistId, { youtube_url: query });
         setQuery('');
-        setAddedIds(prev => new Set(prev).add(videoId));
         onSongsAdded?.();
       } finally {
-        setAddingIds(prev => {
+        setProcessingIds(prev => {
           const next = new Set(prev);
           next.delete(videoId);
           return next;
@@ -294,10 +222,10 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
               <button
                 type="button"
                 onClick={handleAddByUrl}
-                disabled={addingIds.size > 0}
+                disabled={processingIds.size > 0}
                 className="px-4 py-2 bg-cyan-500 text-black font-medium hover:bg-cyan-400 transition-all flex items-center gap-2 disabled:opacity-50"
               >
-                {addingIds.size > 0 ? (
+                {processingIds.size > 0 ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Plus className="w-4 h-4" />
@@ -321,53 +249,6 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
           </div>
         </form>
         
-        {/* Selection toolbar */}
-        {results.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-2 bg-gray-800/50 border-b border-gray-800">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={isAllSelected ? deselectAll : selectAll}
-                className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
-              >
-                {isAllSelected ? (
-                  <CheckSquare className="w-4 h-4 text-cyan-400" />
-                ) : isSomeSelected ? (
-                  <MinusSquare className="w-4 h-4 text-cyan-400" />
-                ) : (
-                  <Square className="w-4 h-4" />
-                )}
-                {isAllSelected ? 'Deseleccionar todo' : 'Seleccionar todo'}
-              </button>
-              
-              {selectedIds.size > 0 && (
-                <span className="text-sm text-cyan-400">
-                  {selectedIds.size} seleccionado{selectedIds.size !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-            
-            {selectedIds.size > 0 && (
-              <button
-                onClick={handleAddSelected}
-                disabled={isAddingMultiple}
-                className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500 text-black font-medium text-sm hover:bg-cyan-400 transition-all disabled:opacity-50"
-              >
-                {isAddingMultiple ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Agregando {addProgress.current}/{addProgress.total}...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4" />
-                    Agregar {selectedIds.size}
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        )}
-        
         {/* Results */}
         <div 
           ref={scrollContainerRef}
@@ -377,33 +258,21 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
           {results.length > 0 ? (
             <div className="space-y-1">
               {results.map((result) => {
-                const isSelected = selectedIds.has(result.video_id);
-                const isAdding = addingIds.has(result.video_id);
-                const isAdded = addedIds.has(result.video_id);
+                const isProcessing = processingIds.has(result.video_id);
+                const isInPlaylist = songIdMap.has(result.video_id);
                 
                 return (
                   <div
                     key={result.video_id}
-                    onClick={() => !isAdded && !isAdding && toggleSelection(result.video_id)}
+                    onClick={() => !isProcessing && handleToggleSong(result)}
                     className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
-                      isAdded 
-                        ? 'bg-green-500/10 border border-green-500/30 cursor-default' 
-                        : isSelected 
-                          ? 'bg-cyan-500/20 border border-cyan-500/50' 
-                          : 'bg-gray-800/50 border border-transparent hover:bg-gray-800 hover:border-gray-700'
+                      isProcessing
+                        ? 'bg-cyan-500/20 border border-cyan-500/50 cursor-wait'
+                        : isInPlaylist 
+                          ? 'bg-green-500/10 border border-green-500/30 hover:bg-red-500/10 hover:border-red-500/30' 
+                          : 'bg-gray-800/50 border border-transparent hover:bg-gray-800 hover:border-gray-700 active:bg-cyan-500/20'
                     }`}
                   >
-                    {/* Checkbox */}
-                    <div className="flex-shrink-0">
-                      {isAdded ? (
-                        <CheckSquare className="w-5 h-5 text-green-400" />
-                      ) : isSelected ? (
-                        <CheckSquare className="w-5 h-5 text-cyan-400" />
-                      ) : (
-                        <Square className="w-5 h-5 text-gray-500" />
-                      )}
-                    </div>
-                    
                     {/* Thumbnail */}
                     <div className="w-20 h-12 rounded bg-gray-700 overflow-hidden flex-shrink-0 relative">
                       <img
@@ -418,7 +287,7 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <div className={`font-medium truncate text-sm ${isAdded ? 'text-green-400' : 'text-white'}`}>
+                      <div className={`font-medium truncate text-sm ${isInPlaylist ? 'text-green-400' : 'text-white'}`}>
                         {result.title}
                       </div>
                       <div className="text-xs text-gray-400 truncate flex items-center gap-2">
@@ -431,37 +300,17 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Actions */}
+                    {/* Status indicator */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <a
-                        href={`https://www.youtube.com/watch?v=${result.video_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 text-gray-400 hover:text-white transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                      
-                      {isAdded ? (
-                        <span className="px-2 py-1 text-xs text-green-400 bg-green-500/20 rounded">
+                      {isProcessing ? (
+                        <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
+                      ) : isInPlaylist ? (
+                        <span className="px-2 py-1 text-xs text-green-400 bg-green-500/20 rounded flex items-center gap-1 group-hover:hidden">
+                          <CheckSquare className="w-3 h-3" />
                           Agregado
                         </span>
                       ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAddSingle(result);
-                          }}
-                          disabled={isAdding}
-                          className="p-2 bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-all disabled:opacity-50"
-                        >
-                          {isAdding ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Plus className="w-4 h-4" />
-                          )}
-                        </button>
+                        <Plus className="w-4 h-4 text-gray-500" />
                       )}
                     </div>
                   </div>
@@ -501,10 +350,7 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
         </div>
         
         {/* Footer */}
-        <div className="flex items-center justify-between p-4 border-t border-gray-800 bg-gray-900/80">
-          <span className="text-sm text-gray-500">
-            {addedIds.size > 0 && `${addedIds.size} canción${addedIds.size !== 1 ? 'es' : ''} agregada${addedIds.size !== 1 ? 's' : ''}`}
-          </span>
+        <div className="flex items-center justify-end p-4 border-t border-gray-800 bg-gray-900/80">
           <button
             onClick={onClose}
             className="px-4 py-2 text-gray-400 hover:text-white transition-colors"

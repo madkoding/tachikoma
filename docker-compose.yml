@@ -127,8 +127,8 @@ services:
   # ===========================================================================
   # Checklists Service - Checklist Management Microservice (Rust)
   # ===========================================================================
-  # Independent microservice for managing checklists with its own database
-  # namespace in SurrealDB. Accessed via API Gateway in neuro-backend.
+  # Independent microservice for managing checklists.
+  # Uses neuro-backend as data layer via HTTP client.
   # ===========================================================================
   checklists-service:
     build:
@@ -136,14 +136,12 @@ services:
       dockerfile: Dockerfile
     container_name: neuro-checklists
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - RUST_LOG=info
       - PORT=3001
-      - DATABASE_URL=ws://surrealdb:8000
-      - DATABASE_USER=${SURREAL_USER:-root}
-      - DATABASE_PASS=${SURREAL_PASS:-neuroos_secret_2024}
-      - DATABASE_NAMESPACE=neuro
-      - DATABASE_NAME=checklists
+      - BACKEND_URL=http://host.docker.internal:3000
     ports:
       - "3001:3001"
     networks:
@@ -166,6 +164,7 @@ services:
   # - Audio enhancement (compression, exciter, stereo widening)
   # - Cover art lookup via MusicBrainz
   # Uses yt-dlp for extraction and ffmpeg for transcoding.
+  # Uses neuro-backend as data layer via HTTP client.
   # ===========================================================================
   music-service:
     build:
@@ -173,14 +172,12 @@ services:
       dockerfile: Dockerfile
     container_name: neuro-music
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - RUST_LOG=info
-      - MUSIC_PORT=3002
-      - DATABASE_URL=ws://neuro-surrealdb:8000
-      - DATABASE_USER=${SURREAL_USER:-root}
-      - DATABASE_PASS=${SURREAL_PASS:-neuroos_secret_2024}
-      - DATABASE_NAMESPACE=music
-      - DATABASE_NAME=music
+      - PORT=3002
+      - BACKEND_URL=http://host.docker.internal:3000
     ports:
       - "3002:3002"
     networks:
@@ -193,6 +190,107 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+  # ===========================================================================
+  # Chat Service - LLM Chat Microservice (Rust)
+  # ===========================================================================
+  # Handles chat conversations with LLM, streaming responses, and 
+  # integration with memory service for context-aware responses.
+  # ===========================================================================
+  chat-service:
+    build:
+      context: ./neuro-chat
+      dockerfile: Dockerfile
+    container_name: neuro-chat
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=info
+      - PORT=3003
+      - DATABASE_URL=ws://surrealdb:8000
+      - DATABASE_USER=${SURREAL_USER:-root}
+      - DATABASE_PASS=${SURREAL_PASS:-neuroos_secret_2024}
+      - DATABASE_NAMESPACE=neuro
+      - DATABASE_NAME=chat
+      - OLLAMA_URL=http://ollama:11434
+      - MEMORY_SERVICE_URL=http://memory-service:3004
+    ports:
+      - "3003:3003"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+      - ollama
+      - memory-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # Memory Service - Semantic Memory Graph Microservice (Rust)
+  # ===========================================================================
+  # Manages memories as graph nodes with vector embeddings for semantic
+  # search. Implements the GraphRAG pattern for memory relationships.
+  # ===========================================================================
+  memory-service:
+    build:
+      context: ./neuro-memory
+      dockerfile: Dockerfile
+    container_name: neuro-memory
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=info
+      - PORT=3004
+      - DATABASE_URL=ws://surrealdb:8000
+      - DATABASE_USER=${SURREAL_USER:-root}
+      - DATABASE_PASS=${SURREAL_PASS:-neuroos_secret_2024}
+      - DATABASE_NAMESPACE=neuro
+      - DATABASE_NAME=memories
+      - OLLAMA_URL=http://ollama:11434
+    ports:
+      - "3004:3004"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+      - ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # Agent Service - AI Agent Tools Microservice (Rust)
+  # ===========================================================================
+  # Provides agent capabilities: web search via Searxng and safe
+  # command execution with security restrictions.
+  # ===========================================================================
+  agent-service:
+    build:
+      context: ./neuro-agent
+      dockerfile: Dockerfile
+    container_name: neuro-agent
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=info
+      - PORT=3005
+      - SEARXNG_URL=http://searxng:8080
+    ports:
+      - "3005:3005"
+    networks:
+      - neuro-network
+    depends_on:
+      - searxng
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 # =============================================================================
 # Networks Configuration

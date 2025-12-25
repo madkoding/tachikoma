@@ -2,12 +2,13 @@
 //! Neuro-Music Microservice
 //! =============================================================================
 //! Music streaming service with YouTube integration, equalizer, and playlists.
+//! Uses neuro-backend as data layer via HTTP client.
 //! =============================================================================
 
 mod audio_dsp;
+mod backend_client;
 mod config;
 mod cover_art;
-mod db;
 mod handlers;
 mod models;
 mod routes;
@@ -17,14 +18,14 @@ use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::backend_client::BackendClient;
 use crate::config::Config;
 use crate::cover_art::CoverArtService;
-use crate::db::Database;
 use crate::youtube::YouTubeService;
 
 /// Application state shared across handlers
 pub struct AppState {
-    pub db: Database,
+    pub client: BackendClient,
     pub config: Config,
     pub youtube: YouTubeService,
     pub cover_art: CoverArtService,
@@ -47,16 +48,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("🎵 Neuro-Music Microservice");
     info!("============================");
     info!("Port: {}", config.port);
-    info!("Database: {}", config.database_url);
+    info!("Backend URL: {}", config.backend_url);
     info!("yt-dlp: {}", config.ytdlp_path);
     info!("ffmpeg: {}", config.ffmpeg_path);
 
     // Check dependencies
     check_dependencies(&config).await?;
 
-    // Connect to database
-    let db = Database::connect(&config).await?;
-    info!("✅ Connected to SurrealDB (namespace: music)");
+    // Create backend client
+    let client = BackendClient::new(&config);
+    info!("✅ Backend client initialized");
 
     // Create services
     let youtube = YouTubeService::new(&config);
@@ -64,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create app state
     let state = Arc::new(AppState { 
-        db, 
+        client, 
         config: config.clone(),
         youtube,
         cover_art,
