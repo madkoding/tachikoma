@@ -173,7 +173,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
           <div className="absolute inset-0 bg-gradient-to-t from-gray-900/60 via-transparent to-gray-900/60" />
         </div>
         
-        {/* Progress bar at top - clickable */}}
+        {/* Progress bar at top - clickable */}
         <div 
           ref={mobileProgressRef}
           onClick={handleMobileProgressClick}
