@@ -91,6 +91,120 @@ services:
       - agent-target:/app/target
       - ./neuro-agent/src:/app/src:ro
 
+  # ===========================================================================
+  # Pomodoro Service - Development Build
+  # ===========================================================================
+  pomodoro-service:
+    build:
+      context: ./neuro-pomodoro
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3010:3010"
+    environment:
+      - PORT=3010
+      - RUST_LOG=info
+      - BACKEND_URL=http://host.docker.internal:3000
+    volumes:
+      - cargo-cache-pomodoro:/root/.cargo/registry
+      - cargo-git-pomodoro:/root/.cargo/git
+      - pomodoro-target:/app/target
+      - ./neuro-pomodoro/src:/app/src:ro
+
+  # ===========================================================================
+  # Kanban Service - Development Build
+  # ===========================================================================
+  kanban-service:
+    build:
+      context: ./neuro-kanban
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3006:3006"
+    environment:
+      - PORT=3006
+      - RUST_LOG=info
+      - BACKEND_URL=http://host.docker.internal:3000
+    volumes:
+      - cargo-cache-kanban:/root/.cargo/registry
+      - cargo-git-kanban:/root/.cargo/git
+      - kanban-target:/app/target
+      - ./neuro-kanban/src:/app/src:ro
+
+  # ===========================================================================
+  # Note Service - Development Build
+  # ===========================================================================
+  note-service:
+    build:
+      context: ./neuro-note
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3007:3007"
+    environment:
+      - PORT=3007
+      - RUST_LOG=info
+      - BACKEND_URL=http://host.docker.internal:3000
+    volumes:
+      - cargo-cache-note:/root/.cargo/registry
+      - cargo-git-note:/root/.cargo/git
+      - note-target:/app/target
+      - ./neuro-note/src:/app/src:ro
+
+  # ===========================================================================
+  # Docs Service - Development Build
+  # ===========================================================================
+  docs-service:
+    build:
+      context: ./neuro-docs
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3008:3008"
+    environment:
+      - PORT=3008
+      - RUST_LOG=info
+      - BACKEND_URL=http://host.docker.internal:3000
+    volumes:
+      - cargo-cache-docs:/root/.cargo/registry
+      - cargo-git-docs:/root/.cargo/git
+      - docs-target:/app/target
+      - ./neuro-docs/src:/app/src:ro
+
+  # ===========================================================================
+  # Calendar Service - Development Build
+  # ===========================================================================
+  calendar-service:
+    build:
+      context: ./neuro-calendar
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3009:3009"
+    environment:
+      - PORT=3009
+      - RUST_LOG=info
+      - BACKEND_URL=http://host.docker.internal:3000
+    volumes:
+      - cargo-cache-calendar:/root/.cargo/registry
+      - cargo-git-calendar:/root/.cargo/git
+      - calendar-target:/app/target
+      - ./neuro-calendar/src:/app/src:ro
+
+  # ===========================================================================
+  # Image Service - Development Build
+  # ===========================================================================
+  image-service:
+    build:
+      context: ./neuro-image
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3011:3011"
+    environment:
+      - PORT=3011
+      - RUST_LOG=info
+      - BACKEND_URL=http://host.docker.internal:3000
+    volumes:
+      - cargo-cache-image:/root/.cargo/registry
+      - cargo-git-image:/root/.cargo/git
+      - image-target:/app/target
+      - ./neuro-image/src:/app/src:ro
+
 # =============================================================================
 # Persistent Volumes for Cargo Cache
 # =============================================================================
@@ -144,3 +258,51 @@ volumes:
     name: neuro-cargo-git-agent
   agent-target:
     name: neuro-agent-target
+
+  # Pomodoro service cache
+  cargo-cache-pomodoro:
+    name: neuro-cargo-cache-pomodoro
+  cargo-git-pomodoro:
+    name: neuro-cargo-git-pomodoro
+  pomodoro-target:
+    name: neuro-pomodoro-target
+
+  # Kanban service cache
+  cargo-cache-kanban:
+    name: neuro-cargo-cache-kanban
+  cargo-git-kanban:
+    name: neuro-cargo-git-kanban
+  kanban-target:
+    name: neuro-kanban-target
+
+  # Note service cache
+  cargo-cache-note:
+    name: neuro-cargo-cache-note
+  cargo-git-note:
+    name: neuro-cargo-git-note
+  note-target:
+    name: neuro-note-target
+
+  # Docs service cache
+  cargo-cache-docs:
+    name: neuro-cargo-cache-docs
+  cargo-git-docs:
+    name: neuro-cargo-git-docs
+  docs-target:
+    name: neuro-docs-target
+
+  # Calendar service cache
+  cargo-cache-calendar:
+    name: neuro-cargo-cache-calendar
+  cargo-git-calendar:
+    name: neuro-cargo-git-calendar
+  calendar-target:
+    name: neuro-calendar-target
+
+  # Image service cache
+  cargo-cache-image:
+    name: neuro-cargo-cache-image
+  cargo-git-image:
+    name: neuro-cargo-git-image
+  image-target:
+    name: neuro-image-target

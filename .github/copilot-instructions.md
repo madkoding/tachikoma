@@ -4,12 +4,37 @@
 
 NEURO-OS es un ecosistema de IA modular que consiste en:
 
+### Servicios Core
 - **neuro-backend**: API Gateway central en Rust/Axum (puerto 3000)
 - **neuro-ui**: Interfaz de usuario en React/Vite (puerto 5173)
 - **neuro-admin**: Panel de administración en React/Vite (puerto 5174)
-- **neuro-music**: Microservicio de música en Rust/Axum (puerto 3002)
-- **neuro-voice**: Microservicio de síntesis de voz en Rust (puerto 8100)
-- **neuro-checklists**: Microservicio de checklists en Rust (puerto 3001)
+
+### Microservicios Existentes
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| neuro-voice | 8100 | Síntesis de voz con Piper TTS |
+| neuro-checklists | 3001 | Gestión de checklists |
+| neuro-music | 3002 | Streaming de música YouTube |
+| neuro-chat | 3003 | Conversaciones con LLM |
+| neuro-memory | 3004 | Memoria semántica GraphRAG |
+| neuro-agent | 3005 | Herramientas de agente IA |
+
+### Microservicios Planeados
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| neuro-kanban | 3006 | Tableros Kanban |
+| neuro-note | 3007 | Notas + transcripción de voz con IA |
+| neuro-docs | 3008 | Documentos con IA (DOCX, XLSX, PPTX, embeddings) |
+| neuro-calendar | 3009 | Calendario + recordatorios |
+| neuro-pomodoro | 3010 | Timer Pomodoro |
+| neuro-image | 3011 | Galería de imágenes generadas por IA |
+
+### Servicios de Infraestructura (Docker)
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| SurrealDB | 8000 | Base de datos Graph + Vector |
+| Ollama | 11434 | Inferencia LLM local |
+| Searxng | 8080 | Motor de búsqueda privado |
 
 ## Patrón de Proxy para Microservicios
 
@@ -37,19 +62,36 @@ let target_url = format!("{}/api{}{}", service_url, path, query);
 
 ### Checklist para agregar un nuevo microservicio:
 
-1. **Agregar configuración en `config.rs`:**
+1. **Crear estructura del microservicio:**
+   ```
+   neuro-newservice/
+   ├── Cargo.toml
+   ├── Dockerfile
+   ├── Dockerfile.dev
+   ├── README.md
+   └── src/
+       ├── main.rs
+       ├── config.rs
+       ├── routes.rs
+       ├── handlers.rs
+       ├── models.rs
+       └── backend_client.rs  # Si necesita acceso a datos
+   ```
+
+2. **Agregar configuración en `config.rs` del backend:**
    ```rust
    pub struct MicroservicesConfig {
        pub new_service_url: String,
    }
    ```
 
-2. **Agregar variable de entorno:**
+3. **Agregar variable de entorno:**
    - En `tasks.json`: `NEW_SERVICE_URL=http://127.0.0.1:PORT`
-   - En `start.sh`: export `NEW_SERVICE_URL`
-   - En `docker-compose.yml`: si corre en Docker
+   - En `dev.sh`: agregar rebuild-newservice
+   - En `docker-compose.yml`: definir el servicio
+   - En `docker-compose.dev.yml`: agregar volumes de cache
 
-3. **Crear handler en `handlers/proxy.rs`:**
+4. **Crear handler en `handlers/proxy.rs`:**
    ```rust
    pub async fn proxy_new_service(
        State(state): State<Arc<AppState>>,

@@ -182,6 +182,12 @@ start_docker_dev() {
     echo -e "  Chat:       ${YELLOW}http://localhost:3003${NC}"
     echo -e "  Memory:     ${YELLOW}http://localhost:3004${NC}"
     echo -e "  Agent:      ${YELLOW}http://localhost:3005${NC}"
+    echo -e "  Kanban:     ${YELLOW}http://localhost:3006${NC}"
+    echo -e "  Note:       ${YELLOW}http://localhost:3007${NC}"
+    echo -e "  Docs:       ${YELLOW}http://localhost:3008${NC}"
+    echo -e "  Calendar:   ${YELLOW}http://localhost:3009${NC}"
+    echo -e "  Pomodoro:   ${YELLOW}http://localhost:3010${NC}"
+    echo -e "  Image:      ${YELLOW}http://localhost:3011${NC}"
 }
 
 # Rebuild a specific service in dev mode (fast)
@@ -207,6 +213,12 @@ clean_cargo_cache() {
     docker volume rm neuro-cargo-cache-chat neuro-cargo-git-chat neuro-chat-target 2>/dev/null || true
     docker volume rm neuro-cargo-cache-memory neuro-cargo-git-memory neuro-memory-target 2>/dev/null || true
     docker volume rm neuro-cargo-cache-agent neuro-cargo-git-agent neuro-agent-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-pomodoro neuro-cargo-git-pomodoro neuro-pomodoro-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-kanban neuro-cargo-git-kanban neuro-kanban-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-note neuro-cargo-git-note neuro-note-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-docs neuro-cargo-git-docs neuro-docs-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-calendar neuro-cargo-git-calendar neuro-calendar-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-image neuro-cargo-git-image neuro-image-target 2>/dev/null || true
     
     echo -e "  ${GREEN}Cache cleaned! Next build will be slower but fresh.${NC}"
 }
@@ -317,6 +329,24 @@ case "${1:-all}" in
     rebuild-agent|ra)
         rebuild_service_dev agent-service
         ;;
+    rebuild-pomodoro|rp)
+        rebuild_service_dev pomodoro-service
+        ;;
+    rebuild-kanban|rk)
+        rebuild_service_dev kanban-service
+        ;;
+    rebuild-note|rn)
+        rebuild_service_dev note-service
+        ;;
+    rebuild-docs|rd)
+        rebuild_service_dev docs-service
+        ;;
+    rebuild-calendar|rcal)
+        rebuild_service_dev calendar-service
+        ;;
+    rebuild-image|ri)
+        rebuild_service_dev image-service
+        ;;
     clean-cache|cc)
         clean_cargo_cache
         ;;
@@ -340,6 +370,12 @@ case "${1:-all}" in
         echo -e "  ${YELLOW}rebuild-chat${NC}   Rebuild chat service (fast dev mode)"
         echo -e "  ${YELLOW}rebuild-memory${NC} Rebuild memory service (fast dev mode)"
         echo -e "  ${YELLOW}rebuild-agent${NC}  Rebuild agent service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-pomodoro${NC} Rebuild pomodoro service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-kanban${NC} Rebuild kanban service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-note${NC}   Rebuild note service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-docs${NC}   Rebuild docs service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-calendar${NC} Rebuild calendar service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-image${NC}  Rebuild image service (fast dev mode)"
         echo -e "  ${YELLOW}clean-cache${NC}    Clean persistent cargo cache"
         echo -e ""
         echo -e "${CYAN}Legacy (slower):${NC}"

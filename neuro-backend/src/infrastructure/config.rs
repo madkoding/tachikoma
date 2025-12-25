@@ -226,6 +226,18 @@ pub struct MicroservicesConfig {
     pub chat_url: String,
     /// Agent service URL
     pub agent_url: String,
+    /// Pomodoro service URL
+    pub pomodoro_url: String,
+    /// Kanban service URL
+    pub kanban_url: String,
+    /// Note service URL
+    pub note_url: String,
+    /// Docs service URL
+    pub docs_url: String,
+    /// Calendar service URL
+    pub calendar_url: String,
+    /// Image service URL
+    pub image_url: String,
 }
 
 impl MicroservicesConfig {
@@ -242,6 +254,18 @@ impl MicroservicesConfig {
                 .unwrap_or_else(|_| "http://localhost:3003".to_string()),
             agent_url: std::env::var("AGENT_SERVICE_URL")
                 .unwrap_or_else(|_| "http://localhost:3005".to_string()),
+            pomodoro_url: std::env::var("POMODORO_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3010".to_string()),
+            kanban_url: std::env::var("KANBAN_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3006".to_string()),
+            note_url: std::env::var("NOTE_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3007".to_string()),
+            docs_url: std::env::var("DOCS_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3008".to_string()),
+            calendar_url: std::env::var("CALENDAR_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3009".to_string()),
+            image_url: std::env::var("IMAGE_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3011".to_string()),
         }
     }
 }

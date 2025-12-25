@@ -292,6 +292,192 @@ services:
       retries: 3
       start_period: 30s
 
+  # ===========================================================================
+  # Pomodoro Service - Pomodoro Timer Microservice (Rust)
+  # ===========================================================================
+  # Manages pomodoro timer sessions, statistics, and user settings
+  # for productivity tracking.
+  # ===========================================================================
+  pomodoro-service:
+    build:
+      context: ./neuro-pomodoro
+      dockerfile: Dockerfile
+    container_name: neuro-pomodoro
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3010
+      - BACKEND_URL=http://host.docker.internal:3000
+    ports:
+      - "3010:3010"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # Kanban Service - Kanban Board Microservice (Rust)
+  # ===========================================================================
+  # Manages kanban boards with columns and cards for project/task
+  # organization with drag-and-drop support.
+  # ===========================================================================
+  kanban-service:
+    build:
+      context: ./neuro-kanban
+      dockerfile: Dockerfile
+    container_name: neuro-kanban
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3006
+      - BACKEND_URL=http://host.docker.internal:3000
+    ports:
+      - "3006:3006"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3006/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # Note Service - Notes Microservice (Rust)
+  # ===========================================================================
+  # Manages notes with folders, tags, and search functionality.
+  # ===========================================================================
+  note-service:
+    build:
+      context: ./neuro-note
+      dockerfile: Dockerfile
+    container_name: neuro-note
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3007
+      - BACKEND_URL=http://host.docker.internal:3000
+    ports:
+      - "3007:3007"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # Docs Service - Documents Microservice (Rust)
+  # ===========================================================================
+  # Manages documents with folders, types, and search functionality.
+  # ===========================================================================
+  docs-service:
+    build:
+      context: ./neuro-docs
+      dockerfile: Dockerfile
+    container_name: neuro-docs
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3008
+      - BACKEND_URL=http://host.docker.internal:3000
+      - OLLAMA_URL=http://ollama:11434
+    ports:
+      - "3008:3008"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+      - ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # Calendar Service - Calendar Microservice (Rust)
+  # ===========================================================================
+  # Manages calendar events, reminders, and recurring events.
+  # ===========================================================================
+  calendar-service:
+    build:
+      context: ./neuro-calendar
+      dockerfile: Dockerfile
+    container_name: neuro-calendar
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3009
+      - BACKEND_URL=http://host.docker.internal:3000
+    ports:
+      - "3009:3009"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # Image Service - Image Gallery Microservice (Rust)
+  # ===========================================================================
+  # Manages AI-generated images gallery with albums and generation.
+  # ===========================================================================
+  image-service:
+    build:
+      context: ./neuro-image
+      dockerfile: Dockerfile
+    container_name: neuro-image
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3011
+      - BACKEND_URL=http://host.docker.internal:3000
+      - OLLAMA_URL=http://ollama:11434
+    ports:
+      - "3011:3011"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+      - ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3011/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
 # =============================================================================
 # Networks Configuration
 # =============================================================================

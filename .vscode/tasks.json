@@ -11,14 +11,14 @@
     {
       "label": "🛑 Stop Docker Services",
       "type": "shell",
-      "command": "docker compose down 2>/dev/null; docker stop neuro-voice neuro-music neuro-checklists neuro-chat neuro-memory neuro-agent neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; docker rm neuro-voice neuro-music neuro-checklists neuro-chat neuro-memory neuro-agent neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; echo '✓ Docker services stopped and removed'",
+      "command": "docker compose down 2>/dev/null; docker stop neuro-voice neuro-music neuro-checklists neuro-chat neuro-memory neuro-agent neuro-pomodoro neuro-kanban neuro-note neuro-docs neuro-calendar neuro-image neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; docker rm neuro-voice neuro-music neuro-checklists neuro-chat neuro-memory neuro-agent neuro-pomodoro neuro-kanban neuro-note neuro-docs neuro-calendar neuro-image neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; echo '✓ Docker services stopped and removed'",
       "problemMatcher": [],
       "presentation": { "reveal": "silent", "panel": "shared" }
     },
     {
       "label": "🛑 Stop All",
       "type": "shell",
-      "command": "docker compose down 2>/dev/null; docker stop neuro-voice neuro-music neuro-checklists neuro-chat neuro-memory neuro-agent neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; docker rm neuro-voice neuro-music neuro-checklists neuro-chat neuro-memory neuro-agent neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; pkill -f 'neuro-backend' 2>/dev/null; fuser -k 3000/tcp 5173/tcp 5174/tcp 2>/dev/null; echo '✓ All services stopped'",
+      "command": "docker compose down 2>/dev/null; docker stop neuro-voice neuro-music neuro-checklists neuro-chat neuro-memory neuro-agent neuro-pomodoro neuro-kanban neuro-note neuro-docs neuro-calendar neuro-image neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; docker rm neuro-voice neuro-music neuro-checklists neuro-chat neuro-memory neuro-agent neuro-pomodoro neuro-kanban neuro-note neuro-docs neuro-calendar neuro-image neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; pkill -f 'neuro-backend' 2>/dev/null; fuser -k 3000/tcp 5173/tcp 5174/tcp 2>/dev/null; echo '✓ All services stopped'",
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared" }
     },
@@ -43,7 +43,7 @@
     {
       "label": "🦀 Backend (Rust)",
       "type": "shell",
-      "command": "fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd neuro-backend && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 MUSIC_SERVICE_URL=http://127.0.0.1:3002 CHECKLISTS_SERVICE_URL=http://127.0.0.1:3001 MEMORY_SERVICE_URL=http://127.0.0.1:3004 CHAT_SERVICE_URL=http://127.0.0.1:3003 AGENT_SERVICE_URL=http://127.0.0.1:3005 RUST_LOG=neuro_backend=debug,info cargo watch -x run",
+      "command": "fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd neuro-backend && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 MUSIC_SERVICE_URL=http://127.0.0.1:3002 CHECKLISTS_SERVICE_URL=http://127.0.0.1:3001 MEMORY_SERVICE_URL=http://127.0.0.1:3004 CHAT_SERVICE_URL=http://127.0.0.1:3003 AGENT_SERVICE_URL=http://127.0.0.1:3005 POMODORO_SERVICE_URL=http://127.0.0.1:3010 KANBAN_SERVICE_URL=http://127.0.0.1:3006 NOTE_SERVICE_URL=http://127.0.0.1:3007 DOCS_SERVICE_URL=http://127.0.0.1:3008 CALENDAR_SERVICE_URL=http://127.0.0.1:3009 IMAGE_SERVICE_URL=http://127.0.0.1:3011 RUST_LOG=neuro_backend=debug,info cargo watch -x run",
       "isBackground": true,
       "problemMatcher": {
         "owner": "rust",
@@ -56,7 +56,7 @@
     {
       "label": "🦀 Backend (after Docker)",
       "type": "shell",
-      "command": "echo '⏳ Waiting for Docker services...' && sleep 5 && fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd neuro-backend && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 MUSIC_SERVICE_URL=http://127.0.0.1:3002 CHECKLISTS_SERVICE_URL=http://127.0.0.1:3001 MEMORY_SERVICE_URL=http://127.0.0.1:3004 CHAT_SERVICE_URL=http://127.0.0.1:3003 AGENT_SERVICE_URL=http://127.0.0.1:3005 RUST_LOG=info cargo watch -x run",
+      "command": "echo '⏳ Waiting for Docker services...' && sleep 5 && fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd neuro-backend && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 MUSIC_SERVICE_URL=http://127.0.0.1:3002 CHECKLISTS_SERVICE_URL=http://127.0.0.1:3001 MEMORY_SERVICE_URL=http://127.0.0.1:3004 CHAT_SERVICE_URL=http://127.0.0.1:3003 AGENT_SERVICE_URL=http://127.0.0.1:3005 POMODORO_SERVICE_URL=http://127.0.0.1:3010 KANBAN_SERVICE_URL=http://127.0.0.1:3006 NOTE_SERVICE_URL=http://127.0.0.1:3007 DOCS_SERVICE_URL=http://127.0.0.1:3008 CALENDAR_SERVICE_URL=http://127.0.0.1:3009 IMAGE_SERVICE_URL=http://127.0.0.1:3011 RUST_LOG=info cargo watch -x run",
       "isBackground": true,
       "problemMatcher": {
         "owner": "rust",
@@ -187,9 +187,51 @@
       "presentation": { "reveal": "always", "panel": "dedicated" }
     },
     {
+      "label": "⚡ Rebuild Pomodoro (Fast)",
+      "type": "shell",
+      "command": "./dev.sh rebuild-pomodoro",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "⚡ Rebuild Kanban (Fast)",
+      "type": "shell",
+      "command": "./dev.sh rebuild-kanban",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "⚡ Rebuild Note (Fast)",
+      "type": "shell",
+      "command": "./dev.sh rebuild-note",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "⚡ Rebuild Docs (Fast)",
+      "type": "shell",
+      "command": "./dev.sh rebuild-docs",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "⚡ Rebuild Calendar (Fast)",
+      "type": "shell",
+      "command": "./dev.sh rebuild-calendar",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "⚡ Rebuild Image (Fast)",
+      "type": "shell",
+      "command": "./dev.sh rebuild-image",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
       "label": "🔨 Rebuild Backend (Clean)",
       "type": "shell",
-      "command": "fuser -k 3000/tcp 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; pkill -f 'neuro-backend' 2>/dev/null; sleep 0.5; cd neuro-backend && cargo clean && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 MUSIC_SERVICE_URL=http://127.0.0.1:3002 CHECKLISTS_SERVICE_URL=http://127.0.0.1:3001 MEMORY_SERVICE_URL=http://127.0.0.1:3004 CHAT_SERVICE_URL=http://127.0.0.1:3003 AGENT_SERVICE_URL=http://127.0.0.1:3005 RUST_LOG=warn cargo watch -x run",
+      "command": "fuser -k 3000/tcp 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; pkill -f 'neuro-backend' 2>/dev/null; sleep 0.5; cd neuro-backend && cargo clean && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 MUSIC_SERVICE_URL=http://127.0.0.1:3002 CHECKLISTS_SERVICE_URL=http://127.0.0.1:3001 MEMORY_SERVICE_URL=http://127.0.0.1:3004 CHAT_SERVICE_URL=http://127.0.0.1:3003 AGENT_SERVICE_URL=http://127.0.0.1:3005 POMODORO_SERVICE_URL=http://127.0.0.1:3010 KANBAN_SERVICE_URL=http://127.0.0.1:3006 NOTE_SERVICE_URL=http://127.0.0.1:3007 DOCS_SERVICE_URL=http://127.0.0.1:3008 CALENDAR_SERVICE_URL=http://127.0.0.1:3009 IMAGE_SERVICE_URL=http://127.0.0.1:3011 RUST_LOG=warn cargo watch -x run",
       "isBackground": true,
       "problemMatcher": {
         "owner": "rust",

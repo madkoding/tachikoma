@@ -127,7 +127,25 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/checklists/*path", any(handlers::proxy_checklists))
         // Music microservice proxy
         .route("/music", any(handlers::proxy_music))
-        .route("/music/*path", any(handlers::proxy_music));
+        .route("/music/*path", any(handlers::proxy_music))
+        // Pomodoro microservice proxy
+        .route("/pomodoro", any(handlers::proxy_pomodoro))
+        .route("/pomodoro/*path", any(handlers::proxy_pomodoro))
+        // Kanban microservice proxy
+        .route("/kanban", any(handlers::proxy_kanban))
+        .route("/kanban/*path", any(handlers::proxy_kanban))
+        // Note microservice proxy
+        .route("/notes", any(handlers::proxy_note))
+        .route("/notes/*path", any(handlers::proxy_note))
+        // Docs microservice proxy
+        .route("/docs", any(handlers::proxy_docs))
+        .route("/docs/*path", any(handlers::proxy_docs))
+        // Calendar microservice proxy
+        .route("/calendar", any(handlers::proxy_calendar))
+        .route("/calendar/*path", any(handlers::proxy_calendar))
+        // Image microservice proxy
+        .route("/images", any(handlers::proxy_image))
+        .route("/images/*path", any(handlers::proxy_image));
 
     // Compose final router
     Router::new()
