@@ -159,13 +159,26 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
   // Mobile version - fixed bottom bar
   if (isMobile) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-xl border-t border-cyber-cyan/30 safe-area-inset-bottom">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-xl border-t border-cyber-cyan/30 safe-area-inset-bottom overflow-hidden">
+        {/* Spectrum Background - Blurred */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute inset-0 blur-sm">
+            <SpectrumAnalyzer 
+              barCount={32} 
+              compact 
+              showReflection={false}
+              className="h-full w-full opacity-40"
+            />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-gray-900/40 to-gray-900/80" />
+        </div>
+        
         {/* Progress bar at top - clickable */}
         <div 
           ref={mobileProgressRef}
           onClick={handleMobileProgressClick}
           onTouchStart={handleMobileProgressClick}
-          className="h-2 bg-gray-800 relative cursor-pointer active:h-3 transition-all"
+          className="h-2 bg-gray-800/80 relative cursor-pointer active:h-3 transition-all z-10"
         >
           <div 
             className="h-full bg-gradient-to-r from-cyber-cyan to-cyber-purple transition-all duration-200"
@@ -178,7 +191,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
           />
         </div>
         
-        <div className="px-2 py-1.5 flex items-center gap-2">
+        <div className="px-2 py-1.5 flex items-center gap-2 relative z-10">
           {/* Album art */}
           <button 
             type="button"
@@ -269,15 +282,16 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
     >
       <div className="bg-gray-900/95 backdrop-blur-xl border border-cyber-cyan/30 shadow-2xl shadow-cyber-cyan/20 overflow-hidden w-80 relative">
         {/* Spectrum Background - Blurred */}
-        <div className="absolute inset-0 overflow-hidden opacity-30">
-          <div className="absolute inset-0 blur-md">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute inset-0 blur-sm">
             <SpectrumAnalyzer 
-              barCount={16} 
+              barCount={32} 
               compact 
               showReflection={false}
-              className="h-full w-full"
+              className="h-full w-full opacity-40"
             />
           </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-gray-900/40 to-gray-900/80" />
         </div>
         
         {/* Progress bar at top */}
