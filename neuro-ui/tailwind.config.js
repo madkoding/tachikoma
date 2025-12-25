@@ -34,6 +34,7 @@ export default {
       fontFamily: {
         'cyber': ['Orbitron', 'sans-serif'],
         'mono': ['Share Tech Mono', 'monospace'],
+        'led': ['DSEG7 Classic', 'Digital-7', 'Courier New', 'monospace'],
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -60,9 +61,15 @@ export default {
         },
       },
       borderRadius: {
-        lg: "0.5rem",
-        md: "calc(0.5rem - 2px)",
-        sm: "calc(0.5rem - 4px)",
+        'none': '0',
+        'sm': '5px',
+        'DEFAULT': '5px',
+        'md': '5px',
+        'lg': '5px',
+        'xl': '5px',
+        '2xl': '5px',
+        '3xl': '5px',
+        'full': '9999px',
       },
     },
   },

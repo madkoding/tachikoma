@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   GLOBAL BORDER RADIUS - Force 5px everywhere
+   ============================================ */
+@layer base {
+  /* Override Tailwind rounded classes */
+  .rounded-sm, .rounded, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl {
+    border-radius: 5px !important;
+  }
+  
+  /* Specific element types that commonly have borders */
+  button, input, select, textarea, 
+  [role="button"], [role="dialog"], [role="menu"],
+  .btn, .card, .modal, .dropdown, .tooltip, .popover {
+    border-radius: 5px;
+  }
+}
+
 /* Cyberpunk Animations */
 @keyframes scanline {
   0% { transform: translateY(-100%); }
@@ -106,7 +123,7 @@ body::before {
 .cyber-border {
   border: 1px solid var(--cyber-cyan);
   box-shadow: 0 0 5px var(--cyber-cyan), inset 0 0 5px rgba(0, 245, 255, 0.1);
-  border-radius: 8px;
+  border-radius: 5px;
 }
 
 .cyber-card {
@@ -114,7 +131,7 @@ body::before {
   border: 1px solid rgba(0, 245, 255, 0.3);
   box-shadow: 0 0 15px rgba(0, 245, 255, 0.1), inset 0 1px 0 rgba(0, 245, 255, 0.1);
   backdrop-filter: blur(10px);
-  border-radius: 12px;
+  border-radius: 5px;
   padding: 1rem;
 }
 
@@ -125,7 +142,7 @@ body::before {
   text-transform: uppercase;
   letter-spacing: 2px;
   transition: all 0.3s ease;
-  border-radius: 8px;
+  border-radius: 5px;
   padding: 0.5rem 1rem;
 }
 
@@ -145,7 +162,7 @@ body::before {
   border: 1px solid rgba(0, 245, 255, 0.3);
   color: var(--cyber-cyan);
   padding: 0.5rem 1rem;
-  border-radius: 6px;
+  border-radius: 5px;
   font-family: 'Share Tech Mono', monospace;
   transition: all 0.3s ease;
 }
@@ -171,7 +188,7 @@ body::before {
   appearance: none;
   height: 8px;
   background: rgba(0, 245, 255, 0.2);
-  border-radius: 4px;
+  border-radius: 5px;
   outline: none;
 }
 
@@ -200,7 +217,7 @@ body::before {
   text-transform: uppercase;
   letter-spacing: 1px;
   transition: all 0.3s ease;
-  border-radius: 6px;
+  border-radius: 5px;
 }
 
 .cyber-button-secondary:hover {
@@ -216,7 +233,7 @@ body::before {
   text-transform: uppercase;
   letter-spacing: 1px;
   transition: all 0.3s ease;
-  border-radius: 6px;
+  border-radius: 5px;
 }
 
 .cyber-button-danger:hover {
@@ -229,7 +246,7 @@ body::before {
 .cyber-card-inner {
   background: rgba(0, 20, 40, 0.5);
   border: 1px solid rgba(0, 245, 255, 0.15);
-  border-radius: 8px;
+  border-radius: 5px;
 }
 
 /* Cyber Card Modal */
@@ -241,7 +258,7 @@ body::before {
     0 0 60px rgba(0, 245, 255, 0.1),
     inset 0 1px 0 rgba(0, 245, 255, 0.2);
   backdrop-filter: blur(20px);
-  border-radius: 16px;
+  border-radius: 5px;
 }
 
 /* Modal Animation */

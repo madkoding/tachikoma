@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useChecklistStore, Checklist } from '../../stores/checklistStore';
+import { useChecklistStore } from '../../stores/checklistStore';
 import TypewriterText from '../common/TypewriterText';
 
 interface CreateChecklistModalProps {
@@ -8,45 +8,32 @@ interface CreateChecklistModalProps {
   readonly onClose: () => void;
 }
 
-// Helper to generate UUID
-function generateUUID(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c: string) => {
-    const r = Math.trunc(Math.random() * 16);
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
 export default function CreateChecklistModal({ isOpen, onClose }: CreateChecklistModalProps) {
   const { t } = useTranslation();
-  const { addChecklist, setSelectedChecklist } = useChecklistStore();
+  const { createChecklist, setSelectedChecklist } = useChecklistStore();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<1 | 2 | 3 | 4 | 5>(3);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || isSubmitting) return;
 
-    const now = new Date();
-    const newChecklist: Checklist = {
-      id: generateUUID(),
-      title: title.trim(),
-      description: description.trim() || undefined,
-      items: [],
-      priority,
-      order: 0, // New checklists go to the top
-      isArchived: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    addChecklist(newChecklist);
-    setSelectedChecklist(newChecklist.id);
-    handleClose();
+    setIsSubmitting(true);
+    try {
+      const newChecklist = await createChecklist(
+        title.trim(),
+        description.trim() || undefined,
+        priority
+      );
+      setSelectedChecklist(newChecklist.id);
+      handleClose();
+    } catch (error) {
+      console.error('Failed to create checklist:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleClose = () => {
@@ -129,10 +116,10 @@ export default function CreateChecklistModal({ isOpen, onClose }: CreateChecklis
             </button>
             <button
               type="submit"
-              disabled={!title.trim()}
+              disabled={!title.trim() || isSubmitting}
               className="flex-1 cyber-button disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {t('checklists.create')}
+              {isSubmitting ? '...' : t('checklists.create')}
             </button>
           </div>
         </form>

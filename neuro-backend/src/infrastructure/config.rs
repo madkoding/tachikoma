@@ -218,6 +218,8 @@ impl SearxngConfig {
 pub struct MicroservicesConfig {
     /// Checklists service URL
     pub checklists_url: String,
+    /// Music service URL
+    pub music_url: String,
 }
 
 impl MicroservicesConfig {
@@ -226,6 +228,8 @@ impl MicroservicesConfig {
         Self {
             checklists_url: std::env::var("CHECKLISTS_SERVICE_URL")
                 .unwrap_or_else(|_| "http://localhost:3001".to_string()),
+            music_url: std::env::var("MUSIC_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3002".to_string()),
         }
     }
 }

@@ -1,6 +1,9 @@
-import { NavLink } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
+import { useMusicStore } from '../../stores/musicStore';
+import SettingsModal from './SettingsModal';
 
 // Navigation items configuration
 const navItems = [
@@ -19,49 +22,52 @@ const navItems = [
 ];
 
 export default function MainSidebar() {
-  const { t, i18n } = useTranslation();
-
-  const toggleLanguage = () => {
-    i18n.changeLanguage(i18n.language === 'en' ? 'es' : 'en');
-  };
+  const { t } = useTranslation();
+  const location = useLocation();
+  const currentSong = useMusicStore(state => state.player.currentSong);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  
+  // Show extra padding when mini player is visible (not on music page and has song)
+  const showMiniPlayerPadding = currentSong && location.pathname !== '/music';
 
   return (
-    <aside className="relative z-50 h-full w-16 bg-cyber-surface border-r border-cyber-cyan/20 shrink-0 flex flex-col">
-      {/* Glow effect */}
-      <div className="absolute inset-0 bg-gradient-to-b from-cyber-cyan/5 to-transparent pointer-events-none"></div>
+    <>
+      <aside className={clsx(
+        "relative z-50 h-full w-12 sm:w-16 bg-cyber-surface border-r border-cyber-cyan/20 shrink-0 flex flex-col",
+        showMiniPlayerPadding && "pb-16 sm:pb-0"
+      )}>
+        {/* Glow effect */}
+        <div className="absolute inset-0 bg-gradient-to-b from-cyber-cyan/5 to-transparent pointer-events-none"></div>
 
-      {/* Logo */}
-      <div className="p-2 relative">
-        <div className="flex items-center justify-center">
-          <div className="w-10 h-10 shrink-0 rounded-lg bg-cyber-cyan/20 border border-cyber-cyan flex items-center justify-center shadow-[0_0_15px_rgba(0,245,255,0.3)]">
-            <TachikomaIcon />
-          </div>
+        {/* Logo - clickable to open settings */}
+        <div className="p-1 sm:p-2 relative">
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center justify-center w-full"
+            title={t('settings.title')}
+          >
+            <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-lg bg-cyber-cyan/20 border border-cyber-cyan flex items-center justify-center shadow-[0_0_15px_rgba(0,245,255,0.3)] hover:bg-cyber-cyan/30 hover:shadow-[0_0_20px_rgba(0,245,255,0.5)] transition-all cursor-pointer">
+              <TachikomaIcon />
+            </div>
+          </button>
         </div>
-      </div>
 
-      {/* Navigation Items */}
-      <nav className="flex-1 px-1 py-2 space-y-1 relative overflow-y-auto scrollbar-thin scrollbar-thumb-cyber-cyan/20 scrollbar-track-transparent">
-        {navItems.map((item) => (
-          <NavItem
-            key={item.path}
-            to={item.path}
-            icon={<NavIcon type={item.icon} />}
-            label={t(item.labelKey)}
-          />
-        ))}
-      </nav>
+        {/* Navigation Items */}
+        <nav className="flex-1 px-0.5 sm:px-1 py-1 sm:py-2 space-y-0.5 sm:space-y-1 relative overflow-y-auto scrollbar-thin scrollbar-thumb-cyber-cyan/20 scrollbar-track-transparent">
+          {navItems.map((item) => (
+            <NavItem
+              key={item.path}
+              to={item.path}
+              icon={<NavIcon type={item.icon} />}
+              label={t(item.labelKey)}
+            />
+          ))}
+        </nav>
+      </aside>
 
-      {/* Language Toggle */}
-      <div className="p-1 relative border-t border-cyber-cyan/20">
-        <button
-          onClick={toggleLanguage}
-          className="w-full flex items-center justify-center px-2 py-2 text-sm text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all border border-transparent hover:border-cyber-cyan/30 font-mono"
-          title={i18n.language === 'en' ? 'Cambiar a Español' : 'Switch to English'}
-        >
-          <LanguageIcon />
-        </button>
-      </div>
-    </aside>
+      {/* Settings Modal */}
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+    </>
   );
 }
 
@@ -79,7 +85,7 @@ function NavItem({ to, icon, label }: Readonly<NavItemProps>) {
       end={to === '/'}
       className={({ isActive }) =>
         clsx(
-          'flex items-center justify-center px-2 py-2.5 rounded-xl transition-all font-mono text-sm tracking-wide',
+          'flex items-center justify-center px-1.5 sm:px-2 py-2 sm:py-2.5 rounded-xl transition-all font-mono text-sm tracking-wide',
           isActive
             ? 'bg-cyber-cyan/10 text-cyber-cyan border border-cyber-cyan/50 shadow-[0_0_15px_rgba(0,245,255,0.2)]'
             : 'text-cyber-cyan/60 hover:text-cyber-cyan hover:bg-cyber-cyan/5 border border-transparent hover:border-cyber-cyan/20'

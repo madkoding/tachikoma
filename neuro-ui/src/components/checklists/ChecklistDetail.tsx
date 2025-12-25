@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Checklist, useChecklistStore, ChecklistItem } from '../../stores/checklistStore';
+import { useLocation } from 'react-router-dom';
+import { Checklist, useChecklistStore } from '../../stores/checklistStore';
+import { useMusicStore } from '../../stores/musicStore';
 import ChecklistItemRow from './ChecklistItemRow';
 import TypewriterText from '../common/TypewriterText';
 import clsx from 'clsx';
@@ -12,22 +14,12 @@ interface ChecklistDetailProps {
 
 type Priority = 1 | 2 | 3 | 4 | 5;
 
-// Helper to generate UUID
-function generateUUID(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  // eslint-disable-next-line prefer-string-replace-all
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c: string) => {
-    const r = Math.trunc(Math.random() * 16);
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
 export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailProps) {
   const { t } = useTranslation();
+  const location = useLocation();
   const { updateChecklist, deleteChecklist, addItem, deleteItem, toggleItem, updateItem, reorderItems } = useChecklistStore();
+  const currentSong = useMusicStore(state => state.player.currentSong);
+  const showMiniPlayerPadding = currentSong && location.pathname !== '/music';
   const [newItemContent, setNewItemContent] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(checklist.title);
@@ -41,38 +33,46 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
   const totalCount = checklist.items.length;
   const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
-  const handleAddItem = (e: React.FormEvent) => {
+  const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItemContent.trim()) return;
 
-    const newItem: ChecklistItem = {
-      id: generateUUID(),
-      content: newItemContent.trim(),
-      isCompleted: false,
-      order: checklist.items.length,
-      createdAt: new Date(),
-    };
-
-    addItem(checklist.id, newItem);
-    setNewItemContent('');
+    try {
+      await addItem(checklist.id, newItemContent.trim());
+      setNewItemContent('');
+    } catch (error) {
+      console.error('Failed to add item:', error);
+    }
   };
 
-  const handleSaveEdit = () => {
-    updateChecklist(checklist.id, {
-      title: editTitle,
-      description: editDescription || undefined,
-      priority: editPriority,
-    });
-    setIsEditing(false);
+  const handleSaveEdit = async () => {
+    try {
+      await updateChecklist(checklist.id, {
+        title: editTitle,
+        description: editDescription || undefined,
+        priority: editPriority,
+      });
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Failed to save checklist:', error);
+    }
   };
 
-  const handleDelete = () => {
-    deleteChecklist(checklist.id);
-    onBack();
+  const handleDelete = async () => {
+    try {
+      await deleteChecklist(checklist.id);
+      onBack();
+    } catch (error) {
+      console.error('Failed to delete checklist:', error);
+    }
   };
 
-  const handleArchiveToggle = () => {
-    updateChecklist(checklist.id, { isArchived: !checklist.isArchived });
+  const handleArchiveToggle = async () => {
+    try {
+      await updateChecklist(checklist.id, { isArchived: !checklist.isArchived });
+    } catch (error) {
+      console.error('Failed to archive checklist:', error);
+    }
   };
 
   // Item drag and drop handlers
@@ -128,18 +128,22 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
     setDragOverItemId(null);
   };
 
-  const handleItemUpdate = (itemId: string) => (content: string) => {
-    updateItem(checklist.id, itemId, { content });
+  const handleItemUpdate = (itemId: string) => async (content: string) => {
+    try {
+      await updateItem(checklist.id, itemId, { content });
+    } catch (error) {
+      console.error('Failed to update item:', error);
+    }
   };
 
   return (
-    <div className="flex flex-col h-full bg-cyber-bg">
+    <div className="flex flex-col h-full bg-cyber-bg overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-cyber-cyan/20 bg-cyber-surface">
-        <div className="flex items-center gap-4 mb-4">
+      <div className="p-2 sm:p-4 border-b border-cyber-cyan/20 bg-cyber-surface flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-4 mb-2 sm:mb-4">
           <button
             onClick={onBack}
-            className="lg:hidden p-2 text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all"
+            className="md:hidden p-1 sm:p-2 text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all flex-shrink-0"
           >
             <BackIcon />
           </button>
@@ -149,20 +153,20 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
               type="text"
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
-              className="flex-1 bg-transparent text-xl font-cyber font-bold text-cyber-cyan border-b border-cyber-cyan/50 focus:outline-none focus:border-cyber-cyan"
+              className="flex-1 bg-transparent text-base sm:text-xl font-cyber font-bold text-cyber-cyan border-b border-cyber-cyan/50 focus:outline-none focus:border-cyber-cyan min-w-0"
             />
           ) : (
-            <h2 className="flex-1 text-xl font-cyber font-bold text-cyber-cyan truncate">
+            <h2 className="flex-1 text-base sm:text-xl font-cyber font-bold text-cyber-cyan truncate">
               <TypewriterText text={checklist.title} speed={18} />
             </h2>
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             {isEditing ? (
               <>
                 <button
                   onClick={handleSaveEdit}
-                  className="p-2 text-green-400 hover:bg-green-400/10 rounded-lg transition-all"
+                  className="p-1.5 sm:p-2 text-green-400 hover:bg-green-400/10 rounded-lg transition-all"
                 >
                   <CheckIcon />
                 </button>
@@ -173,7 +177,7 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
                     setEditDescription(checklist.description || '');
                     setEditPriority(checklist.priority as Priority);
                   }}
-                  className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+                  className="p-1.5 sm:p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
                 >
                   <CloseIcon />
                 </button>
@@ -182,7 +186,7 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
               <>
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="p-2 text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all"
+                  className="p-1.5 sm:p-2 text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all"
                   title={t('common.edit')}
                 >
                   <EditIcon />
@@ -190,7 +194,7 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
                 <button
                   onClick={handleArchiveToggle}
                   className={clsx(
-                    'p-2 rounded-lg transition-all',
+                    'p-1.5 sm:p-2 rounded-lg transition-all hidden sm:block',
                     checklist.isArchived
                       ? 'text-yellow-400 hover:bg-yellow-400/10'
                       : 'text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10'
@@ -201,7 +205,7 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="p-2 text-red-400/70 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+                  className="p-1.5 sm:p-2 text-red-400/70 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
                   title={t('common.delete')}
                 >
                   <TrashIcon />
@@ -225,14 +229,14 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
               <label className="block text-xs font-mono text-cyber-cyan/50 mb-2">
                 {t('checklists.priorityLabel')}
               </label>
-              <div className="flex gap-2">
+              <div className="flex gap-1 sm:gap-2">
                 {([1, 2, 3, 4, 5] as const).map((p) => (
                   <button
                     key={p}
                     type="button"
                     onClick={() => setEditPriority(p)}
                     className={clsx(
-                      'flex-1 py-1.5 rounded-lg border text-xs font-mono transition-all',
+                      'flex-1 py-1 sm:py-1.5 rounded-lg border text-[10px] sm:text-xs font-mono transition-all',
                       editPriority === p
                         ? getPriorityActiveClass(p)
                         : 'border-cyber-cyan/20 text-cyber-cyan/50 hover:border-cyber-cyan/40'
@@ -247,13 +251,13 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
         ) : (
           <div className="flex items-center gap-3">
             {checklist.description && (
-              <p className="text-sm text-cyber-cyan/50 flex-1">
+              <p className="text-xs sm:text-sm text-cyber-cyan/50 flex-1 line-clamp-2">
                 <TypewriterText text={checklist.description} speed={10} delay={200} />
               </p>
             )}
             <span
               className={clsx(
-                'text-xs px-2 py-0.5 rounded-full border shrink-0',
+                'text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full border shrink-0',
                 getPriorityBadgeClass(checklist.priority)
               )}
             >
@@ -263,14 +267,14 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
         )}
 
         {/* Progress */}
-        <div className="mt-4">
-          <div className="flex items-center justify-between text-xs text-cyber-cyan/50 mb-1">
+        <div className="mt-3 sm:mt-4">
+          <div className="flex items-center justify-between text-[10px] sm:text-xs text-cyber-cyan/50 mb-1">
             <span><TypewriterText text={t('checklists.progress')} speed={15} /></span>
             <span>
               {completedCount}/{totalCount} ({Math.round(progress)}%)
             </span>
           </div>
-          <div className="h-2 bg-cyber-cyan/10 rounded-full overflow-hidden">
+          <div className="h-1.5 sm:h-2 bg-cyber-cyan/10 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-cyber-cyan to-cyber-cyan/70 transition-all duration-300"
               style={{ width: `${progress}%` }}
@@ -280,16 +284,28 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
       </div>
 
       {/* Items List */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <ul className="space-y-2">
+      <div className="flex-1 overflow-y-auto p-2 sm:p-4">
+        <ul className="space-y-1.5 sm:space-y-2">
           {checklist.items
             .sort((a, b) => a.order - b.order)
             .map((item) => (
               <ChecklistItemRow
                 key={item.id}
                 item={item}
-                onToggle={() => toggleItem(checklist.id, item.id)}
-                onDelete={() => deleteItem(checklist.id, item.id)}
+                onToggle={async () => {
+                  try {
+                    await toggleItem(checklist.id, item.id);
+                  } catch (error) {
+                    console.error('Failed to toggle item:', error);
+                  }
+                }}
+                onDelete={async () => {
+                  try {
+                    await deleteItem(checklist.id, item.id);
+                  } catch (error) {
+                    console.error('Failed to delete item:', error);
+                  }
+                }}
                 onUpdate={handleItemUpdate(item.id)}
                 isDragging={draggedItemId === item.id}
                 isDragOver={dragOverItemId === item.id}
@@ -303,8 +319,8 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
         </ul>
 
         {checklist.items.length === 0 && (
-          <div className="text-center py-12 text-cyber-cyan/40">
-            <p className="font-mono text-sm">
+          <div className="text-center py-8 sm:py-12 text-cyber-cyan/40">
+            <p className="font-mono text-xs sm:text-sm">
               <TypewriterText text={t('checklists.noItems')} speed={12} />
             </p>
           </div>
@@ -312,19 +328,22 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
       </div>
 
       {/* Add Item Form */}
-      <div className="p-4 border-t border-cyber-cyan/20 bg-cyber-surface">
+      <div className={clsx(
+        "p-2 sm:p-4 border-t border-cyber-cyan/20 bg-cyber-surface flex-shrink-0",
+        showMiniPlayerPadding && "mb-20 sm:mb-0"
+      )}>
         <form onSubmit={handleAddItem} className="flex gap-2">
           <input
             type="text"
             value={newItemContent}
             onChange={(e) => setNewItemContent(e.target.value)}
             placeholder={t('checklists.addItemPlaceholder')}
-            className="flex-1 bg-cyber-bg/50 text-cyber-cyan px-4 py-2 rounded-lg border border-cyber-cyan/20 focus:outline-none focus:border-cyber-cyan/50 placeholder:text-cyber-cyan/30"
+            className="flex-1 bg-cyber-bg/50 text-cyber-cyan px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg border border-cyber-cyan/20 focus:outline-none focus:border-cyber-cyan/50 placeholder:text-cyber-cyan/30 min-w-0"
           />
           <button
             type="submit"
             disabled={!newItemContent.trim()}
-            className="cyber-button disabled:opacity-50 disabled:cursor-not-allowed"
+            className="cyber-button disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm"
           >
             <PlusIcon />
           </button>
@@ -333,9 +352,9 @@ export default function ChecklistDetail({ checklist, onBack }: ChecklistDetailPr
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-cyber-surface border border-cyber-cyan/30 rounded-xl p-6 max-w-sm mx-4">
-            <h3 className="text-lg font-cyber font-bold text-cyber-cyan mb-2">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-cyber-surface border border-cyber-cyan/30 rounded-xl p-4 sm:p-6 max-w-sm w-full">
+            <h3 className="text-base sm:text-lg font-cyber font-bold text-cyber-cyan mb-2">
               <TypewriterText text={t('checklists.deleteConfirm.title')} speed={20} />
             </h3>
             <p className="text-cyber-cyan/70 text-sm mb-6">

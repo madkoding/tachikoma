@@ -13,7 +13,19 @@
 #   ./dev.sh backend      - Start only backend with hot reload
 #   ./dev.sh ui           - Start only user UI
 #   ./dev.sh admin        - Start only admin UI
-#   ./dev.sh voice        - Rebuild and restart voice service
+#   ./dev.sh voice        - Rebuild and restart voice service (release)
+#
+# FAST DEV MODE (Docker, 3-5x faster builds):
+#   ./dev.sh docker-dev   - Start Docker services with dev optimizations
+#   ./dev.sh rebuild-voice    - Rebuild voice service (debug + mold)
+#   ./dev.sh rebuild-music    - Rebuild music service (debug + mold)
+#   ./dev.sh rebuild-checklists - Rebuild checklists service (debug + mold)
+#   ./dev.sh clean-cache  - Clear persistent cargo cache
+#
+# Fast Dev Mode uses:
+#   - Debug builds (no --release) - ~30% faster compilation
+#   - mold linker - 2-3x faster linking
+#   - Persistent cargo cache - dependencies compile ONCE
 # =============================================================================
 
 set -e
@@ -142,6 +154,57 @@ restart_voice() {
     echo -e "  ${GREEN}Voice Service restarted!${NC}"
 }
 
+# =============================================================================
+# FAST DEV MODE - Uses debug builds + persistent cache
+# =============================================================================
+# Builds are ~3-5x faster because:
+# 1. Uses debug mode (no optimizations)
+# 2. Uses mold linker (2-3x faster linking)
+# 3. Persistent cargo cache (dependencies compile once)
+# =============================================================================
+
+# Start Docker services in fast dev mode
+start_docker_dev() {
+    print_header "Starting Docker services in FAST DEV mode"
+    
+    echo -e "${CYAN}Using development optimizations:${NC}"
+    echo -e "  • ${GREEN}Debug builds${NC} (no --release, ~30% faster)"
+    echo -e "  • ${GREEN}mold linker${NC} (2-3x faster linking)"
+    echo -e "  • ${GREEN}Persistent cache${NC} (dependencies compile once)"
+    echo -e ""
+    
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+    
+    echo -e "\n${GREEN}✓ Dev services started!${NC}"
+    echo -e "  Voice:      ${YELLOW}http://localhost:8100${NC}"
+    echo -e "  Music:      ${YELLOW}http://localhost:3002${NC}"
+    echo -e "  Checklists: ${YELLOW}http://localhost:3001${NC}"
+}
+
+# Rebuild a specific service in dev mode (fast)
+rebuild_service_dev() {
+    local service=$1
+    print_step "Rebuilding $service in FAST DEV mode..."
+    
+    echo -e "  ${CYAN}Using debug build + mold linker${NC}"
+    
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache $service
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d $service
+    
+    echo -e "  ${GREEN}$service rebuilt and restarted!${NC}"
+}
+
+# Clean cargo cache (if needed)
+clean_cargo_cache() {
+    print_step "Cleaning persistent cargo cache..."
+    
+    docker volume rm neuro-cargo-cache-voice neuro-cargo-git-voice neuro-voice-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-music neuro-cargo-git-music neuro-music-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-checklists neuro-cargo-git-checklists neuro-checklists-target 2>/dev/null || true
+    
+    echo -e "  ${GREEN}Cache cleaned! Next build will be slower but fresh.${NC}"
+}
+
 # Start all services in tmux (if available) or parallel
 start_all() {
     print_header "NEURO-OS Development Mode"
@@ -227,18 +290,42 @@ case "${1:-all}" in
     voice|v)
         restart_voice
         ;;
+    docker-dev|dd)
+        start_docker_dev
+        ;;
+    rebuild-voice|rv)
+        rebuild_service_dev voice-service
+        ;;
+    rebuild-music|rm)
+        rebuild_service_dev music-service
+        ;;
+    rebuild-checklists|rc)
+        rebuild_service_dev checklists-service
+        ;;
+    clean-cache|cc)
+        clean_cargo_cache
+        ;;
     all|"")
         start_all
         ;;
     *)
         echo -e "${CYAN}Usage:${NC} ./dev.sh [command]"
         echo -e ""
-        echo -e "${CYAN}Commands:${NC}"
-        echo -e "  ${YELLOW}(none)${NC}    Start all services with hot reload (uses tmux)"
-        echo -e "  ${YELLOW}backend${NC}   Start backend with cargo watch"
-        echo -e "  ${YELLOW}ui${NC}        Start user UI with Vite HMR"
-        echo -e "  ${YELLOW}admin${NC}     Start admin UI with Vite HMR"
-        echo -e "  ${YELLOW}voice${NC}     Rebuild and restart voice service"
+        echo -e "${CYAN}Local Development:${NC}"
+        echo -e "  ${YELLOW}(none)${NC}         Start all services with hot reload (uses tmux)"
+        echo -e "  ${YELLOW}backend${NC}        Start backend with cargo watch"
+        echo -e "  ${YELLOW}ui${NC}             Start user UI with Vite HMR"
+        echo -e "  ${YELLOW}admin${NC}          Start admin UI with Vite HMR"
+        echo -e ""
+        echo -e "${CYAN}Docker Fast Dev Mode (3-5x faster builds):${NC}"
+        echo -e "  ${YELLOW}docker-dev${NC}     Start Docker services with dev optimizations"
+        echo -e "  ${YELLOW}rebuild-voice${NC}  Rebuild voice service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-music${NC}  Rebuild music service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-checklists${NC}  Rebuild checklists service (fast dev mode)"
+        echo -e "  ${YELLOW}clean-cache${NC}    Clean persistent cargo cache"
+        echo -e ""
+        echo -e "${CYAN}Legacy (slower):${NC}"
+        echo -e "  ${YELLOW}voice${NC}          Rebuild voice service (release mode)"
         exit 1
         ;;
 esac

@@ -23,7 +23,7 @@ export default function ImportMarkdownModal({ isOpen, onClose }: ImportMarkdownM
   const hasSections = /^##\s+.+$/m.test(markdown);
   const sectionCount = (markdown.match(/^##\s+.+$/gm) || []).length;
 
-  const handleImport = () => {
+  const handleImport = async () => {
     if (!markdown.trim()) {
       setError(t('checklists.import.errorEmpty'));
       return;
@@ -38,7 +38,7 @@ export default function ImportMarkdownModal({ isOpen, onClose }: ImportMarkdownM
 
     try {
       if (importMode === 'multiple' && hasSections) {
-        const newChecklists = importMultipleFromMarkdown(markdown);
+        const newChecklists = await importMultipleFromMarkdown(markdown);
         if (newChecklists.length > 0) {
           setSelectedChecklist(newChecklists[0].id);
           setImportResult({ count: newChecklists.length });
@@ -48,7 +48,7 @@ export default function ImportMarkdownModal({ isOpen, onClose }: ImportMarkdownM
           setError(t('checklists.import.errorNoSections'));
         }
       } else {
-        const newChecklist = importFromMarkdown(markdown, customTitle || undefined);
+        const newChecklist = await importFromMarkdown(markdown, customTitle || undefined);
         setSelectedChecklist(newChecklist.id);
         handleClose();
       }

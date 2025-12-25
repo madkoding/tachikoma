@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useRef, useCallback } from 'react';
+import { memo, useEffect, useState, useRef } from 'react';
 
 interface TypewriterTextProps {
   readonly text: string;
@@ -8,12 +8,6 @@ interface TypewriterTextProps {
   readonly onComplete?: () => void;
 }
 
-interface CharState {
-  char: string;
-  id: number;
-  isNew: boolean;
-}
-
 function TypewriterText({
   text,
   className = '',
@@ -21,81 +15,96 @@ function TypewriterText({
   delay = 0,
   onComplete,
 }: TypewriterTextProps) {
-  const [displayedChars, setDisplayedChars] = useState<CharState[]>([]);
+  const [displayedText, setDisplayedText] = useState('');
   const [isComplete, setIsComplete] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const containerRef = useRef<HTMLSpanElement>(null);
+  
+  // Refs to track state without causing re-renders
   const charIndexRef = useRef(0);
-  const charIdRef = useRef(0);
-  // Use Array.from to properly handle Unicode characters (emojis, etc.)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const delayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const charsArrayRef = useRef<string[]>([]);
-
-  // Reset effect
+  const onCompleteRef = useRef(onComplete);
+  
+  // Keep onComplete ref updated
   useEffect(() => {
-    setDisplayedChars([]);
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  // Reset and start effect
+  useEffect(() => {
+    // Clear any existing timers
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (delayTimeoutRef.current) {
+      clearTimeout(delayTimeoutRef.current);
+      delayTimeoutRef.current = null;
+    }
+    
+    // Reset state
+    setDisplayedText('');
     setIsComplete(false);
     setHasStarted(false);
     charIndexRef.current = 0;
-    charIdRef.current = 0;
-    // Split text properly handling Unicode (emojis are surrogate pairs)
     charsArrayRef.current = Array.from(text);
 
-    const startTimer = setTimeout(() => {
+    // Start after delay
+    delayTimeoutRef.current = setTimeout(() => {
       setHasStarted(true);
     }, delay);
 
-    return () => clearTimeout(startTimer);
+    return () => {
+      if (delayTimeoutRef.current) {
+        clearTimeout(delayTimeoutRef.current);
+      }
+    };
   }, [text, delay]);
 
-  // Clear new flag after animation
-  const clearNewFlag = useCallback((charId: number) => {
-    setTimeout(() => {
-      setDisplayedChars(prev => 
-        prev.map(c => c.id === charId ? { ...c, isNew: false } : c)
-      );
-    }, 400);
-  }, []);
-
-  // Typing effect
+  // Typing effect using interval (more efficient than recursive setTimeout)
   useEffect(() => {
     if (!hasStarted) return;
 
     const charsArray = charsArrayRef.current;
-    if (charIndexRef.current < charsArray.length) {
-      const timer = setTimeout(() => {
-        const newChar = charsArray[charIndexRef.current];
-        const newId = charIdRef.current;
-        charIndexRef.current += 1;
-        charIdRef.current += 1;
-        
-        setDisplayedChars(prev => [
-          ...prev.map(c => ({ ...c, isNew: false })),
-          { char: newChar, id: newId, isNew: true }
-        ]);
-
-        clearNewFlag(newId);
-      }, speed);
-
-      return () => clearTimeout(timer);
-    } else if (!isComplete && displayedChars.length === charsArray.length) {
+    
+    // If text is empty or already complete, finish immediately
+    if (charsArray.length === 0) {
       setIsComplete(true);
-      onComplete?.();
+      onCompleteRef.current?.();
+      return;
     }
-  }, [displayedChars, text, speed, hasStarted, isComplete, onComplete, clearNewFlag]);
+
+    intervalRef.current = setInterval(() => {
+      if (charIndexRef.current < charsArray.length) {
+        charIndexRef.current += 1;
+        setDisplayedText(charsArray.slice(0, charIndexRef.current).join(''));
+      } else {
+        // Done typing
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        setIsComplete(true);
+        onCompleteRef.current?.();
+      }
+    }, speed);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [hasStarted, speed]);
 
   return (
     <span 
       ref={containerRef}
       className={`${className} ${isComplete ? '' : 'streaming-content'}`}
     >
-      {displayedChars.map((item) => (
-        <span
-          key={item.id}
-          className={item.isNew ? 'typewriter-char-new' : ''}
-        >
-          {item.char}
-        </span>
-      ))}
+      {displayedText}
       {hasStarted && !isComplete && (
         <span className="typewriter-cursor" />
       )}

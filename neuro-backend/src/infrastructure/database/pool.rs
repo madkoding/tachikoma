@@ -99,103 +99,123 @@ impl DatabasePool {
         info!("Initializing database schema...");
 
         // Define the memory table with vector index
+        // Note: SurrealDB 1.5.x doesn't support IF NOT EXISTS or TYPE RELATION syntax
         let schema = r#"
             -- Memory node table
-            DEFINE TABLE IF NOT EXISTS memory SCHEMAFULL;
+            DEFINE TABLE memory SCHEMAFULL;
             
-            DEFINE FIELD IF NOT EXISTS id ON memory TYPE string;
-            DEFINE FIELD IF NOT EXISTS content ON memory TYPE string;
-            DEFINE FIELD IF NOT EXISTS vector ON memory TYPE array<float>;
-            DEFINE FIELD IF NOT EXISTS memory_type ON memory TYPE string;
-            DEFINE FIELD IF NOT EXISTS metadata ON memory TYPE object;
-            DEFINE FIELD IF NOT EXISTS created_at ON memory TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS updated_at ON memory TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS access_count ON memory TYPE int DEFAULT 0;
-            DEFINE FIELD IF NOT EXISTS importance_score ON memory TYPE float DEFAULT 0.5;
+            DEFINE FIELD id ON memory TYPE string;
+            DEFINE FIELD content ON memory TYPE string;
+            DEFINE FIELD vector ON memory TYPE array<float>;
+            DEFINE FIELD memory_type ON memory TYPE string;
+            DEFINE FIELD metadata ON memory TYPE object;
+            DEFINE FIELD created_at ON memory TYPE datetime;
+            DEFINE FIELD updated_at ON memory TYPE datetime;
+            DEFINE FIELD access_count ON memory TYPE int DEFAULT 0;
+            DEFINE FIELD importance_score ON memory TYPE float DEFAULT 0.5;
             
             -- Indexes for efficient queries
-            DEFINE INDEX IF NOT EXISTS memory_id_idx ON memory FIELDS id UNIQUE;
-            DEFINE INDEX IF NOT EXISTS memory_type_idx ON memory FIELDS memory_type;
-            DEFINE INDEX IF NOT EXISTS memory_created_idx ON memory FIELDS created_at;
-            DEFINE INDEX IF NOT EXISTS memory_importance_idx ON memory FIELDS importance_score;
+            DEFINE INDEX memory_id_idx ON memory FIELDS id UNIQUE;
+            DEFINE INDEX memory_type_idx ON memory FIELDS memory_type;
+            DEFINE INDEX memory_created_idx ON memory FIELDS created_at;
+            DEFINE INDEX memory_importance_idx ON memory FIELDS importance_score;
             
-            -- Relation tables (graph edges)
-            DEFINE TABLE IF NOT EXISTS related_to SCHEMAFULL TYPE RELATION FROM memory TO memory;
-            DEFINE FIELD IF NOT EXISTS confidence ON related_to TYPE float DEFAULT 1.0;
-            DEFINE FIELD IF NOT EXISTS created_at ON related_to TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS metadata ON related_to TYPE object;
+            -- Relation tables (graph edges) - using regular tables with from/to fields
+            DEFINE TABLE related_to SCHEMAFULL;
+            DEFINE FIELD in ON related_to TYPE record(memory);
+            DEFINE FIELD out ON related_to TYPE record(memory);
+            DEFINE FIELD confidence ON related_to TYPE float DEFAULT 1.0;
+            DEFINE FIELD created_at ON related_to TYPE datetime;
+            DEFINE FIELD metadata ON related_to TYPE object;
             
-            DEFINE TABLE IF NOT EXISTS causes SCHEMAFULL TYPE RELATION FROM memory TO memory;
-            DEFINE FIELD IF NOT EXISTS confidence ON causes TYPE float DEFAULT 1.0;
-            DEFINE FIELD IF NOT EXISTS created_at ON causes TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS metadata ON causes TYPE object;
+            DEFINE TABLE causes SCHEMAFULL;
+            DEFINE FIELD in ON causes TYPE record(memory);
+            DEFINE FIELD out ON causes TYPE record(memory);
+            DEFINE FIELD confidence ON causes TYPE float DEFAULT 1.0;
+            DEFINE FIELD created_at ON causes TYPE datetime;
+            DEFINE FIELD metadata ON causes TYPE object;
             
-            DEFINE TABLE IF NOT EXISTS part_of SCHEMAFULL TYPE RELATION FROM memory TO memory;
-            DEFINE FIELD IF NOT EXISTS confidence ON part_of TYPE float DEFAULT 1.0;
-            DEFINE FIELD IF NOT EXISTS created_at ON part_of TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS metadata ON part_of TYPE object;
+            DEFINE TABLE part_of SCHEMAFULL;
+            DEFINE FIELD in ON part_of TYPE record(memory);
+            DEFINE FIELD out ON part_of TYPE record(memory);
+            DEFINE FIELD confidence ON part_of TYPE float DEFAULT 1.0;
+            DEFINE FIELD created_at ON part_of TYPE datetime;
+            DEFINE FIELD metadata ON part_of TYPE object;
             
-            DEFINE TABLE IF NOT EXISTS follows SCHEMAFULL TYPE RELATION FROM memory TO memory;
-            DEFINE FIELD IF NOT EXISTS confidence ON follows TYPE float DEFAULT 1.0;
-            DEFINE FIELD IF NOT EXISTS created_at ON follows TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS metadata ON follows TYPE object;
+            DEFINE TABLE follows SCHEMAFULL;
+            DEFINE FIELD in ON follows TYPE record(memory);
+            DEFINE FIELD out ON follows TYPE record(memory);
+            DEFINE FIELD confidence ON follows TYPE float DEFAULT 1.0;
+            DEFINE FIELD created_at ON follows TYPE datetime;
+            DEFINE FIELD metadata ON follows TYPE object;
             
-            DEFINE TABLE IF NOT EXISTS contradicts SCHEMAFULL TYPE RELATION FROM memory TO memory;
-            DEFINE FIELD IF NOT EXISTS confidence ON contradicts TYPE float DEFAULT 1.0;
-            DEFINE FIELD IF NOT EXISTS created_at ON contradicts TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS metadata ON contradicts TYPE object;
+            DEFINE TABLE contradicts SCHEMAFULL;
+            DEFINE FIELD in ON contradicts TYPE record(memory);
+            DEFINE FIELD out ON contradicts TYPE record(memory);
+            DEFINE FIELD confidence ON contradicts TYPE float DEFAULT 1.0;
+            DEFINE FIELD created_at ON contradicts TYPE datetime;
+            DEFINE FIELD metadata ON contradicts TYPE object;
             
-            DEFINE TABLE IF NOT EXISTS supports SCHEMAFULL TYPE RELATION FROM memory TO memory;
-            DEFINE FIELD IF NOT EXISTS confidence ON supports TYPE float DEFAULT 1.0;
-            DEFINE FIELD IF NOT EXISTS created_at ON supports TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS metadata ON supports TYPE object;
+            DEFINE TABLE supports SCHEMAFULL;
+            DEFINE FIELD in ON supports TYPE record(memory);
+            DEFINE FIELD out ON supports TYPE record(memory);
+            DEFINE FIELD confidence ON supports TYPE float DEFAULT 1.0;
+            DEFINE FIELD created_at ON supports TYPE datetime;
+            DEFINE FIELD metadata ON supports TYPE object;
             
-            DEFINE TABLE IF NOT EXISTS derived_from SCHEMAFULL TYPE RELATION FROM memory TO memory;
-            DEFINE FIELD IF NOT EXISTS confidence ON derived_from TYPE float DEFAULT 1.0;
-            DEFINE FIELD IF NOT EXISTS created_at ON derived_from TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS metadata ON derived_from TYPE object;
+            DEFINE TABLE derived_from SCHEMAFULL;
+            DEFINE FIELD in ON derived_from TYPE record(memory);
+            DEFINE FIELD out ON derived_from TYPE record(memory);
+            DEFINE FIELD confidence ON derived_from TYPE float DEFAULT 1.0;
+            DEFINE FIELD created_at ON derived_from TYPE datetime;
+            DEFINE FIELD metadata ON derived_from TYPE object;
             
-            DEFINE TABLE IF NOT EXISTS same_as SCHEMAFULL TYPE RELATION FROM memory TO memory;
-            DEFINE FIELD IF NOT EXISTS confidence ON same_as TYPE float DEFAULT 1.0;
-            DEFINE FIELD IF NOT EXISTS created_at ON same_as TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS metadata ON same_as TYPE object;
+            DEFINE TABLE same_as SCHEMAFULL;
+            DEFINE FIELD in ON same_as TYPE record(memory);
+            DEFINE FIELD out ON same_as TYPE record(memory);
+            DEFINE FIELD confidence ON same_as TYPE float DEFAULT 1.0;
+            DEFINE FIELD created_at ON same_as TYPE datetime;
+            DEFINE FIELD metadata ON same_as TYPE object;
             
-            DEFINE TABLE IF NOT EXISTS context_of SCHEMAFULL TYPE RELATION FROM memory TO memory;
-            DEFINE FIELD IF NOT EXISTS confidence ON context_of TYPE float DEFAULT 1.0;
-            DEFINE FIELD IF NOT EXISTS created_at ON context_of TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS metadata ON context_of TYPE object;
+            DEFINE TABLE context_of SCHEMAFULL;
+            DEFINE FIELD in ON context_of TYPE record(memory);
+            DEFINE FIELD out ON context_of TYPE record(memory);
+            DEFINE FIELD confidence ON context_of TYPE float DEFAULT 1.0;
+            DEFINE FIELD created_at ON context_of TYPE datetime;
+            DEFINE FIELD metadata ON context_of TYPE object;
             
-            DEFINE TABLE IF NOT EXISTS references_rel SCHEMAFULL TYPE RELATION FROM memory TO memory;
-            DEFINE FIELD IF NOT EXISTS confidence ON references_rel TYPE float DEFAULT 1.0;
-            DEFINE FIELD IF NOT EXISTS created_at ON references_rel TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS metadata ON references_rel TYPE object;
+            DEFINE TABLE references_rel SCHEMAFULL;
+            DEFINE FIELD in ON references_rel TYPE record(memory);
+            DEFINE FIELD out ON references_rel TYPE record(memory);
+            DEFINE FIELD confidence ON references_rel TYPE float DEFAULT 1.0;
+            DEFINE FIELD created_at ON references_rel TYPE datetime;
+            DEFINE FIELD metadata ON references_rel TYPE object;
             
-            DEFINE TABLE IF NOT EXISTS supersedes SCHEMAFULL TYPE RELATION FROM memory TO memory;
-            DEFINE FIELD IF NOT EXISTS confidence ON supersedes TYPE float DEFAULT 1.0;
-            DEFINE FIELD IF NOT EXISTS created_at ON supersedes TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS metadata ON supersedes TYPE object;
+            DEFINE TABLE supersedes SCHEMAFULL;
+            DEFINE FIELD in ON supersedes TYPE record(memory);
+            DEFINE FIELD out ON supersedes TYPE record(memory);
+            DEFINE FIELD confidence ON supersedes TYPE float DEFAULT 1.0;
+            DEFINE FIELD created_at ON supersedes TYPE datetime;
+            DEFINE FIELD metadata ON supersedes TYPE object;
             
             -- Conversation table
-            DEFINE TABLE IF NOT EXISTS conversation SCHEMAFULL;
-            DEFINE FIELD IF NOT EXISTS id ON conversation TYPE string;
-            DEFINE FIELD IF NOT EXISTS title ON conversation TYPE option<string>;
-            DEFINE FIELD IF NOT EXISTS created_at ON conversation TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS updated_at ON conversation TYPE datetime;
-            DEFINE FIELD IF NOT EXISTS archived ON conversation TYPE bool DEFAULT false;
-            
-            DEFINE INDEX IF NOT EXISTS conversation_id_idx ON conversation FIELDS id UNIQUE;
+            -- Note: Do NOT define FIELD id - SurrealDB handles record IDs automatically
+            DEFINE TABLE conversation SCHEMAFULL;
+            DEFINE FIELD title ON conversation TYPE option<string>;
+            DEFINE FIELD created_at ON conversation TYPE datetime;
+            DEFINE FIELD updated_at ON conversation TYPE datetime;
+            DEFINE FIELD archived ON conversation TYPE bool DEFAULT false;
             
             -- Chat message table
-            DEFINE TABLE IF NOT EXISTS chat_message SCHEMAFULL;
-            DEFINE FIELD IF NOT EXISTS id ON chat_message TYPE string;
-            DEFINE FIELD IF NOT EXISTS conversation_id ON chat_message TYPE string;
-            DEFINE FIELD IF NOT EXISTS role ON chat_message TYPE string;
-            DEFINE FIELD IF NOT EXISTS content ON chat_message TYPE string;
-            DEFINE FIELD IF NOT EXISTS metadata ON chat_message TYPE object;
-            DEFINE FIELD IF NOT EXISTS created_at ON chat_message TYPE datetime;
+            -- Note: Do NOT define FIELD id - SurrealDB handles record IDs automatically
+            DEFINE TABLE chat_message SCHEMAFULL;
+            DEFINE FIELD conversation_id ON chat_message TYPE string;
+            DEFINE FIELD role ON chat_message TYPE string;
+            DEFINE FIELD content ON chat_message TYPE string;
+            DEFINE FIELD metadata ON chat_message TYPE object;
+            DEFINE FIELD created_at ON chat_message TYPE datetime;
             
-            DEFINE INDEX IF NOT EXISTS message_id_idx ON chat_message FIELDS id UNIQUE;
-            DEFINE INDEX IF NOT EXISTS message_conversation_idx ON chat_message FIELDS conversation_id;
+            DEFINE INDEX message_conversation_idx ON chat_message FIELDS conversation_id;
         "#;
 
         // Execute schema definition

@@ -2,10 +2,13 @@
 //! Chat Service - Simplified
 //! =============================================================================
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::{debug, info, instrument, error};
 use uuid::Uuid;
+use reqwest::Client;
+use serde::Deserialize;
 
 use crate::application::services::{
     agent_orchestrator::AgentOrchestrator,
@@ -22,6 +25,20 @@ use crate::domain::{
 };
 use crate::infrastructure::database::SurrealDbRepository;
 
+/// LLM-classified user intent
+#[derive(Debug, Deserialize)]
+struct UserIntent {
+    tool: String,
+    #[serde(default)]
+    parameters: HashMap<String, String>,
+    #[serde(default = "default_confidence")]
+    confidence: f32,
+}
+
+fn default_confidence() -> f32 {
+    0.5
+}
+
 /// =============================================================================
 /// ChatService - Chat Conversation Management
 /// =============================================================================
@@ -36,6 +53,10 @@ pub struct ChatService {
     /// Intelligent knowledge extractor for auto-learning
     knowledge_extractor: Arc<KnowledgeExtractor>,
     pub system_prompt: String,
+    /// HTTP client for calling microservices
+    http_client: Client,
+    /// Music service URL
+    music_service_url: String,
 }
 
 impl ChatService {
@@ -52,6 +73,10 @@ impl ChatService {
             memory_service.clone(),
         ));
 
+        // Get music service URL from environment
+        let music_service_url = std::env::var("MUSIC_SERVICE_URL")
+            .unwrap_or_else(|_| "http://localhost:3002".to_string());
+
         Self {
             agent_orchestrator,
             memory_service,
@@ -60,6 +85,8 @@ impl ChatService {
             repository,
             knowledge_extractor,
             system_prompt: Self::default_system_prompt(),
+            http_client: Client::new(),
+            music_service_url,
         }
     }
 
@@ -87,10 +114,12 @@ CAPACIDADES:
 - 💻 Ejecutar comandos del sistema (cuando sea necesario y seguro)
 - 📝 Leer y analizar archivos de código del proyecto
 - 🧠 Acceder a memoria de largo plazo con contexto relevante
+- 🎵 Crear playlists de música automáticamente buscando canciones en YouTube
 
 Cuando recibes información de herramientas (búsquedas web, comandos, código), úsala para responder de forma completa y precisa.
 Si la información viene de una búsqueda web, menciona las fuentes cuando sea relevante.
 Si analizas código, explica qué hace de manera clara y estructurada.
+Si creas una playlist, informa al usuario qué canciones se agregaron.
 
 Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable."#.to_string()
     }
@@ -159,183 +188,238 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
     }
 
     /// =========================================================================
-    /// Tool Detection and Execution
+    /// Tool Detection and Execution - LLM-based Intent Classification
     /// =========================================================================
-    async fn detect_and_execute_tools(&self, message: &str) -> Vec<(String, String)> {
-        let msg_lower = message.to_lowercase();
+    /// Public method to detect and execute tools based on user message
+    pub async fn detect_and_execute_tools(&self, message: &str) -> Vec<(String, String)> {
         let mut tools_used = Vec::new();
+        
+        info!("🔍 Starting tool detection for message: {}", message);
 
-        // Web Search Keywords
-        let search_keywords = [
-            "busca", "search", "encuentra", "find", "investiga", "research",
-            "qué es", "what is", "cómo es", "información sobre", "info about",
-            "noticias", "news", "actualidad", "current", "latest",
-        ];
-
-        // Command Execution Keywords
-        let command_keywords = [
-            "ejecuta", "execute", "run", "corre", "shell", "comando",
-            "terminal", "bash", "lista archivos", "list files", "muestra",
-            "ps ", "ls ", "cat ", "grep ", "pwd", "whoami",
-        ];
-
-        // Code Analysis Keywords
-        let code_keywords = [
-            "analiza", "analyze", "lee el código", "read code", "revisa",
-            "qué hace", "what does", "explica el código", "explain code",
-            "muestra el archivo", "show file", "lee archivo", "read file",
-            "examina", "examine", "inspecciona", "inspect",
-        ];
-
-        // Check for web search intent
-        if search_keywords.iter().any(|kw| msg_lower.contains(kw)) {
-            info!("🔍 Detected web search intent");
-            
-            // Extract search query (simple heuristic)
-            let query = self.extract_search_query(message);
-            
-            match self.agent_orchestrator.search_web(&query).await {
-                Ok(results) => {
-                    let summary = self.summarize_search_results(&results);
-                    info!("✅ Web search completed: {} results", results.results.len());
-                    tools_used.push(("web_search".to_string(), summary));
-                }
-                Err(e) => {
-                    error!("❌ Web search failed: {}", e);
-                    tools_used.push(("web_search".to_string(), format!("Error: {}", e)));
-                }
+        // Use LLM to classify intent and extract parameters
+        let intent = match self.classify_intent(message).await {
+            Ok(intent) => {
+                info!("🧠 LLM classified intent: tool={}, confidence={}", intent.tool, intent.confidence);
+                intent
             }
+            Err(e) => {
+                // LLM classification failed, use keyword fallback
+                info!("⚠️ LLM classification failed: {}, using keyword fallback", e);
+                self.fallback_keyword_detection(message)
+            }
+        };
+
+        // Skip if no tool needed
+        if intent.tool == "none" {
+            info!("ℹ️ No tool required for this message (classified as: none)");
+            return tools_used;
         }
 
-        // Check for command execution intent (more restrictive)
-        if command_keywords.iter().any(|kw| msg_lower.contains(kw)) {
-            info!("⚠️  Detected command execution intent");
-            
-            // Extract command
-            if let Some(cmd) = self.extract_command(message) {
-                match self.agent_orchestrator.execute_command(&cmd, None).await {
-                    Ok(output) => {
-                        info!("✅ Command executed: {}", cmd);
-                        let result = format!("$ {}\n{}", cmd, output.stdout);
-                        tools_used.push(("execute_command".to_string(), result));
+        info!("🔧 Executing tool: {}", intent.tool);
+
+        // Execute the appropriate tool based on classification
+        match intent.tool.as_str() {
+            "create_playlist" => {
+                info!("🎵 Executing playlist creation");
+                match self.create_playlist_from_request(message).await {
+                    Ok(result) => {
+                        info!("✅ Playlist created successfully");
+                        tools_used.push(("create_playlist".to_string(), result));
                     }
                     Err(e) => {
-                        error!("❌ Command failed: {}", e);
-                        tools_used.push(("execute_command".to_string(), format!("Error: {}", e)));
+                        error!("❌ Playlist creation failed: {}", e);
+                        tools_used.push(("create_playlist".to_string(), format!("Error al crear playlist: {}", e)));
                     }
                 }
             }
-        }
-
-        // Check for code analysis intent
-        if code_keywords.iter().any(|kw| msg_lower.contains(kw)) {
-            info!("📝 Detected code analysis intent");
-            
-            // Extract file path
-            if let Some(file_path) = self.extract_file_path(message) {
-                match self.read_and_analyze_file(&file_path).await {
-                    Ok(content) => {
-                        info!("✅ File read: {}", file_path);
-                        tools_used.push(("code_analysis".to_string(), content));
+            "web_search" => {
+                info!("🔍 Executing web search");
+                let query = intent.parameters.get("query")
+                    .map(|s| s.as_str())
+                    .unwrap_or(message);
+                
+                match self.agent_orchestrator.search_web(query).await {
+                    Ok(results) => {
+                        let summary = self.summarize_search_results(&results);
+                        info!("✅ Web search completed: {} results", results.results.len());
+                        tools_used.push(("web_search".to_string(), summary));
                     }
                     Err(e) => {
-                        error!("❌ File read failed: {}", e);
-                        tools_used.push(("code_analysis".to_string(), format!("Error: No pude leer el archivo: {}", e)));
+                        error!("❌ Web search failed: {}", e);
+                        tools_used.push(("web_search".to_string(), format!("Error: {}", e)));
                     }
                 }
+            }
+            "execute_command" => {
+                info!("⚠️ Executing command");
+                if let Some(cmd) = intent.parameters.get("command") {
+                    match self.agent_orchestrator.execute_command(cmd, None).await {
+                        Ok(output) => {
+                            info!("✅ Command executed: {}", cmd);
+                            let result = format!("$ {}\n{}", cmd, output.stdout);
+                            tools_used.push(("execute_command".to_string(), result));
+                        }
+                        Err(e) => {
+                            error!("❌ Command failed: {}", e);
+                            tools_used.push(("execute_command".to_string(), format!("Error: {}", e)));
+                        }
+                    }
+                }
+            }
+            "read_file" => {
+                info!("📝 Reading file");
+                if let Some(file_path) = intent.parameters.get("file_path") {
+                    match self.read_and_analyze_file(file_path).await {
+                        Ok(content) => {
+                            info!("✅ File read: {}", file_path);
+                            tools_used.push(("code_analysis".to_string(), content));
+                        }
+                        Err(e) => {
+                            error!("❌ File read failed: {}", e);
+                            tools_used.push(("code_analysis".to_string(), format!("Error: {}", e)));
+                        }
+                    }
+                }
+            }
+            "create_checklist" => {
+                info!("📋 Creating checklist");
+                match self.create_checklist_from_request(message).await {
+                    Ok(result) => {
+                        info!("✅ Checklist created successfully");
+                        tools_used.push(("create_checklist".to_string(), result));
+                    }
+                    Err(e) => {
+                        error!("❌ Checklist creation failed: {}", e);
+                        tools_used.push(("create_checklist".to_string(), format!("Error al crear checklist: {}", e)));
+                    }
+                }
+            }
+            _ => {
+                debug!("Unknown tool: {}", intent.tool);
             }
         }
 
         tools_used
     }
 
-    /// Extract search query from message
-    fn extract_search_query(&self, message: &str) -> String {
-        // Remove common command words
-        let msg = message
-            .to_lowercase()
-            .replace("busca", "")
-            .replace("search", "")
-            .replace("encuentra", "")
-            .replace("find", "")
-            .replace("investiga", "")
-            .replace("qué es", "")
-            .replace("what is", "")
-            .replace("información sobre", "")
-            .replace("info about", "")
-            .trim()
-            .to_string();
-
-        if msg.is_empty() {
-            message.to_string()
-        } else {
-            msg
-        }
-    }
-
-    /// Extract command from message
-    fn extract_command(&self, message: &str) -> Option<String> {
-        // Look for common patterns
-        if let Some(pos) = message.find("ejecuta ") {
-            return Some(message[pos + 8..].trim().to_string());
-        }
-        if let Some(pos) = message.find("execute ") {
-            return Some(message[pos + 8..].trim().to_string());
-        }
-        if let Some(pos) = message.find("run ") {
-            return Some(message[pos + 4..].trim().to_string());
-        }
-        
-        // Check if message looks like a direct command
+    /// Fallback keyword-based detection when LLM classification fails
+    fn fallback_keyword_detection(&self, message: &str) -> UserIntent {
         let msg_lower = message.to_lowercase();
-        if msg_lower.starts_with("ls ") || msg_lower.starts_with("ps ") || 
-           msg_lower.starts_with("cat ") || msg_lower == "pwd" || msg_lower == "whoami" {
-            return Some(message.to_string());
+        // Normalize: remove accents
+        let msg_norm: String = msg_lower.chars().map(|c| match c {
+            'á' | 'à' | 'ä' | 'â' => 'a',
+            'é' | 'è' | 'ë' | 'ê' => 'e',
+            'í' | 'ì' | 'ï' | 'î' => 'i',
+            'ó' | 'ò' | 'ö' | 'ô' => 'o',
+            'ú' | 'ù' | 'ü' | 'û' => 'u',
+            'ñ' => 'n',
+            _ => c,
+        }).collect();
+
+        // Check for playlist creation
+        let playlist_verbs = ["crea", "arma", "haz", "genera", "pon", "create", "make"];
+        let playlist_nouns = ["playlist", "lista", "mix", "musica", "canciones"];
+        
+        let has_playlist_verb = playlist_verbs.iter().any(|v| msg_norm.contains(v));
+        let has_playlist_noun = playlist_nouns.iter().any(|n| msg_norm.contains(n));
+        
+        if has_playlist_verb && has_playlist_noun {
+            info!("🎯 Fallback detected: create_playlist");
+            return UserIntent {
+                tool: "create_playlist".to_string(),
+                parameters: HashMap::new(),
+                confidence: 0.7,
+            };
         }
 
-        None
+        // Check for checklist creation - more flexible detection
+        let checklist_verbs = ["crea", "arma", "haz", "genera", "create", "make", "agrega", "add", "necesito", "quiero", "hazme", "dame"];
+        let checklist_nouns = ["checklist", "lista de tareas", "to-do", "todo", "pendientes", "tareas", "task list", "lista para"];
+        
+        let has_checklist_verb = checklist_verbs.iter().any(|v| msg_norm.contains(v));
+        let has_checklist_noun = checklist_nouns.iter().any(|n| msg_norm.contains(n));
+        
+        // Also detect if just the noun is present (user might say "checklist para X")
+        let checklist_only = msg_norm.contains("checklist") || msg_norm.contains("to-do") || msg_norm.contains("todo list");
+        
+        if (has_checklist_verb && has_checklist_noun) || checklist_only {
+            info!("🎯 Fallback detected: create_checklist");
+            return UserIntent {
+                tool: "create_checklist".to_string(),
+                parameters: HashMap::new(),
+                confidence: 0.7,
+            };
+        }
+
+        // Check for web search
+        let search_keywords = ["busca", "buscar", "search", "investiga", "noticias", "news"];
+        if search_keywords.iter().any(|k| msg_norm.contains(k)) {
+            info!("🎯 Fallback detected: web_search");
+            return UserIntent {
+                tool: "web_search".to_string(),
+                parameters: [("query".to_string(), message.to_string())].into_iter().collect(),
+                confidence: 0.7,
+            };
+        }
+
+        // Default: no tool
+        UserIntent {
+            tool: "none".to_string(),
+            parameters: HashMap::new(),
+            confidence: 0.5,
+        }
     }
 
-    /// Extract file path from message
-    fn extract_file_path(&self, message: &str) -> Option<String> {
-        // Look for file paths in the message
-        // Common patterns: "lee src/main.rs", "analiza archivo config.toml"
+    /// Use LLM to classify the user's intent and determine which tool to use
+    async fn classify_intent(&self, message: &str) -> Result<UserIntent, DomainError> {
+        // Simple, direct classification prompt optimized for small models
+        let classification_prompt = format!(
+            r#"Clasifica este mensaje en UNA categoría:
+
+MENSAJE: "{}"
+
+CATEGORÍAS:
+- create_playlist: si pide crear playlist, música, canciones, mix
+- create_checklist: si pide crear checklist, lista de tareas, to-do, pendientes
+- web_search: si pide buscar información, noticias
+- execute_command: si pide ejecutar comandos de terminal
+- read_file: si pide leer archivos de código
+- none: conversación normal, saludos, preguntas generales
+
+Responde SOLO con la categoría, una sola palabra:"#,
+            message
+        );
+
+        // Use Light model (ministral:3b) for fast classification - it's a simple task
+        let light_model = ModelTier::Light.default_model();
+        let result = self.llm_provider.generate(&classification_prompt, Some(light_model)).await?;
         
-        // Try to extract after keywords
-        let patterns = [
-            ("lee el archivo ", ""),
-            ("lee archivo ", ""),
-            ("read file ", ""),
-            ("muestra ", ""),
-            ("show ", ""),
-            ("analiza ", ""),
-            ("analyze ", ""),
-        ];
+        // Parse the simple response
+        let content = result.content.trim().to_lowercase();
+        info!("🤖 LLM classification response: {}", content);
         
-        for (prefix, _) in patterns {
-            if let Some(pos) = message.to_lowercase().find(prefix) {
-                let path = message[pos + prefix.len()..].trim();
-                // Take until first space or end
-                let file_path = path.split_whitespace().next().unwrap_or(path);
-                if !file_path.is_empty() {
-                    return Some(file_path.to_string());
-                }
-            }
-        }
+        // Extract tool from response
+        let tool = if content.contains("create_playlist") || content.contains("playlist") {
+            "create_playlist"
+        } else if content.contains("create_checklist") || content.contains("checklist") || content.contains("to-do") || content.contains("todo") {
+            "create_checklist"
+        } else if content.contains("web_search") || content.contains("search") || content.contains("buscar") {
+            "web_search"
+        } else if content.contains("execute_command") || content.contains("command") || content.contains("ejecutar") {
+            "execute_command"
+        } else if content.contains("read_file") || content.contains("file") || content.contains("archivo") {
+            "read_file"
+        } else {
+            "none"
+        };
         
-        // Try to find file-like patterns (contains .rs, .toml, .json, etc.)
-        let words: Vec<&str> = message.split_whitespace().collect();
-        for word in words {
-            if word.contains('.') && 
-               (word.ends_with(".rs") || word.ends_with(".toml") || 
-                word.ends_with(".json") || word.ends_with(".ts") || 
-                word.ends_with(".js") || word.ends_with(".py") ||
-                word.ends_with(".md") || word.contains('/')) {
-                return Some(word.to_string());
-            }
-        }
+        info!("🎯 Classified as: {}", tool);
         
-        None
+        Ok(UserIntent {
+            tool: tool.to_string(),
+            parameters: HashMap::new(),
+            confidence: 0.8,
+        })
     }
 
     /// Read and analyze a code file
@@ -527,15 +611,15 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
     /// Auto-select model based on task analysis
     /// =========================================================================
     /// Analyzes the user message to determine the appropriate model tier:
-    /// - Light (ministral-3:3b): Quick questions, simple tasks
-    /// - Standard (qwen2.5-coder:7b): General coding, moderate complexity
-    /// - Heavy (qwen2.5-coder:14b): Complex coding, deep reasoning
+    /// - Light (ministral-3:3b): Default for most tasks, quick questions
+    /// - Standard (qwen2.5-coder:7b): Complex reasoning, analysis
+    /// - Heavy (qwen2.5-coder:14b): Code generation, deep technical tasks
     /// =========================================================================
     pub fn select_model_for_task(&self, message: &str) -> String {
         let msg_lower = message.to_lowercase();
         let msg_len = message.len();
 
-        // Detect code-related keywords
+        // Detect code-related keywords - ONLY these trigger heavy model
         let code_keywords = [
             "code", "function", "implement", "class", "struct", "enum",
             "bug", "fix", "error", "debug", "refactor", "optimize",
@@ -546,41 +630,33 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
             "código", "función", "implementar", "corregir", "arreglar",
         ];
 
-        // Detect complex reasoning keywords
+        // Detect complex reasoning keywords - these trigger standard model
         let reasoning_keywords = [
-            "explain", "why", "how does", "analyze", "compare", "evaluate",
-            "design", "architecture", "tradeoff", "pros and cons", "best practice",
-            "strategy", "approach", "solution", "complex", "difficult",
-            "explica", "por qué", "cómo funciona", "analiza", "compara",
-        ];
-
-        // Detect quick response patterns
-        let quick_patterns = [
-            "hi", "hello", "hola", "thanks", "gracias", "yes", "no", "ok",
-            "what is", "qué es", "define", "list", "name", "when", "where",
+            "explain in detail", "analyze deeply", "compare and contrast",
+            "pros and cons", "best practice", "architecture design",
+            "explica en detalle", "analiza profundamente",
         ];
 
         let is_code_task = code_keywords.iter().any(|k| msg_lower.contains(k));
-        let is_complex = reasoning_keywords.iter().any(|k| msg_lower.contains(k));
-        let is_quick = quick_patterns.iter().any(|k| msg_lower.starts_with(k)) 
-            || (msg_len < 50 && !is_code_task && !is_complex);
+        let is_complex = reasoning_keywords.iter().any(|k| msg_lower.contains(k)) 
+            || msg_len > 500; // Only very long messages trigger complex
 
-        // Determine tier
-        let tier = if is_code_task && (is_complex || msg_len > 200) {
+        // Determine tier - DEFAULT TO LIGHT
+        let tier = if is_code_task && (is_complex || msg_len > 300) {
             ModelTier::Heavy
-        } else if is_code_task || is_complex {
+        } else if is_code_task {
             ModelTier::Standard
-        } else if is_quick {
-            ModelTier::Light
+        } else if is_complex {
+            ModelTier::Standard
         } else {
-            ModelTier::Standard
+            // DEFAULT: Use Light model for most conversations
+            ModelTier::Light
         };
 
         debug!(
             message_len = msg_len,
             is_code_task = is_code_task,
             is_complex = is_complex,
-            is_quick = is_quick,
             tier = %tier,
             "Task analysis complete"
         );
@@ -743,4 +819,383 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
             }
         }
     }
+
+    /// =========================================================================
+    /// Playlist Creation Tool
+    /// =========================================================================
+    
+    /// Create a playlist from a user request using LLM to generate metadata and search terms
+    async fn create_playlist_from_request(&self, user_request: &str) -> Result<String, String> {
+        info!("🎵 Starting playlist creation from request: {}", user_request);
+        
+        // Step 1: Use LLM to generate playlist metadata and search tags
+        let metadata = self.generate_playlist_metadata(user_request).await?;
+        info!("📝 Generated metadata: {:?}", metadata);
+        
+        // Step 2: First search YouTube to get a thumbnail for the cover
+        let first_tag = metadata.search_tags.first()
+            .map(|s| s.as_str())
+            .unwrap_or(&metadata.title);
+        
+        let cover_url = match self.search_youtube(first_tag, 1).await {
+            Ok(results) if !results.is_empty() => {
+                let thumbnail = results[0].thumbnail.clone();
+                info!("🎨 Using thumbnail as cover: {:?}", thumbnail);
+                thumbnail
+            }
+            _ => None
+        };
+        
+        // Step 3: Create the playlist with cover
+        let playlist = self.create_music_playlist(&metadata.title, &metadata.description, cover_url.as_deref()).await?;
+        let playlist_id = playlist.id;
+        info!("✅ Playlist created with ID: {}", playlist_id);
+        
+        // Step 4: Search and add songs for each tag
+        let mut added_songs: Vec<String> = Vec::new();
+        let max_songs = 10;
+        let songs_per_tag = 3; // Search 3 per tag, stop when we have 10 total
+        
+        for tag in &metadata.search_tags {
+            // Stop if we have enough songs
+            if added_songs.len() >= max_songs {
+                break;
+            }
+            
+            info!("🔍 Searching YouTube for: {}", tag);
+            
+            match self.search_youtube(tag, songs_per_tag).await {
+                Ok(results) => {
+                    for result in results {
+                        // Stop if we have enough songs
+                        if added_songs.len() >= max_songs {
+                            break;
+                        }
+                        
+                        match self.add_song_to_playlist(&playlist_id, &result).await {
+                            Ok(song_title) => {
+                                info!("  ✅ Added: {}", song_title);
+                                added_songs.push(song_title);
+                            }
+                            Err(e) => {
+                                debug!("  ⚠️ Failed to add song: {}", e);
+                                // Continue with other songs
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("  ❌ Search failed for '{}': {}", tag, e);
+                    // Continue with other tags
+                }
+            }
+        }
+        
+        // Step 5: Generate result summary
+        let summary = format!(
+            "🎵 Playlist creada exitosamente!\n\n\
+            **{}**\n\
+            _{}_\n\n\
+            Se agregaron {} canciones:\n{}\n\n\
+            Tags de búsqueda usados: {}",
+            metadata.title,
+            metadata.description,
+            added_songs.len(),
+            added_songs.iter()
+                .enumerate()
+                .map(|(i, s)| format!("{}. {}", i + 1, s))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            metadata.search_tags.join(", ")
+        );
+        
+        Ok(summary)
+    }
+    
+    /// Generate playlist metadata using LLM
+    async fn generate_playlist_metadata(&self, user_request: &str) -> Result<PlaylistMetadata, String> {
+        let prompt = format!(
+            r#"El usuario quiere crear una playlist de música con este pedido: "{}"
+
+Genera un JSON con:
+1. "title": Un título creativo y descriptivo para la playlist (máximo 50 caracteres)
+2. "description": Una descripción breve de la playlist (máximo 100 caracteres)  
+3. "search_tags": Un array de exactamente 5 términos de búsqueda para YouTube que encuentren canciones relacionadas con el pedido. Cada tag debe ser específico y variado para obtener diversidad de canciones.
+
+Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
+{{"title": "Rock de los 80s", "description": "Los mejores hits del rock ochentero", "search_tags": ["rock 80s hits", "def leppard songs", "bon jovi best", "guns n roses classics", "journey greatest hits"]}}"#,
+            user_request
+        );
+        
+        let response = self.llm_provider.generate(&prompt, None).await
+            .map_err(|e| format!("Error generando metadata: {}", e))?;
+        
+        // Parse the JSON response - response.content contains the text
+        let json_str = response.content.trim();
+        
+        // Try to extract JSON if wrapped in markdown
+        let json_str = if json_str.starts_with("```") {
+            json_str
+                .lines()
+                .skip(1)
+                .take_while(|l: &&str| !l.starts_with("```"))
+                .collect::<Vec<&str>>()
+                .join("\n")
+        } else {
+            json_str.to_string()
+        };
+        
+        serde_json::from_str::<PlaylistMetadata>(&json_str)
+            .map_err(|e| format!("Error parseando respuesta del LLM: {}. Response: {}", e, json_str))
+    }
+    
+    /// Create a playlist in the music service
+    async fn create_music_playlist(&self, title: &str, description: &str, cover_url: Option<&str>) -> Result<PlaylistResponse, String> {
+        let url = format!("{}/api/music/playlists", self.music_service_url);
+        
+        let body = serde_json::json!({
+            "name": title,
+            "description": description,
+            "cover_url": cover_url
+        });
+        
+        let response = self.http_client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("Error conectando con servicio de música: {}", e))?;
+        
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            return Err(format!("Error creando playlist ({}): {}", status, text));
+        }
+        
+        response.json::<PlaylistResponse>().await
+            .map_err(|e| format!("Error parseando respuesta de playlist: {}", e))
+    }
+    
+    /// URL encode a string for query parameters
+    fn url_encode(s: &str) -> String {
+        s.chars()
+            .map(|c| match c {
+                'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => c.to_string(),
+                ' ' => "+".to_string(),
+                _ => format!("%{:02X}", c as u8),
+            })
+            .collect()
+    }
+    
+    /// Search YouTube for songs
+    async fn search_youtube(&self, query: &str, limit: usize) -> Result<Vec<YouTubeSearchResult>, String> {
+        let url = format!(
+            "{}/api/music/youtube/search?q={}&limit={}",
+            self.music_service_url,
+            Self::url_encode(query),
+            limit
+        );
+        
+        let response = self.http_client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Error buscando en YouTube: {}", e))?;
+        
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            return Err(format!("Error en búsqueda de YouTube ({}): {}", status, text));
+        }
+        
+        response.json::<Vec<YouTubeSearchResult>>().await
+            .map_err(|e| format!("Error parseando resultados de YouTube: {}", e))
+    }
+    
+    /// Add a song to a playlist
+    async fn add_song_to_playlist(&self, playlist_id: &str, song: &YouTubeSearchResult) -> Result<String, String> {
+        let url = format!("{}/api/music/playlists/{}/songs", self.music_service_url, playlist_id);
+        
+        let youtube_url = format!("https://www.youtube.com/watch?v={}", song.video_id);
+        
+        let body = serde_json::json!({
+            "youtube_url": youtube_url,
+            "title": song.title,
+            "artist": song.channel.as_deref().unwrap_or("Unknown Artist")
+        });
+        
+        let response = self.http_client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("Error agregando canción: {}", e))?;
+        
+        if response.status().as_u16() == 409 {
+            return Err("Canción ya existe en la playlist".to_string());
+        }
+        
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            return Err(format!("Error agregando canción ({}): {}", status, text));
+        }
+        
+        Ok(song.title.clone())
+    }
+
+    /// =========================================================================
+    /// Checklist Creation Tool
+    /// =========================================================================
+    
+    /// Create a checklist from a user request using LLM to generate items
+    async fn create_checklist_from_request(&self, user_request: &str) -> Result<String, String> {
+        info!("📋 Starting checklist creation from request: {}", user_request);
+        
+        // Step 1: Use LLM to generate checklist metadata and items
+        let metadata = self.generate_checklist_metadata(user_request).await?;
+        info!("📝 Generated checklist metadata: {:?}", metadata);
+        
+        // Step 2: Create the checklist in the checklists service
+        let checklists_service_url = std::env::var("CHECKLISTS_SERVICE_URL")
+            .unwrap_or_else(|_| "http://localhost:3001".to_string());
+        
+        let url = format!("{}/api/checklists", checklists_service_url);
+        
+        let body = serde_json::json!({
+            "title": metadata.title,
+            "description": metadata.description,
+            "priority": metadata.priority,
+            "items": metadata.items.iter().map(|item| {
+                serde_json::json!({
+                    "content": item,
+                    "is_completed": false
+                })
+            }).collect::<Vec<_>>()
+        });
+        
+        let response = self.http_client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("Error conectando con servicio de checklists: {}", e))?;
+        
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            return Err(format!("Error creando checklist ({}): {}", status, text));
+        }
+        
+        let checklist_response: serde_json::Value = response.json().await
+            .map_err(|e| format!("Error parseando respuesta de checklist: {}", e))?;
+        
+        // Step 3: Generate result summary
+        let checklist_id = checklist_response.get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+        
+        let summary = format!(
+            "📋 Checklist creada exitosamente!\n\n\
+            **{}**\n\
+            _{}_\n\n\
+            Se agregaron {} items:\n{}\n\n\
+            ID: {}",
+            metadata.title,
+            metadata.description,
+            metadata.items.len(),
+            metadata.items.iter()
+                .enumerate()
+                .map(|(i, s)| format!("{}. [ ] {}", i + 1, s))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            checklist_id
+        );
+        
+        info!("✅ Checklist created with ID: {}", checklist_id);
+        Ok(summary)
+    }
+    
+    /// Generate checklist metadata using LLM
+    async fn generate_checklist_metadata(&self, user_request: &str) -> Result<ChecklistMetadata, String> {
+        let prompt = format!(
+            r#"El usuario quiere crear una lista de tareas con este pedido: "{}"
+
+Genera un JSON con:
+1. "title": Un título claro para la lista de tareas (máximo 50 caracteres)
+2. "description": Una descripción breve de la lista (máximo 100 caracteres)
+3. "priority": Prioridad del 1 al 5 (5 = más urgente)
+4. "items": Un array de tareas específicas y accionables (mínimo 3, máximo 10 items)
+
+Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
+{{"title": "Preparar presentación", "description": "Tareas para la presentación del lunes", "priority": 4, "items": ["Revisar diapositivas", "Preparar notas", "Practicar timing", "Verificar proyector"]}}"#,
+            user_request
+        );
+        
+        // Use Light model for this simple task
+        let light_model = ModelTier::Light.default_model();
+        let response = self.llm_provider.generate(&prompt, Some(light_model)).await
+            .map_err(|e| format!("Error generando metadata de checklist: {}", e))?;
+        
+        // Parse the JSON response
+        let json_str = response.content.trim();
+        
+        // Try to extract JSON if wrapped in markdown
+        let json_str = if json_str.starts_with("```") {
+            json_str
+                .lines()
+                .skip(1)
+                .take_while(|l: &&str| !l.starts_with("```"))
+                .collect::<Vec<&str>>()
+                .join("\n")
+        } else {
+            json_str.to_string()
+        };
+        
+        serde_json::from_str::<ChecklistMetadata>(&json_str)
+            .map_err(|e| format!("Error parseando respuesta del LLM: {}. Response: {}", e, json_str))
+    }
+}
+
+// =============================================================================
+// Playlist Creation Types
+// =============================================================================
+
+#[derive(Debug, Deserialize)]
+struct PlaylistMetadata {
+    title: String,
+    description: String,
+    search_tags: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PlaylistResponse {
+    id: String,
+    #[allow(dead_code)]
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct YouTubeSearchResult {
+    video_id: String,
+    title: String,
+    channel: Option<String>,
+    thumbnail: Option<String>,
+}
+
+// =============================================================================
+// Checklist Creation Types
+// =============================================================================
+
+#[derive(Debug, Deserialize)]
+struct ChecklistMetadata {
+    title: String,
+    description: String,
+    #[serde(default = "default_priority")]
+    priority: i32,
+    items: Vec<String>,
+}
+
+fn default_priority() -> i32 {
+    3
 }

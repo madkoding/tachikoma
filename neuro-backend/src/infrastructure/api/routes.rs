@@ -85,7 +85,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         // =====================================================================
         // Checklists microservice proxy
         .route("/checklists", any(handlers::proxy_checklists))
-        .route("/checklists/*path", any(handlers::proxy_checklists));
+        .route("/checklists/*path", any(handlers::proxy_checklists))
+        // Music microservice proxy
+        .route("/music", any(handlers::proxy_music))
+        .route("/music/*path", any(handlers::proxy_music));
 
     // Compose final router
     Router::new()

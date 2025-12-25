@@ -460,46 +460,58 @@ struct ChatMessageRecord {
 impl SurrealDbRepository {
     /// Save a conversation to the database
     pub async fn save_conversation(&self, conversation: &Conversation) -> Result<(), DomainError> {
-        let sql = r#"
-            UPSERT type::thing('conversation', $id) SET
+        // Use UPDATE which creates if not exists in SurrealDB 1.5.x
+        // Use time::now() for timestamps to avoid datetime serialization issues
+        let sql = format!(
+            r#"UPDATE conversation:`{}` SET
                 title = $title,
-                created_at = $created_at,
-                updated_at = $updated_at,
+                created_at = time::now(),
+                updated_at = time::now(),
                 archived = $archived
-        "#;
+            "#,
+            conversation.id
+        );
 
-        tracing::debug!(
+        tracing::info!(
             conversation_id = %conversation.id,
             title = ?conversation.title,
+            sql = %sql,
             "Executing save_conversation SQL"
         );
 
-        self.pool.client()
-            .query(sql)
-            .bind(("id", conversation.id.to_string()))
+        let result = self.pool.client()
+            .query(&sql)
             .bind(("title", conversation.title.clone()))
-            .bind(("created_at", Datetime::from(conversation.created_at)))
-            .bind(("updated_at", Datetime::from(conversation.updated_at)))
             .bind(("archived", conversation.archived))
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to execute save_conversation query");
-                DomainError::database(e.to_string())
-            })?;
+            .await;
+
+        match &result {
+            Ok(_) => tracing::info!(conversation_id = %conversation.id, "save_conversation query succeeded"),
+            Err(e) => tracing::error!(conversation_id = %conversation.id, error = %e, "save_conversation query failed"),
+        }
+
+        result.map_err(|e| {
+            tracing::error!(error = %e, "Failed to execute save_conversation query");
+            DomainError::database(e.to_string())
+        })?;
 
         Ok(())
     }
 
     /// Save a chat message to the database
     pub async fn save_message(&self, message: &ChatMessage) -> Result<(), DomainError> {
-        let sql = r#"
-            CREATE type::thing('chat_message', $id) SET
+        // Use UPDATE to upsert the message
+        // Use time::now() for timestamps to avoid datetime serialization issues
+        let sql = format!(
+            r#"UPDATE chat_message:`{}` SET
                 conversation_id = $conversation_id,
                 role = $role,
                 content = $content,
                 metadata = $metadata,
-                created_at = $created_at
-        "#;
+                created_at = time::now()
+            "#,
+            message.id
+        );
 
         let role = match message.role {
             MessageRole::User => "user",
@@ -509,13 +521,11 @@ impl SurrealDbRepository {
         };
 
         self.pool.client()
-            .query(sql)
-            .bind(("id", message.id.to_string()))
+            .query(&sql)
             .bind(("conversation_id", message.conversation_id.to_string()))
             .bind(("role", role))
             .bind(("content", message.content.clone()))
             .bind(("metadata", serde_json::to_value(&message.metadata).unwrap_or_default()))
-            .bind(("created_at", Datetime::from(message.created_at)))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
@@ -524,12 +534,14 @@ impl SurrealDbRepository {
 
     /// Get a conversation by ID with its messages
     pub async fn get_conversation(&self, id: Uuid) -> Result<Option<Conversation>, DomainError> {
-        // Get conversation record
-        let sql = "SELECT meta::id(id) as id, title, created_at, updated_at, archived FROM type::thing('conversation', $id)";
+        // Get conversation record using direct record ID syntax
+        let sql = format!(
+            "SELECT meta::id(id) as id, title, created_at, updated_at, archived FROM conversation:`{}`",
+            id
+        );
         
         let mut response = self.pool.client()
-            .query(sql)
-            .bind(("id", id.to_string()))
+            .query(&sql)
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 

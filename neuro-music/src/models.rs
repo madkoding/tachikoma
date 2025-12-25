@@ -1,0 +1,397 @@
+//! Data models for playlists and songs
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use surrealdb::sql::Thing;
+use uuid::Uuid;
+
+/// Helper to extract UUID from SurrealDB Thing
+pub fn thing_to_uuid(thing: &Thing) -> Uuid {
+    Uuid::parse_str(&thing.id.to_raw()).unwrap_or_else(|_| Uuid::nil())
+}
+
+// =============================================================================
+// Database Models (with SurrealDB Thing IDs)
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaylistRecord {
+    pub id: Thing,
+    pub name: String,
+    pub description: Option<String>,
+    pub cover_url: Option<String>,
+    pub is_suggestions: bool,
+    pub shuffle: bool,
+    pub repeat_mode: RepeatMode,
+    pub song_count: i32,
+    pub total_duration: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<PlaylistRecord> for Playlist {
+    fn from(record: PlaylistRecord) -> Self {
+        Playlist {
+            id: thing_to_uuid(&record.id),
+            name: record.name,
+            description: record.description,
+            cover_url: record.cover_url,
+            is_suggestions: record.is_suggestions,
+            shuffle: record.shuffle,
+            repeat_mode: record.repeat_mode,
+            song_count: record.song_count,
+            total_duration: record.total_duration,
+            created_at: record.created_at,
+            updated_at: record.updated_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SongRecord {
+    pub id: Thing,
+    pub playlist_id: String,
+    pub youtube_id: String,
+    pub youtube_url: String,
+    pub title: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub duration: i64,
+    pub cover_url: Option<String>,
+    pub thumbnail_url: Option<String>,
+    pub song_order: i32,
+    pub play_count: i32,
+    pub last_played: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<SongRecord> for Song {
+    fn from(record: SongRecord) -> Self {
+        Song {
+            id: thing_to_uuid(&record.id),
+            playlist_id: Uuid::parse_str(&record.playlist_id).unwrap_or_else(|_| Uuid::nil()),
+            youtube_id: record.youtube_id,
+            youtube_url: record.youtube_url,
+            title: record.title,
+            artist: record.artist,
+            album: record.album,
+            duration: record.duration,
+            cover_url: record.cover_url,
+            thumbnail_url: record.thumbnail_url,
+            song_order: record.song_order,
+            play_count: record.play_count,
+            last_played: record.last_played,
+            created_at: record.created_at,
+        }
+    }
+}
+
+// =============================================================================
+// API Models (with UUID IDs for JSON responses)
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Playlist {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub cover_url: Option<String>,
+    pub is_suggestions: bool,  // Auto-generated suggestions playlist
+    pub shuffle: bool,
+    pub repeat_mode: RepeatMode,
+    pub song_count: i32,
+    pub total_duration: i64,  // Total duration in seconds
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RepeatMode {
+    #[default]
+    Off,
+    One,
+    All,
+}
+
+impl std::fmt::Display for RepeatMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RepeatMode::Off => write!(f, "off"),
+            RepeatMode::One => write!(f, "one"),
+            RepeatMode::All => write!(f, "all"),
+        }
+    }
+}
+
+impl std::str::FromStr for RepeatMode {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "off" => Ok(RepeatMode::Off),
+            "one" => Ok(RepeatMode::One),
+            "all" => Ok(RepeatMode::All),
+            _ => Err(format!("Unknown repeat mode: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreatePlaylist {
+    pub name: String,
+    pub description: Option<String>,
+    pub cover_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UpdatePlaylist {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub cover_url: Option<String>,
+    pub shuffle: Option<bool>,
+    pub repeat_mode: Option<RepeatMode>,
+}
+
+// =============================================================================
+// Song
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Song {
+    pub id: Uuid,
+    pub playlist_id: Uuid,
+    pub youtube_id: String,
+    pub youtube_url: String,
+    pub title: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub duration: i64,  // Duration in seconds
+    pub cover_url: Option<String>,
+    pub thumbnail_url: Option<String>,
+    pub song_order: i32,
+    pub play_count: i32,
+    pub last_played: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateSong {
+    pub youtube_url: String,
+    pub title: Option<String>,  // Will be auto-fetched if not provided
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub cover_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UpdateSong {
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub cover_url: Option<String>,
+    pub song_order: Option<i32>,
+}
+
+// =============================================================================
+// YouTube Metadata (fetched via yt-dlp)
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YouTubeMetadata {
+    pub id: String,
+    pub title: String,
+    pub uploader: Option<String>,
+    pub duration: i64,
+    pub thumbnail: Option<String>,
+    pub description: Option<String>,
+}
+
+// =============================================================================
+// Playback State
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaybackState {
+    pub current_song_id: Option<Uuid>,
+    pub current_playlist_id: Option<Uuid>,
+    pub is_playing: bool,
+    pub position: f64,  // Current position in seconds
+    pub volume: f32,    // 0.0 - 1.0
+    pub shuffle: bool,
+    pub repeat_mode: RepeatMode,
+}
+
+impl Default for PlaybackState {
+    fn default() -> Self {
+        Self {
+            current_song_id: None,
+            current_playlist_id: None,
+            is_playing: false,
+            position: 0.0,
+            volume: 0.8,
+            shuffle: false,
+            repeat_mode: RepeatMode::Off,
+        }
+    }
+}
+
+// =============================================================================
+// Equalizer Settings
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EqualizerSettings {
+    pub enabled: bool,
+    pub preset: Option<String>,
+    /// 16 bands: 32Hz, 64Hz, 125Hz, 250Hz, 500Hz, 1kHz, 2kHz, 4kHz, 8kHz, 16kHz
+    /// and 6 additional sub-bands for fine-tuning
+    /// Values are in dB, range: -12 to +12
+    pub bands: [f32; 16],
+}
+
+impl Default for EqualizerSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            preset: None,
+            bands: [0.0; 16],  // Flat response
+        }
+    }
+}
+
+/// Preset equalizer configurations
+impl EqualizerSettings {
+    pub fn preset_flat() -> Self {
+        Self::default()
+    }
+
+    pub fn preset_bass_boost() -> Self {
+        Self {
+            enabled: true,
+            preset: Some("bass_boost".to_string()),
+            bands: [8.0, 7.0, 6.0, 4.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        }
+    }
+
+    pub fn preset_treble_boost() -> Self {
+        Self {
+            enabled: true,
+            preset: Some("treble_boost".to_string()),
+            bands: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 3.0, 4.0, 5.0, 6.0, 6.0, 7.0, 7.0, 8.0, 8.0],
+        }
+    }
+
+    pub fn preset_vocal() -> Self {
+        Self {
+            enabled: true,
+            preset: Some("vocal".to_string()),
+            bands: [-2.0, -2.0, -1.0, 0.0, 3.0, 5.0, 5.0, 4.0, 3.0, 2.0, 0.0, -1.0, -1.0, -2.0, -2.0, -2.0],
+        }
+    }
+
+    pub fn preset_rock() -> Self {
+        Self {
+            enabled: true,
+            preset: Some("rock".to_string()),
+            bands: [5.0, 4.0, 3.0, 1.0, -1.0, -2.0, 0.0, 2.0, 3.0, 4.0, 5.0, 5.0, 5.0, 4.0, 4.0, 3.0],
+        }
+    }
+
+    pub fn preset_electronic() -> Self {
+        Self {
+            enabled: true,
+            preset: Some("electronic".to_string()),
+            bands: [6.0, 5.0, 4.0, 2.0, 0.0, -2.0, -1.0, 0.0, 2.0, 4.0, 5.0, 5.0, 4.0, 4.0, 5.0, 6.0],
+        }
+    }
+
+    pub fn preset_acoustic() -> Self {
+        Self {
+            enabled: true,
+            preset: Some("acoustic".to_string()),
+            bands: [3.0, 3.0, 2.0, 1.0, 1.0, 2.0, 3.0, 2.0, 1.0, 1.0, 2.0, 3.0, 3.0, 2.0, 2.0, 2.0],
+        }
+    }
+}
+
+// =============================================================================
+// User Music Preferences (for AI suggestions)
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserMusicPreferences {
+    pub id: Uuid,
+    pub favorite_genres: Vec<String>,
+    pub favorite_artists: Vec<String>,
+    pub listening_history: Vec<ListeningEntry>,
+    pub liked_songs: Vec<Uuid>,
+    pub disliked_songs: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListeningEntry {
+    pub song_id: Uuid,
+    pub youtube_id: String,
+    pub title: String,
+    pub artist: Option<String>,
+    pub listened_at: DateTime<Utc>,
+    pub listen_duration: i64,  // How long user listened
+    pub completed: bool,       // If song was played to completion
+}
+
+// =============================================================================
+// Search & Suggestions
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YouTubeSearchResult {
+    pub youtube_id: String,
+    pub title: String,
+    pub channel: String,
+    pub duration: i64,
+    pub thumbnail: String,
+    pub view_count: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SongSuggestion {
+    pub youtube_id: String,
+    pub title: String,
+    pub artist: Option<String>,
+    pub thumbnail: String,
+    pub duration: i64,
+    pub reason: String,  // Why this was suggested
+    pub confidence: f32, // 0.0 - 1.0
+}
+
+// =============================================================================
+// API Response Types
+// =============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PlaylistWithSongs {
+    #[serde(flatten)]
+    pub playlist: Playlist,
+    pub songs: Vec<Song>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StreamInfo {
+    pub song_id: Uuid,
+    pub stream_url: String,
+    pub format: String,
+    pub bitrate: i32,
+    pub sample_rate: i32,
+}
+
+// =============================================================================
+// Cover Art
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CoverArtSearchResult {
+    pub source: String,  // "musicbrainz", "youtube", "custom"
+    pub url: String,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+}

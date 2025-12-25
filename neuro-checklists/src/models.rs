@@ -2,7 +2,49 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use surrealdb::sql::Thing;
 use uuid::Uuid;
+
+// =============================================================================
+// Helper to convert SurrealDB Thing to UUID
+// =============================================================================
+
+fn thing_to_uuid(thing: &Thing) -> Option<Uuid> {
+    match &thing.id {
+        surrealdb::sql::Id::String(s) => Uuid::parse_str(s).ok(),
+        _ => None,
+    }
+}
+
+// =============================================================================
+// Internal DB Record types (with Thing id)
+// =============================================================================
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChecklistRecord {
+    pub id: Thing,
+    pub title: String,
+    pub description: Option<String>,
+    pub priority: i32,
+    pub due_date: Option<DateTime<Utc>>,
+    pub notification_interval: Option<i64>,
+    pub last_reminded: Option<DateTime<Utc>>,
+    pub is_archived: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChecklistItemRecord {
+    pub id: Thing,
+    pub checklist_id: String,
+    pub content: String,
+    pub is_completed: bool,
+    pub completed_at: Option<DateTime<Utc>>,
+    #[serde(rename = "item_order")]
+    pub order: i32,
+    pub created_at: DateTime<Utc>,
+}
 
 // =============================================================================
 // Domain Models
@@ -26,6 +68,23 @@ pub struct Checklist {
     pub updated_at: DateTime<Utc>,
 }
 
+impl From<ChecklistRecord> for Checklist {
+    fn from(record: ChecklistRecord) -> Self {
+        Checklist {
+            id: thing_to_uuid(&record.id).unwrap_or_default(),
+            title: record.title,
+            description: record.description,
+            priority: record.priority,
+            due_date: record.due_date,
+            notification_interval: record.notification_interval,
+            last_reminded: record.last_reminded,
+            is_archived: record.is_archived,
+            created_at: record.created_at,
+            updated_at: record.updated_at,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChecklistItem {
     pub id: Uuid,
@@ -37,6 +96,20 @@ pub struct ChecklistItem {
     #[serde(rename = "item_order")]
     pub order: i32,
     pub created_at: DateTime<Utc>,
+}
+
+impl From<ChecklistItemRecord> for ChecklistItem {
+    fn from(record: ChecklistItemRecord) -> Self {
+        ChecklistItem {
+            id: thing_to_uuid(&record.id).unwrap_or_default(),
+            checklist_id: Uuid::parse_str(&record.checklist_id).unwrap_or_default(),
+            content: record.content,
+            is_completed: record.is_completed,
+            completed_at: record.completed_at,
+            order: record.order,
+            created_at: record.created_at,
+        }
+    }
 }
 
 // =============================================================================
@@ -114,8 +187,8 @@ pub struct ChecklistResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notification_interval: Option<i64>,
     pub is_archived: bool,
-    pub item_count: usize,
-    pub completed_count: usize,
+    pub total_items: usize,
+    pub completed_items: usize,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -180,7 +253,7 @@ impl ErrorResponse {
 
 impl Checklist {
     pub fn to_response(&self, items: &[ChecklistItem]) -> ChecklistResponse {
-        let completed_count = items.iter().filter(|i| i.is_completed).count();
+        let completed_items = items.iter().filter(|i| i.is_completed).count();
         
         ChecklistResponse {
             id: self.id,
@@ -190,8 +263,8 @@ impl Checklist {
             due_date: self.due_date.map(|d| d.to_rfc3339()),
             notification_interval: self.notification_interval,
             is_archived: self.is_archived,
-            item_count: items.len(),
-            completed_count,
+            total_items: items.len(),
+            completed_items,
             created_at: self.created_at.to_rfc3339(),
             updated_at: self.updated_at.to_rfc3339(),
         }

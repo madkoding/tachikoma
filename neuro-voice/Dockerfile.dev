@@ -1,0 +1,57 @@
+# =============================================================================
+# Voice Service Rust - Development Dockerfile
+# =============================================================================
+# Optimized for FAST development builds:
+# - Uses debug mode (no --release)
+# - Persistent cargo cache via volume mount
+# - mold linker for faster linking
+# =============================================================================
+
+FROM rust:1.86-slim
+
+# Install build dependencies + mold linker
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config \
+    libssl-dev \
+    libopus-dev \
+    mold \
+    clang \
+    curl \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configure cargo: use mold linker + max parallel jobs
+RUN mkdir -p /root/.cargo && \
+    echo '[build]' > /root/.cargo/config.toml && \
+    echo 'jobs = -1' >> /root/.cargo/config.toml && \
+    echo '' >> /root/.cargo/config.toml && \
+    echo '[target.x86_64-unknown-linux-gnu]' >> /root/.cargo/config.toml && \
+    echo 'linker = "clang"' >> /root/.cargo/config.toml && \
+    echo 'rustflags = ["-C", "link-arg=-fuse-ld=mold"]' >> /root/.cargo/config.toml
+
+WORKDIR /app
+
+# Download and setup Piper TTS
+RUN mkdir -p /app/piper /app/models && \
+    wget -q https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz -O /tmp/piper.tar.gz && \
+    tar -xzf /tmp/piper.tar.gz -C /app/piper --strip-components=1 && \
+    rm /tmp/piper.tar.gz && \
+    chmod +x /app/piper/piper
+
+# Copy source
+COPY Cargo.toml Cargo.lock* ./
+COPY src ./src
+
+# Build in DEBUG mode (much faster!)
+RUN cargo build
+
+ENV RUST_LOG=info,voice_service=debug
+ENV HOST=0.0.0.0
+ENV PORT=8100
+ENV PIPER_BIN=/app/piper/piper
+ENV MODELS_DIR=/app/models
+ENV DEFAULT_VOICE=es_MX-claude-high
+
+EXPOSE 8100
+
+CMD ["./target/debug/neuro-voice"]

@@ -98,7 +98,7 @@ export default function ChecklistItemRow({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       className={clsx(
-        'group flex items-start gap-3 p-3 rounded-lg border transition-all list-none',
+        'group flex items-start gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border transition-all list-none',
         item.isCompleted
           ? 'bg-cyber-cyan/5 border-cyber-cyan/10'
           : 'bg-cyber-surface border-cyber-cyan/20 hover:border-cyber-cyan/30',
@@ -145,7 +145,7 @@ export default function ChecklistItemRow({
           onChange={(e) => setEditContent(e.target.value)}
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
-          className="flex-1 bg-cyber-bg/50 text-cyber-cyan text-sm px-2 py-1 rounded border border-cyber-cyan/30 focus:outline-none focus:border-cyber-cyan resize-none min-h-[32px]"
+          className="flex-1 bg-cyber-bg/50 text-cyber-cyan text-xs sm:text-sm px-2 py-1 rounded border border-cyber-cyan/30 focus:outline-none focus:border-cyber-cyan resize-none min-h-[28px]"
           rows={editContent.split('\n').length || 1}
         />
       ) : (
@@ -154,7 +154,7 @@ export default function ChecklistItemRow({
           onClick={handleContentClick}
           onKeyDown={handleContentKeyDown}
           className={clsx(
-            'flex-1 text-sm transition-all cursor-text min-w-0 text-left bg-transparent border-none p-0',
+            'flex-1 text-xs sm:text-sm transition-all cursor-text min-w-0 text-left bg-transparent border-none p-0 break-words',
             item.isCompleted ? 'opacity-40 line-through' : '',
             'prose prose-sm prose-invert max-w-none',
             '[&_p]:m-0 [&_p]:leading-relaxed [&_p]:text-cyber-cyan',

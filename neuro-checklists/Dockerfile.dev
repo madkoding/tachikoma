@@ -1,0 +1,44 @@
+# =============================================================================
+# Checklists Service Rust - Development Dockerfile
+# =============================================================================
+# Optimized for FAST development builds:
+# - Uses debug mode (no --release)
+# - Persistent cargo cache via volume mount
+# - mold linker for faster linking
+# =============================================================================
+
+FROM rust:1.86-slim
+
+# Install build dependencies + mold linker
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    mold \
+    clang \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configure cargo: use mold linker + max parallel jobs
+RUN mkdir -p /root/.cargo && \
+    echo '[build]' > /root/.cargo/config.toml && \
+    echo 'jobs = -1' >> /root/.cargo/config.toml && \
+    echo '' >> /root/.cargo/config.toml && \
+    echo '[target.x86_64-unknown-linux-gnu]' >> /root/.cargo/config.toml && \
+    echo 'linker = "clang"' >> /root/.cargo/config.toml && \
+    echo 'rustflags = ["-C", "link-arg=-fuse-ld=mold"]' >> /root/.cargo/config.toml
+
+WORKDIR /app
+
+# Copy source
+COPY Cargo.toml Cargo.lock* ./
+COPY src ./src
+
+# Build in DEBUG mode (much faster!)
+RUN cargo build
+
+ENV RUST_LOG=info
+ENV PORT=3001
+
+EXPOSE 3001
+
+CMD ["./target/debug/neuro-checklists"]

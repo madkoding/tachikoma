@@ -226,7 +226,7 @@ export interface ChecklistItemDto {
   completed_at?: string;
   order: number;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface ChecklistDto {
@@ -348,6 +348,248 @@ export const checklistsApi = {
   // Import from markdown
   importMarkdown: async (request: ImportMarkdownRequest): Promise<ChecklistWithItemsDto> => {
     const response = await api.post<ChecklistWithItemsDto>('/checklists/import/markdown', request);
+    return response.data;
+  },
+};
+
+// =============================================================================
+// Music API Types
+// =============================================================================
+
+export interface PlaylistDto {
+  id: string;
+  name: string;
+  description?: string;
+  cover_url?: string;
+  is_suggestions: boolean;
+  shuffle: boolean;
+  repeat_mode: 'off' | 'one' | 'all';
+  song_count: number;
+  total_duration: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SongDto {
+  id: string;
+  playlist_id: string;
+  youtube_id: string;
+  youtube_url: string;
+  title: string;
+  artist?: string;
+  album?: string;
+  duration: number;
+  cover_url?: string;
+  thumbnail_url?: string;
+  song_order: number;
+  play_count: number;
+  last_played?: string;
+  created_at: string;
+}
+
+export interface PlaylistWithSongsDto {
+  id: string;
+  name: string;
+  description?: string;
+  cover_url?: string;
+  is_suggestions: boolean;
+  shuffle: boolean;
+  repeat_mode: 'off' | 'one' | 'all';
+  song_count: number;
+  total_duration: number;
+  created_at: string;
+  updated_at: string;
+  songs: SongDto[];
+}
+
+export interface CreatePlaylistRequest {
+  name: string;
+  description?: string;
+  cover_url?: string;
+}
+
+export interface UpdatePlaylistRequest {
+  name?: string;
+  description?: string;
+  cover_url?: string;
+  shuffle?: boolean;
+  repeat_mode?: 'off' | 'one' | 'all';
+}
+
+export interface CreateSongRequest {
+  youtube_url: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  cover_url?: string;
+}
+
+export interface UpdateSongRequest {
+  title?: string;
+  artist?: string;
+  album?: string;
+  cover_url?: string;
+  song_order?: number;
+}
+
+export interface EqualizerSettingsDto {
+  enabled: boolean;
+  preset?: string;
+  bands: number[];
+}
+
+export interface YouTubeSearchResultDto {
+  video_id: string;
+  title: string;
+  channel: string;
+  duration: number;
+  thumbnail: string;
+  view_count?: number;
+}
+
+export interface YouTubeMetadataDto {
+  id: string;
+  title: string;
+  uploader?: string;
+  duration: number;
+  thumbnail?: string;
+  description?: string;
+}
+
+export interface CoverArtResultDto {
+  url: string;
+  source: string;
+  width?: number;
+  height?: number;
+}
+
+export interface StreamInfoDto {
+  song_id: string;
+  stream_url: string;
+  format: string;
+  bitrate: number;
+  sample_rate: number;
+}
+
+// =============================================================================
+// Music API
+// =============================================================================
+
+export const musicApi = {
+  // Playlists
+  listPlaylists: async (includeSongs = false): Promise<PlaylistDto[]> => {
+    const response = await api.get<PlaylistDto[]>('/music/playlists', {
+      params: { include_songs: includeSongs }
+    });
+    return response.data;
+  },
+
+  getPlaylist: async (id: string): Promise<PlaylistWithSongsDto> => {
+    const response = await api.get<PlaylistWithSongsDto>(`/music/playlists/${id}`);
+    return response.data;
+  },
+
+  createPlaylist: async (request: CreatePlaylistRequest): Promise<PlaylistDto> => {
+    const response = await api.post<PlaylistDto>('/music/playlists', request);
+    return response.data;
+  },
+
+  updatePlaylist: async (id: string, request: UpdatePlaylistRequest): Promise<PlaylistDto> => {
+    const response = await api.patch<PlaylistDto>(`/music/playlists/${id}`, request);
+    return response.data;
+  },
+
+  deletePlaylist: async (id: string): Promise<void> => {
+    await api.delete(`/music/playlists/${id}`);
+  },
+
+  // Songs
+  addSong: async (playlistId: string, request: CreateSongRequest): Promise<SongDto> => {
+    const response = await api.post<SongDto>(`/music/playlists/${playlistId}/songs`, request);
+    return response.data;
+  },
+
+  updateSong: async (playlistId: string, songId: string, request: UpdateSongRequest): Promise<SongDto> => {
+    const response = await api.patch<SongDto>(`/music/playlists/${playlistId}/songs/${songId}`, request);
+    return response.data;
+  },
+
+  deleteSong: async (playlistId: string, songId: string): Promise<void> => {
+    await api.delete(`/music/playlists/${playlistId}/songs/${songId}`);
+  },
+
+  reorderSongs: async (playlistId: string, songIds: string[]): Promise<void> => {
+    await api.post(`/music/playlists/${playlistId}/reorder`, { song_ids: songIds });
+  },
+
+  // Streaming
+  getStreamUrl: (songId: string): string => {
+    return `${API_BASE_URL}/music/stream/${songId}`;
+  },
+
+  getStreamInfo: async (songId: string): Promise<StreamInfoDto> => {
+    const response = await api.get<StreamInfoDto>(`/music/stream/${songId}/info`);
+    return response.data;
+  },
+
+  // YouTube
+  searchYouTube: async (query: string, limit = 10): Promise<YouTubeSearchResultDto[]> => {
+    const response = await api.get<YouTubeSearchResultDto[]>('/music/youtube/search', {
+      params: { q: query, limit }
+    });
+    return response.data;
+  },
+
+  addMultipleSongs: async (playlistId: string, requests: CreateSongRequest[]): Promise<SongDto[]> => {
+    const results: SongDto[] = [];
+    for (const request of requests) {
+      const song = await musicApi.addSong(playlistId, request);
+      results.push(song);
+    }
+    return results;
+  },
+
+  getYouTubeMetadata: async (url: string): Promise<YouTubeMetadataDto> => {
+    const response = await api.get<YouTubeMetadataDto>('/music/youtube/metadata', {
+      params: { url }
+    });
+    return response.data;
+  },
+
+  // Cover Art
+  searchCover: async (title: string, artist?: string): Promise<CoverArtResultDto | null> => {
+    const response = await api.get<CoverArtResultDto | null>('/music/covers/search', {
+      params: { title, artist }
+    });
+    return response.data;
+  },
+
+  // Equalizer
+  getEqualizer: async (): Promise<EqualizerSettingsDto> => {
+    const response = await api.get<EqualizerSettingsDto>('/music/equalizer');
+    return response.data;
+  },
+
+  updateEqualizer: async (settings: EqualizerSettingsDto): Promise<EqualizerSettingsDto> => {
+    const response = await api.put<EqualizerSettingsDto>('/music/equalizer', settings);
+    return response.data;
+  },
+
+  getEqualizerPreset: async (name: string): Promise<EqualizerSettingsDto> => {
+    const response = await api.get<EqualizerSettingsDto>('/music/equalizer/preset', {
+      params: { name }
+    });
+    return response.data;
+  },
+
+  // History
+  getListeningHistory: async (limit = 50): Promise<SongDto[]> => {
+    const response = await api.get<SongDto[]>('/music/history', { params: { limit } });
+    return response.data;
+  },
+
+  getMostPlayed: async (limit = 20): Promise<SongDto[]> => {
+    const response = await api.get<SongDto[]>('/music/stats/most-played', { params: { limit } });
     return response.data;
   },
 };

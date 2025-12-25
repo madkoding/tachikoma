@@ -1,0 +1,83 @@
+# =============================================================================
+# NEURO-OS Docker Compose - Development Override
+# =============================================================================
+# Use with: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# This override provides:
+# - Debug builds (faster compilation, ~30% improvement)
+# - Persistent cargo cache (dependencies don't recompile)
+# - Source volume mounts for hot-reload potential
+# - mold linker for 2-3x faster linking
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # Voice Service - Development Build
+  # ===========================================================================
+  voice-service:
+    build:
+      context: ./neuro-voice
+      dockerfile: Dockerfile.dev
+    volumes:
+      # Persistent cargo cache - dependencies won't recompile!
+      - cargo-cache-voice:/root/.cargo/registry
+      - cargo-git-voice:/root/.cargo/git
+      - voice-target:/app/target
+      # Mount source for potential hot-reload
+      - ./neuro-voice/src:/app/src:ro
+
+  # ===========================================================================
+  # Checklists Service - Development Build
+  # ===========================================================================
+  checklists-service:
+    build:
+      context: ./neuro-checklists
+      dockerfile: Dockerfile.dev
+    volumes:
+      - cargo-cache-checklists:/root/.cargo/registry
+      - cargo-git-checklists:/root/.cargo/git
+      - checklists-target:/app/target
+      - ./neuro-checklists/src:/app/src:ro
+
+  # ===========================================================================
+  # Music Service - Development Build
+  # ===========================================================================
+  music-service:
+    build:
+      context: ./neuro-music
+      dockerfile: Dockerfile.dev
+    volumes:
+      - cargo-cache-music:/root/.cargo/registry
+      - cargo-git-music:/root/.cargo/git
+      - music-target:/app/target
+      - ./neuro-music/src:/app/src:ro
+
+# =============================================================================
+# Persistent Volumes for Cargo Cache
+# =============================================================================
+# These volumes persist between builds, so dependencies only compile once!
+# =============================================================================
+volumes:
+  # Voice service cache
+  cargo-cache-voice:
+    name: neuro-cargo-cache-voice
+  cargo-git-voice:
+    name: neuro-cargo-git-voice
+  voice-target:
+    name: neuro-voice-target
+
+  # Checklists service cache
+  cargo-cache-checklists:
+    name: neuro-cargo-cache-checklists
+  cargo-git-checklists:
+    name: neuro-cargo-git-checklists
+  checklists-target:
+    name: neuro-checklists-target
+
+  # Music service cache
+  cargo-cache-music:
+    name: neuro-cargo-cache-music
+  cargo-git-music:
+    name: neuro-cargo-git-music
+  music-target:
+    name: neuro-music-target

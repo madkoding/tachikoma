@@ -13,6 +13,7 @@ import PomodoroPage from './pages/PomodoroPage';
 import RemindersPage from './pages/RemindersPage';
 import MusicPage from './pages/MusicPage';
 import ImagesPage from './pages/ImagesPage';
+import { MiniPlayer, AudioPlayer } from './components/music';
 import { useThemeStore } from './stores/themeStore';
 
 function App() {
@@ -53,6 +54,12 @@ function App() {
             <Route path="/images" element={<ImagesPage />} />
           </Route>
         </Routes>
+        
+        {/* Global mini player - shows on all pages except /music */}
+        <MiniPlayer />
+        
+        {/* Global audio player - always mounted for continuous playback */}
+        <AudioPlayer />
       </div>
     </BrowserRouter>
   );

@@ -1,5 +1,16 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { 
+  checklistsApi, 
+  ChecklistDto, 
+  ChecklistWithItemsDto,
+  ChecklistItemDto,
+  CreateChecklistRequest,
+  CreateChecklistItemRequest,
+} from '../api/client';
+
+// =============================================================================
+// Types - Frontend models (camelCase)
+// =============================================================================
 
 export interface ChecklistItem {
   id: string;
@@ -8,6 +19,7 @@ export interface ChecklistItem {
   completedAt?: Date;
   order: number;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Checklist {
@@ -18,110 +30,90 @@ export interface Checklist {
   priority: 1 | 2 | 3 | 4 | 5;
   order: number;
   dueDate?: Date;
-  notificationInterval?: number; // in minutes
-  lastReminded?: Date;
+  notificationInterval?: number;
   isArchived: boolean;
+  totalItems: number;
+  completedItems: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Result of parsing markdown - can be single or multiple checklists
-export interface ParsedMarkdownResult {
-  checklists: Array<{
-    title: string;
-    description?: string;
-    priority: 1 | 2 | 3 | 4 | 5;
-    items: Omit<ChecklistItem, 'id' | 'createdAt'>[];
-  }>;
-  mainTitle?: string;
+// =============================================================================
+// Converters - API DTO (snake_case) to Frontend Model (camelCase)
+// =============================================================================
+
+function itemDtoToModel(dto: ChecklistItemDto): ChecklistItem {
+  return {
+    id: dto.id,
+    content: dto.content,
+    isCompleted: dto.is_completed,
+    completedAt: dto.completed_at ? new Date(dto.completed_at) : undefined,
+    order: dto.order,
+    createdAt: new Date(dto.created_at),
+    updatedAt: dto.updated_at ? new Date(dto.updated_at) : new Date(dto.created_at),
+  };
 }
 
-interface ChecklistState {
-  checklists: Checklist[];
-  selectedChecklistId: string | null;
-  isLoading: boolean;
-  error: string | null;
-
-  // Actions
-  setChecklists: (checklists: Checklist[]) => void;
-  addChecklist: (checklist: Checklist) => void;
-  updateChecklist: (id: string, updates: Partial<Checklist>) => void;
-  deleteChecklist: (id: string) => void;
-  setSelectedChecklist: (id: string | null) => void;
-  
-  // Item actions
-  addItem: (checklistId: string, item: ChecklistItem) => void;
-  updateItem: (checklistId: string, itemId: string, updates: Partial<ChecklistItem>) => void;
-  deleteItem: (checklistId: string, itemId: string) => void;
-  toggleItem: (checklistId: string, itemId: string) => void;
-  reorderItems: (checklistId: string, items: ChecklistItem[]) => void;
-  
-  // Reorder checklists
-  reorderChecklists: (checklists: Checklist[]) => void;
-  
-  // Import from markdown (returns first checklist for backwards compatibility)
-  importFromMarkdown: (markdown: string, title?: string) => Checklist;
-  // Import multiple checklists from markdown with sections
-  importMultipleFromMarkdown: (markdown: string) => Checklist[];
-  
-  // State management
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
+function checklistDtoToModel(dto: ChecklistDto, items: ChecklistItem[] = []): Checklist {
+  return {
+    id: dto.id,
+    title: dto.title,
+    description: dto.description,
+    items,
+    priority: (dto.priority || 3) as 1 | 2 | 3 | 4 | 5,
+    order: 0, // Will be set by list position
+    dueDate: dto.due_date ? new Date(dto.due_date) : undefined,
+    notificationInterval: dto.notification_interval,
+    isArchived: dto.is_archived,
+    totalItems: dto.total_items,
+    completedItems: dto.completed_items,
+    createdAt: new Date(dto.created_at),
+    updatedAt: new Date(dto.updated_at),
+  };
 }
 
-// Helper to generate UUID
-function generateUUID(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+function checklistWithItemsDtoToModel(dto: ChecklistWithItemsDto): Checklist {
+  const items = dto.items.map(itemDtoToModel);
+  return checklistDtoToModel(dto, items);
 }
 
-// Detect priority from emoji or keywords in title
+// =============================================================================
+// Markdown Parser
+// =============================================================================
+
 function detectPriority(text: string): 1 | 2 | 3 | 4 | 5 {
   const lowerText = text.toLowerCase();
   
-  // Priority emojis
   if (text.includes('🔴') || text.includes('❗') || text.includes('🚨')) return 1;
   if (text.includes('🟠') || text.includes('⚠️')) return 2;
   if (text.includes('🟡') || text.includes('⚡')) return 3;
   if (text.includes('🟢') || text.includes('✅')) return 4;
   if (text.includes('🔵') || text.includes('💡')) return 5;
   
-  // Keywords
   if (lowerText.includes('urgent') || lowerText.includes('critical') || lowerText.includes('inmediata')) return 1;
   if (lowerText.includes('important') || lowerText.includes('importante')) return 2;
-  if (lowerText.includes('sprint 0') || lowerText.includes('now')) return 1;
   
-  return 3; // Default medium priority
+  return 3;
 }
 
-// Clean markdown formatting from text
 function cleanMarkdownText(text: string): string {
   return text
-    .replace(/\*\*(.+?)\*\*/g, '$1')  // Bold **text**
-    .replace(/\*(.+?)\*/g, '$1')       // Italic *text*
-    .replace(/__(.+?)__/g, '$1')       // Bold __text__
-    .replace(/_(.+?)_/g, '$1')         // Italic _text_
-    .replace(/`(.+?)`/g, '$1')         // Code `text`
-    .replace(/\[(.+?)\]\(.+?\)/g, '$1') // Links [text](url)
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/_(.+?)_/g, '$1')
+    .replace(/`(.+?)`/g, '$1')
+    .replace(/\[(.+?)\]\(.+?\)/g, '$1')
     .trim();
 }
 
-// Parse a checkbox line with enhanced format support
 function parseCheckboxLine(line: string): { content: string; isCompleted: boolean } | null {
-  // Match: - [ ] **Title:** Description  OR  - [ ] Simple item  OR  * [x] Item
   const checkboxMatch = line.match(/^[-*]\s*\[([ xX])\]\s*(.+)$/);
   if (!checkboxMatch) return null;
   
   const isCompleted = checkboxMatch[1].toLowerCase() === 'x';
   let content = checkboxMatch[2].trim();
   
-  // Handle **Title:** Description format - keep the structure but clean markdown
   const boldTitleMatch = content.match(/^\*\*(.+?)\*\*:?\s*(.*)$/);
   if (boldTitleMatch) {
     const title = boldTitleMatch[1].trim();
@@ -134,39 +126,35 @@ function parseCheckboxLine(line: string): { content: string; isCompleted: boolea
   return { content, isCompleted };
 }
 
-// Advanced markdown parser that handles sections
-function parseMarkdownAdvanced(markdown: string): ParsedMarkdownResult {
+interface ParsedSection {
+  title: string;
+  description?: string;
+  priority: 1 | 2 | 3 | 4 | 5;
+  items: { content: string; isCompleted: boolean; order: number }[];
+}
+
+function parseMarkdownAdvanced(markdown: string): { sections: ParsedSection[]; mainTitle?: string } {
   const lines = markdown.split('\n');
-  const result: ParsedMarkdownResult = { checklists: [] };
+  const result: { sections: ParsedSection[]; mainTitle?: string } = { sections: [] };
   
   let mainTitle: string | undefined;
-  let currentSection: {
-    title: string;
-    description?: string;
-    priority: 1 | 2 | 3 | 4 | 5;
-    items: Omit<ChecklistItem, 'id' | 'createdAt'>[];
-  } | null = null;
+  let currentSection: ParsedSection | null = null;
   
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  for (const line of lines) {
     const trimmedLine = line.trim();
     
-    // Skip empty lines and horizontal rules
     if (!trimmedLine || trimmedLine === '---' || trimmedLine.match(/^-{3,}$/)) {
       continue;
     }
     
-    // Main title (# heading)
     if (trimmedLine.startsWith('# ') && !trimmedLine.startsWith('## ')) {
       mainTitle = cleanMarkdownText(trimmedLine.replace(/^#\s*/, ''));
       continue;
     }
     
-    // Section header (## heading) - starts a new checklist
     if (trimmedLine.startsWith('## ')) {
-      // Save previous section if it has items
       if (currentSection && currentSection.items.length > 0) {
-        result.checklists.push(currentSection);
+        result.sections.push(currentSection);
       }
       
       const sectionTitle = cleanMarkdownText(trimmedLine.replace(/^##\s*/, ''));
@@ -178,13 +166,6 @@ function parseMarkdownAdvanced(markdown: string): ParsedMarkdownResult {
       continue;
     }
     
-    // Subsection header (### heading) - can add to description or be treated as item group
-    if (trimmedLine.startsWith('### ') && currentSection) {
-      // Add as a separator item or skip
-      continue;
-    }
-    
-    // Blockquote - use as section description
     if (trimmedLine.startsWith('>') && currentSection) {
       const descriptionText = cleanMarkdownText(trimmedLine.replace(/^>\s*/, ''));
       currentSection.description = currentSection.description 
@@ -193,10 +174,8 @@ function parseMarkdownAdvanced(markdown: string): ParsedMarkdownResult {
       continue;
     }
     
-    // Checkbox items
     const checkboxResult = parseCheckboxLine(trimmedLine);
     if (checkboxResult) {
-      // If no section yet, create a default one
       if (!currentSection) {
         currentSection = {
           title: mainTitle || 'Imported Checklist',
@@ -208,265 +187,417 @@ function parseMarkdownAdvanced(markdown: string): ParsedMarkdownResult {
       currentSection.items.push({
         content: checkboxResult.content,
         isCompleted: checkboxResult.isCompleted,
-        completedAt: checkboxResult.isCompleted ? new Date() : undefined,
         order: currentSection.items.length,
       });
-      continue;
-    }
-    
-    // Regular list items (without checkbox) in a section with checkboxes - skip
-    // Stack tecnológico items, etc.
-    if (trimmedLine.match(/^[-*]\s+\*\*/) && currentSection) {
-      // This is likely a non-checkbox list item like "* **Lenguaje:** Rust"
-      // Skip it as it's not a task
-      continue;
     }
   }
   
-  // Don't forget the last section
   if (currentSection && currentSection.items.length > 0) {
-    result.checklists.push(currentSection);
+    result.sections.push(currentSection);
   }
   
   result.mainTitle = mainTitle;
-  
   return result;
 }
 
-// Simple parser for backwards compatibility
-function parseMarkdownChecklist(markdown: string): { title: string; description?: string; priority: 1 | 2 | 3 | 4 | 5; items: Omit<ChecklistItem, 'id' | 'createdAt'>[] } {
-  const result = parseMarkdownAdvanced(markdown);
+// =============================================================================
+// Store Interface
+// =============================================================================
+
+interface ChecklistState {
+  checklists: Checklist[];
+  selectedChecklistId: string | null;
+  isLoading: boolean;
+  error: string | null;
+
+  // API Actions
+  fetchChecklists: () => Promise<void>;
+  fetchChecklist: (id: string) => Promise<Checklist | null>;
+  createChecklist: (title: string, description?: string, priority?: number) => Promise<Checklist>;
+  updateChecklist: (id: string, updates: { title?: string; description?: string; priority?: number; isArchived?: boolean }) => Promise<void>;
+  deleteChecklist: (id: string) => Promise<void>;
   
-  // If we have multiple sections, merge them all into one
-  if (result.checklists.length > 0) {
-    const allItems: Omit<ChecklistItem, 'id' | 'createdAt'>[] = [];
-    let order = 0;
+  // Item API Actions
+  addItem: (checklistId: string, content: string) => Promise<ChecklistItem>;
+  updateItem: (checklistId: string, itemId: string, updates: { content?: string; isCompleted?: boolean; order?: number }) => Promise<void>;
+  deleteItem: (checklistId: string, itemId: string) => Promise<void>;
+  toggleItem: (checklistId: string, itemId: string) => Promise<void>;
+  
+  // Local state actions
+  setSelectedChecklist: (id: string | null) => void;
+  reorderChecklists: (checklists: Checklist[]) => void;
+  reorderItems: (checklistId: string, items: ChecklistItem[]) => void;
+  
+  // Import from markdown
+  importFromMarkdown: (markdown: string, title?: string) => Promise<Checklist>;
+  importMultipleFromMarkdown: (markdown: string) => Promise<Checklist[]>;
+  
+  // State management
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+}
+
+// =============================================================================
+// Store Implementation
+// =============================================================================
+
+export const useChecklistStore = create<ChecklistState>()((set, get) => ({
+  checklists: [],
+  selectedChecklistId: null,
+  isLoading: false,
+  error: null,
+
+  // ==========================================================================
+  // Fetch all checklists
+  // ==========================================================================
+  fetchChecklists: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await checklistsApi.list(1, 100, true);
+      const checklists = response.data.map((dto, index) => ({
+        ...checklistDtoToModel(dto),
+        order: index,
+      }));
+      set({ checklists, isLoading: false });
+    } catch (error) {
+      console.error('Failed to fetch checklists:', error);
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to fetch checklists',
+        isLoading: false 
+      });
+    }
+  },
+
+  // ==========================================================================
+  // Fetch single checklist with items
+  // ==========================================================================
+  fetchChecklist: async (id: string) => {
+    try {
+      const dto = await checklistsApi.get(id);
+      const checklist = checklistWithItemsDtoToModel(dto);
+      
+      // Update in local state
+      set((state) => ({
+        checklists: state.checklists.map((c) =>
+          c.id === id ? { ...checklist, order: c.order } : c
+        ),
+      }));
+      
+      return checklist;
+    } catch (error) {
+      console.error('Failed to fetch checklist:', error);
+      set({ error: error instanceof Error ? error.message : 'Failed to fetch checklist' });
+      return null;
+    }
+  },
+
+  // ==========================================================================
+  // Create checklist
+  // ==========================================================================
+  createChecklist: async (title: string, description?: string, priority?: number) => {
+    set({ error: null });
+    try {
+      const request: CreateChecklistRequest = {
+        title,
+        description,
+        priority: priority || 3,
+      };
+      const dto = await checklistsApi.create(request);
+      const checklist = checklistWithItemsDtoToModel(dto);
+      
+      set((state) => ({
+        checklists: [{ ...checklist, order: 0 }, ...state.checklists.map(c => ({ ...c, order: c.order + 1 }))],
+      }));
+      
+      return checklist;
+    } catch (error) {
+      console.error('Failed to create checklist:', error);
+      set({ error: error instanceof Error ? error.message : 'Failed to create checklist' });
+      throw error;
+    }
+  },
+
+  // ==========================================================================
+  // Update checklist
+  // ==========================================================================
+  updateChecklist: async (id, updates) => {
+    set({ error: null });
+    try {
+      const dto = await checklistsApi.update(id, {
+        title: updates.title,
+        description: updates.description,
+        priority: updates.priority,
+        is_archived: updates.isArchived,
+      });
+      const updatedChecklist = checklistWithItemsDtoToModel(dto);
+      
+      set((state) => ({
+        checklists: state.checklists.map((c) =>
+          c.id === id ? { ...updatedChecklist, order: c.order } : c
+        ),
+      }));
+    } catch (error) {
+      console.error('Failed to update checklist:', error);
+      set({ error: error instanceof Error ? error.message : 'Failed to update checklist' });
+      throw error;
+    }
+  },
+
+  // ==========================================================================
+  // Delete checklist
+  // ==========================================================================
+  deleteChecklist: async (id) => {
+    set({ error: null });
+    try {
+      await checklistsApi.delete(id);
+      set((state) => ({
+        checklists: state.checklists.filter((c) => c.id !== id),
+        selectedChecklistId: state.selectedChecklistId === id ? null : state.selectedChecklistId,
+      }));
+    } catch (error) {
+      console.error('Failed to delete checklist:', error);
+      set({ error: error instanceof Error ? error.message : 'Failed to delete checklist' });
+      throw error;
+    }
+  },
+
+  // ==========================================================================
+  // Add item to checklist
+  // ==========================================================================
+  addItem: async (checklistId, content) => {
+    set({ error: null });
+    try {
+      const checklist = get().checklists.find(c => c.id === checklistId);
+      const order = checklist?.items.length || 0;
+      
+      const request: CreateChecklistItemRequest = {
+        content,
+        is_completed: false,
+        order,
+      };
+      const dto = await checklistsApi.addItem(checklistId, request);
+      const item = itemDtoToModel(dto);
+      
+      set((state) => ({
+        checklists: state.checklists.map((c) =>
+          c.id === checklistId
+            ? { ...c, items: [...c.items, item], totalItems: c.totalItems + 1 }
+            : c
+        ),
+      }));
+      
+      return item;
+    } catch (error) {
+      console.error('Failed to add item:', error);
+      set({ error: error instanceof Error ? error.message : 'Failed to add item' });
+      throw error;
+    }
+  },
+
+  // ==========================================================================
+  // Update item
+  // ==========================================================================
+  updateItem: async (checklistId, itemId, updates) => {
+    set({ error: null });
+    try {
+      const dto = await checklistsApi.updateItem(checklistId, itemId, {
+        content: updates.content,
+        is_completed: updates.isCompleted,
+        order: updates.order,
+      });
+      const item = itemDtoToModel(dto);
+      
+      set((state) => ({
+        checklists: state.checklists.map((c) =>
+          c.id === checklistId
+            ? {
+                ...c,
+                items: c.items.map((i) => (i.id === itemId ? item : i)),
+              }
+            : c
+        ),
+      }));
+    } catch (error) {
+      console.error('Failed to update item:', error);
+      set({ error: error instanceof Error ? error.message : 'Failed to update item' });
+      throw error;
+    }
+  },
+
+  // ==========================================================================
+  // Delete item
+  // ==========================================================================
+  deleteItem: async (checklistId, itemId) => {
+    set({ error: null });
+    try {
+      await checklistsApi.deleteItem(checklistId, itemId);
+      
+      set((state) => ({
+        checklists: state.checklists.map((c) =>
+          c.id === checklistId
+            ? {
+                ...c,
+                items: c.items.filter((i) => i.id !== itemId),
+                totalItems: c.totalItems - 1,
+              }
+            : c
+        ),
+      }));
+    } catch (error) {
+      console.error('Failed to delete item:', error);
+      set({ error: error instanceof Error ? error.message : 'Failed to delete item' });
+      throw error;
+    }
+  },
+
+  // ==========================================================================
+  // Toggle item completion
+  // ==========================================================================
+  toggleItem: async (checklistId, itemId) => {
+    set({ error: null });
+    try {
+      const dto = await checklistsApi.toggleItem(checklistId, itemId);
+      const item = itemDtoToModel(dto);
+      
+      set((state) => ({
+        checklists: state.checklists.map((c) =>
+          c.id === checklistId
+            ? {
+                ...c,
+                items: c.items.map((i) => (i.id === itemId ? item : i)),
+                completedItems: item.isCompleted 
+                  ? c.completedItems + 1 
+                  : c.completedItems - 1,
+              }
+            : c
+        ),
+      }));
+    } catch (error) {
+      console.error('Failed to toggle item:', error);
+      set({ error: error instanceof Error ? error.message : 'Failed to toggle item' });
+      throw error;
+    }
+  },
+
+  // ==========================================================================
+  // Local state actions
+  // ==========================================================================
+  setSelectedChecklist: (id) => set({ selectedChecklistId: id }),
+
+  reorderChecklists: (reorderedChecklists) => {
+    const orderMap = new Map(reorderedChecklists.map((c, index) => [c.id, index]));
     
-    for (const checklist of result.checklists) {
-      for (const item of checklist.items) {
-        allItems.push({ ...item, order: order++ });
+    set((state) => ({
+      checklists: state.checklists
+        .map((checklist) => {
+          const newOrder = orderMap.get(checklist.id);
+          if (newOrder !== undefined) {
+            return { ...checklist, order: newOrder };
+          }
+          return checklist;
+        })
+        .sort((a, b) => a.order - b.order),
+    }));
+  },
+
+  reorderItems: (checklistId, items) => {
+    set((state) => ({
+      checklists: state.checklists.map((c) =>
+        c.id === checklistId ? { ...c, items } : c
+      ),
+    }));
+    
+    // Update order on server for each item
+    items.forEach(async (item, index) => {
+      if (item.order !== index) {
+        try {
+          await checklistsApi.updateItem(checklistId, item.id, { order: index });
+        } catch (error) {
+          console.error('Failed to update item order:', error);
+        }
+      }
+    });
+  },
+
+  // ==========================================================================
+  // Import from markdown
+  // ==========================================================================
+  importFromMarkdown: async (markdown, customTitle) => {
+    const { sections, mainTitle } = parseMarkdownAdvanced(markdown);
+    
+    if (sections.length === 0) {
+      throw new Error('No valid checklist items found in markdown');
+    }
+    
+    // Merge all sections into one checklist
+    const allItems: CreateChecklistItemRequest[] = [];
+    let order = 0;
+    for (const section of sections) {
+      for (const item of section.items) {
+        allItems.push({
+          content: item.content,
+          is_completed: item.isCompleted,
+          order: order++,
+        });
       }
     }
     
-    return {
-      title: result.mainTitle || result.checklists[0].title,
-      description: result.checklists[0].description,
-      priority: result.checklists[0].priority,
+    const request: CreateChecklistRequest = {
+      title: customTitle || mainTitle || sections[0].title,
+      description: sections[0].description,
+      priority: sections[0].priority,
       items: allItems,
     };
-  }
-  
-  return {
-    title: result.mainTitle || 'Imported Checklist',
-    priority: 3,
-    items: [],
-  };
-}
+    
+    const dto = await checklistsApi.create(request);
+    const checklist = checklistWithItemsDtoToModel(dto);
+    
+    set((state) => ({
+      checklists: [{ ...checklist, order: 0 }, ...state.checklists.map(c => ({ ...c, order: c.order + 1 }))],
+    }));
+    
+    return checklist;
+  },
 
-export const useChecklistStore = create<ChecklistState>()(
-  persist(
-    (set, get) => ({
-      checklists: [],
-      selectedChecklistId: null,
-      isLoading: false,
-      error: null,
-
-      setChecklists: (checklists) => set({ checklists }),
-
-      addChecklist: (checklist) =>
-        set((state) => ({
-          checklists: [checklist, ...state.checklists],
-        })),
-
-      updateChecklist: (id, updates) =>
-        set((state) => ({
-          checklists: state.checklists.map((checklist) =>
-            checklist.id === id
-              ? { ...checklist, ...updates, updatedAt: new Date() }
-              : checklist
-          ),
-        })),
-
-      deleteChecklist: (id) =>
-        set((state) => ({
-          checklists: state.checklists.filter((c) => c.id !== id),
-          selectedChecklistId:
-            state.selectedChecklistId === id ? null : state.selectedChecklistId,
-        })),
-
-      setSelectedChecklist: (id) => set({ selectedChecklistId: id }),
-
-      addItem: (checklistId, item) =>
-        set((state) => ({
-          checklists: state.checklists.map((checklist) =>
-            checklist.id === checklistId
-              ? {
-                  ...checklist,
-                  items: [...checklist.items, item],
-                  updatedAt: new Date(),
-                }
-              : checklist
-          ),
-        })),
-
-      updateItem: (checklistId, itemId, updates) =>
-        set((state) => ({
-          checklists: state.checklists.map((checklist) =>
-            checklist.id === checklistId
-              ? {
-                  ...checklist,
-                  items: checklist.items.map((item) =>
-                    item.id === itemId ? { ...item, ...updates } : item
-                  ),
-                  updatedAt: new Date(),
-                }
-              : checklist
-          ),
-        })),
-
-      deleteItem: (checklistId, itemId) =>
-        set((state) => ({
-          checklists: state.checklists.map((checklist) =>
-            checklist.id === checklistId
-              ? {
-                  ...checklist,
-                  items: checklist.items.filter((item) => item.id !== itemId),
-                  updatedAt: new Date(),
-                }
-              : checklist
-          ),
-        })),
-
-      toggleItem: (checklistId, itemId) =>
-        set((state) => ({
-          checklists: state.checklists.map((checklist) =>
-            checklist.id === checklistId
-              ? {
-                  ...checklist,
-                  items: checklist.items.map((item) =>
-                    item.id === itemId
-                      ? {
-                          ...item,
-                          isCompleted: !item.isCompleted,
-                          completedAt: !item.isCompleted ? new Date() : undefined,
-                        }
-                      : item
-                  ),
-                  updatedAt: new Date(),
-                }
-              : checklist
-          ),
-        })),
-
-      reorderItems: (checklistId, items) =>
-        set((state) => ({
-          checklists: state.checklists.map((checklist) =>
-            checklist.id === checklistId
-              ? { ...checklist, items, updatedAt: new Date() }
-              : checklist
-          ),
-        })),
-
-      reorderChecklists: (reorderedChecklists) =>
-        set((state) => {
-          // Create a map of new order positions
-          const orderMap = new Map(
-            reorderedChecklists.map((c, index) => [c.id, index])
-          );
-          
-          // Update order on all checklists that were reordered
-          return {
-            checklists: state.checklists.map((checklist) => {
-              const newOrder = orderMap.get(checklist.id);
-              if (newOrder !== undefined && newOrder !== checklist.order) {
-                return { ...checklist, order: newOrder };
-              }
-              return checklist;
-            }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-          };
-        }),
-
-      importFromMarkdown: (markdown, customTitle) => {
-        const { title, description, priority, items } = parseMarkdownChecklist(markdown);
-        const now = new Date();
-        
-        const newChecklist: Checklist = {
-          id: generateUUID(),
-          title: customTitle || title,
-          description,
-          items: items.map((item, index) => ({
-            ...item,
-            id: generateUUID(),
-            order: index,
-            createdAt: now,
-          })),
-          priority,
-          order: 0, // New checklists go to the top
-          isArchived: false,
-          createdAt: now,
-          updatedAt: now,
-        };
-
-        // Shift existing checklists down
-        set((state) => ({
-          checklists: state.checklists.map((c) => ({
-            ...c,
-            order: (c.order ?? 0) + 1,
-          })),
-        }));
-
-        get().addChecklist(newChecklist);
-        return newChecklist;
-      },
-
-      importMultipleFromMarkdown: (markdown) => {
-        const result = parseMarkdownAdvanced(markdown);
-        const now = new Date();
-        const createdChecklists: Checklist[] = [];
-
-        // Shift existing checklists down to make room
-        set((state) => ({
-          checklists: state.checklists.map((c) => ({
-            ...c,
-            order: (c.order ?? 0) + result.checklists.length,
-          })),
-        }));
-
-        for (let i = 0; i < result.checklists.length; i++) {
-          const section = result.checklists[i];
-          const newChecklist: Checklist = {
-            id: generateUUID(),
-            title: section.title,
-            description: section.description,
-            items: section.items.map((item, index) => ({
-              ...item,
-              id: generateUUID(),
-              order: index,
-              createdAt: now,
-            })),
-            priority: section.priority,
-            order: i, // Order based on section position
-            isArchived: false,
-            createdAt: now,
-            updatedAt: now,
-          };
-
-          get().addChecklist(newChecklist);
-          createdChecklists.push(newChecklist);
-        }
-
-        return createdChecklists;
-      },
-
-      setLoading: (isLoading) => set({ isLoading }),
-      setError: (error) => set({ error }),
-    }),
-    {
-      name: 'neuro-checklists',
-      partialize: (state) => ({
-        checklists: state.checklists,
-        selectedChecklistId: state.selectedChecklistId,
-      }),
+  importMultipleFromMarkdown: async (markdown) => {
+    const { sections } = parseMarkdownAdvanced(markdown);
+    
+    if (sections.length === 0) {
+      throw new Error('No valid checklist items found in markdown');
     }
-  )
-);
+    
+    const createdChecklists: Checklist[] = [];
+    
+    for (const section of sections) {
+      const request: CreateChecklistRequest = {
+        title: section.title,
+        description: section.description,
+        priority: section.priority,
+        items: section.items.map((item, index) => ({
+          content: item.content,
+          is_completed: item.isCompleted,
+          order: index,
+        })),
+      };
+      
+      const dto = await checklistsApi.create(request);
+      const checklist = checklistWithItemsDtoToModel(dto);
+      createdChecklists.push(checklist);
+    }
+    
+    set((state) => ({
+      checklists: [
+        ...createdChecklists.map((c, i) => ({ ...c, order: i })),
+        ...state.checklists.map(c => ({ ...c, order: c.order + createdChecklists.length })),
+      ],
+    }));
+    
+    return createdChecklists;
+  },
+
+  // ==========================================================================
+  // State management
+  // ==========================================================================
+  setLoading: (isLoading) => set({ isLoading }),
+  setError: (error) => set({ error }),
+}));

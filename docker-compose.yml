@@ -14,11 +14,11 @@ services:
   # nodes with vector embeddings for semantic search (GraphRAG pattern).
   # ===========================================================================
   surrealdb:
-    image: surrealdb/surrealdb:latest
+    image: surrealdb/surrealdb:v1.5.6
     container_name: neuro-surrealdb
     restart: unless-stopped
     user: root
-    command: start --user ${SURREAL_USER:-root} --pass ${SURREAL_PASS:-neuroos_secret_2024} --log info surrealkv:/data/neuro.db
+    command: start --user ${SURREAL_USER:-root} --pass ${SURREAL_PASS:-neuroos_secret_2024} --log info file:/data/neuro.db
     ports:
       - "8000:8000"
     volumes:
@@ -156,6 +156,43 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  # ===========================================================================
+  # Music Service - YouTube Music Streaming Microservice (Rust)
+  # ===========================================================================
+  # Streaming service for YouTube music with audio processing:
+  # - 16-band graphic equalizer
+  # - Spectrum analyzer
+  # - Audio enhancement (compression, exciter, stereo widening)
+  # - Cover art lookup via MusicBrainz
+  # Uses yt-dlp for extraction and ffmpeg for transcoding.
+  # ===========================================================================
+  music-service:
+    build:
+      context: ./neuro-music
+      dockerfile: Dockerfile
+    container_name: neuro-music
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=info
+      - MUSIC_PORT=3002
+      - DATABASE_URL=ws://neuro-surrealdb:8000
+      - DATABASE_USER=${SURREAL_USER:-root}
+      - DATABASE_PASS=${SURREAL_PASS:-neuroos_secret_2024}
+      - DATABASE_NAMESPACE=music
+      - DATABASE_NAME=music
+    ports:
+      - "3002:3002"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 # =============================================================================
 # Networks Configuration

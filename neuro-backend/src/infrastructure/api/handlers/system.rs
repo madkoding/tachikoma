@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tracing::{instrument, warn};
 
-use crate::infrastructure::api::dto::{ErrorResponse, HealthResponse, ModelInfoDto, ServiceStatusDto};
+use crate::infrastructure::api::dto::{BuildInfoDto, ErrorResponse, HealthResponse, ModelInfoDto, ServiceStatusDto};
 use crate::AppState;
 
 /// Application start time for uptime calculation
@@ -90,6 +90,11 @@ pub async fn health_check(
         },
         version: env!("CARGO_PKG_VERSION").to_string(),
         uptime_seconds: get_uptime_seconds(),
+        build_info: BuildInfoDto {
+            git_hash: option_env!("GIT_HASH").unwrap_or("unknown").to_string(),
+            build_time: option_env!("BUILD_TIME").unwrap_or("unknown").to_string(),
+            rust_version: option_env!("RUSTC_VERSION").unwrap_or(env!("CARGO_PKG_RUST_VERSION")).to_string(),
+        },
     }))
 }
 

@@ -1,32 +1,50 @@
-FROM rust:1.75-slim-bookworm AS builder
+# =============================================================================
+# Checklists Service Rust - Dockerfile
+# =============================================================================
+# Multi-stage build optimized with cargo-chef for faster cached builds.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Chef planner - analyze dependencies
+# -----------------------------------------------------------------------------
+FROM rust:1.86-slim AS chef
+RUN cargo install cargo-chef --locked
+WORKDIR /app
+
+# -----------------------------------------------------------------------------
+# Stage 2: Prepare recipe (dependency lockfile)
+# -----------------------------------------------------------------------------
+FROM chef AS planner
+COPY Cargo.toml Cargo.lock* ./
+COPY src ./src
+RUN cargo chef prepare --recipe-path recipe.json
+
+# -----------------------------------------------------------------------------
+# Stage 3: Build dependencies (cached layer)
+# -----------------------------------------------------------------------------
+FROM chef AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install dependencies
-RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+# Copy recipe and build ONLY dependencies (this layer is cached!)
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
 
-# Copy manifests
-COPY Cargo.toml ./
-
-# Create dummy main.rs for dependency caching
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-
-# Build dependencies only
-RUN cargo build --release && rm -rf src
-
-# Copy actual source
+# Now copy source and build the actual app
+COPY Cargo.toml Cargo.lock* ./
 COPY src ./src
-
-# Build the real application
-RUN touch src/main.rs && cargo build --release
+RUN cargo build --release
 
 # Runtime stage
 FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+# Install runtime dependencies (curl needed for Docker healthcheck)
+RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
 # Copy binary
 COPY --from=builder /app/target/release/neuro-checklists /app/neuro-checklists

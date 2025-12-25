@@ -3,14 +3,14 @@
 # =============================================================================
 # Multi-stage build for the Piper TTS voice service in Rust.
 # Includes NVIDIA GPU support for accelerated ONNX inference.
-# Optimized with mold linker and cargo-chef for fast cached builds.
+# Optimized with sccache + mold linker and cargo-chef for fast cached builds.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
 # Stage 1: Chef planner - analyze dependencies
 # -----------------------------------------------------------------------------
-FROM rust:1.83-slim AS chef
-RUN cargo install cargo-chef
+FROM rust:1.86-slim AS chef
+RUN cargo install cargo-chef --locked
 WORKDIR /app
 
 # -----------------------------------------------------------------------------

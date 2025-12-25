@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useChecklistStore, Checklist } from '../stores/checklistStore';
 import ChecklistCard from '../components/checklists/ChecklistCard';
@@ -9,7 +9,23 @@ import TypewriterText from '../components/common/TypewriterText';
 
 export default function ChecklistsPage() {
   const { t } = useTranslation();
-  const { checklists, selectedChecklistId, setSelectedChecklist, reorderChecklists } = useChecklistStore();
+  const { checklists, selectedChecklistId, setSelectedChecklist, reorderChecklists, fetchChecklists, fetchChecklist, isLoading } = useChecklistStore();
+
+  // Load checklists from API on mount
+  useEffect(() => {
+    fetchChecklists();
+  }, [fetchChecklists]);
+
+  // Load checklist details when selected
+  useEffect(() => {
+    if (selectedChecklistId) {
+      const checklist = checklists.find(c => c.id === selectedChecklistId);
+      // Fetch full details if we don't have items loaded yet
+      if (checklist && checklist.items.length === 0 && checklist.totalItems > 0) {
+        fetchChecklist(selectedChecklistId);
+      }
+    }
+  }, [selectedChecklistId, checklists, fetchChecklist]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -94,30 +110,30 @@ export default function ChecklistsPage() {
   }, [draggedId, activeChecklists, reorderChecklists]);
 
   return (
-    <div className="flex h-full bg-cyber-bg">
+    <div className="flex h-full bg-cyber-bg overflow-hidden">
       {/* Checklist List Panel */}
       <div
         className={`${
-          selectedChecklist ? 'hidden lg:flex' : 'flex'
-        } flex-col w-full lg:w-80 xl:w-96 border-r border-cyber-cyan/20 bg-cyber-surface`}
+          selectedChecklist ? 'hidden md:flex' : 'flex'
+        } flex-col w-full md:w-72 lg:w-80 xl:w-96 border-r border-cyber-cyan/20 bg-cyber-surface overflow-hidden`}
       >
         {/* Header */}
-        <div className="p-4 border-b border-cyber-cyan/20">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-cyber font-bold text-cyber-cyan">
+        <div className="p-3 sm:p-4 border-b border-cyber-cyan/20">
+          <div className="flex items-center justify-between mb-2 sm:mb-4">
+            <h1 className="text-base sm:text-lg lg:text-xl font-cyber font-bold text-cyber-cyan">
               <TypewriterText text={t('checklists.title')} speed={20} />
             </h1>
-            <div className="flex gap-2">
+            <div className="flex gap-1 sm:gap-2">
               <button
                 onClick={() => setIsImportModalOpen(true)}
-                className="p-2 text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all border border-transparent hover:border-cyber-cyan/30"
+                className="p-1.5 sm:p-2 text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all border border-transparent hover:border-cyber-cyan/30"
                 title={t('checklists.import')}
               >
                 <ImportIcon />
               </button>
               <button
                 onClick={() => setIsCreateModalOpen(true)}
-                className="p-2 text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all border border-transparent hover:border-cyber-cyan/30"
+                className="p-1.5 sm:p-2 text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all border border-transparent hover:border-cyber-cyan/30"
                 title={t('checklists.create')}
               >
                 <PlusIcon />
@@ -127,7 +143,7 @@ export default function ChecklistsPage() {
         </div>
 
         {/* Checklists */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-2 sm:space-y-3">
           {activeChecklists.length === 0 && archivedChecklists.length === 0 ? (
             <EmptyState
               onCreateClick={() => setIsCreateModalOpen(true)}
@@ -181,8 +197,8 @@ export default function ChecklistsPage() {
       {/* Detail Panel */}
       <div
         className={`${
-          selectedChecklist ? 'flex' : 'hidden lg:flex'
-        } flex-1 flex-col`}
+          selectedChecklist ? 'flex' : 'hidden md:flex'
+        } flex-1 flex-col overflow-hidden`}
       >
         {selectedChecklist ? (
           <ChecklistDetail checklist={selectedChecklist} onBack={handleBack} />

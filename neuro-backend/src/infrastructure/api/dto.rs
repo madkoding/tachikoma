@@ -337,6 +337,19 @@ pub struct HealthResponse {
     pub version: String,
     /// Uptime in seconds
     pub uptime_seconds: u64,
+    /// Build information for debugging
+    pub build_info: BuildInfoDto,
+}
+
+/// Build information for identifying compiled binary
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuildInfoDto {
+    /// Git commit hash (short)
+    pub git_hash: String,
+    /// Build timestamp
+    pub build_time: String,
+    /// Rust version used
+    pub rust_version: String,
 }
 
 /// Service status details

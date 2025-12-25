@@ -1,0 +1,47 @@
+[package]
+name = "neuro-music"
+version = "0.1.0"
+edition = "2021"
+description = "Music streaming microservice for Neuro-OS with YouTube integration"
+authors = ["Neuro-OS Team"]
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["macros"] }
+tokio = { version = "1", features = ["full", "process"] }
+tokio-util = { version = "0.7", features = ["io"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Database
+surrealdb = { version = "1.5", features = ["kv-mem"] }
+
+# HTTP client for cover art
+reqwest = { version = "0.11", features = ["json", "stream"] }
+
+# Audio processing DSP
+rubato = "0.14"  # Resampling
+rustfft = "6"     # FFT for equalizer and spectrum
+
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "1"
+regex = "1"
+futures = "0.3"
+bytes = "1"
+async-stream = "0.3"
+tokio-stream = "0.1"
+urlencoding = "2"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

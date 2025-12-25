@@ -92,7 +92,7 @@ run_docker() {
 
 # Start Docker services (user must be in docker group)
 print_step "Starting Docker services..."
-run_docker compose up -d surrealdb searxng ollama
+run_docker compose up -d surrealdb searxng ollama music-service
 
 # Build and start Voice Service container (Rust)
 print_step "Starting Voice Service (Rust)..."
@@ -136,6 +136,7 @@ ${CYAN}Docker Services:${NC}
   • Ollama:     ${YELLOW}http://localhost:11434${NC}
   • Searxng:    ${YELLOW}http://localhost:8080${NC}
   • Voice API:  ${YELLOW}http://localhost:8100${NC}
+  • Music API:  ${YELLOW}http://localhost:3002${NC}
 
 ${CYAN}Now start the app services manually:${NC}
   ${YELLOW}Terminal 1:${NC} cd neuro-backend && cargo run
@@ -195,6 +196,8 @@ cd neuro-backend
 
 # Voice service URL (Docker container)
 export VOICE_SERVICE_URL="http://127.0.0.1:8100"
+# Music service URL (Docker container)
+export MUSIC_SERVICE_URL="http://127.0.0.1:3002"
 
 # Note: OLLAMA_DEFAULT_MODEL is not used - ModelManager selects model dynamically based on task
 if [ "$MODE" = "dev" ]; then
@@ -204,6 +207,8 @@ if [ "$MODE" = "dev" ]; then
     DATABASE_PASS="neuroos_secret_2024" \
     OLLAMA_URL="http://127.0.0.1:11434" \
     SEARXNG_URL="http://127.0.0.1:8080" \
+    VOICE_SERVICE_URL="http://127.0.0.1:8100" \
+    MUSIC_SERVICE_URL="http://127.0.0.1:3002" \
     RUST_LOG=debug \
     cargo run &
 else
@@ -212,6 +217,8 @@ else
     DATABASE_PASS="neuroos_secret_2024" \
     OLLAMA_URL="http://127.0.0.1:11434" \
     SEARXNG_URL="http://127.0.0.1:8080" \
+    VOICE_SERVICE_URL="http://127.0.0.1:8100" \
+    MUSIC_SERVICE_URL="http://127.0.0.1:3002" \
     RUST_LOG=info \
     ./target/release/neuro-backend &
 fi
@@ -245,6 +252,7 @@ ${CYAN}Services:${NC}
   • Admin UI:   ${YELLOW}http://localhost:5174${NC}
   • Backend:    ${YELLOW}http://localhost:3000${NC}
   • Voice API:  ${YELLOW}http://localhost:8100${NC}
+  • Music API:  ${YELLOW}http://localhost:3002${NC}
 
 ${CYAN}Process IDs:${NC}
   • Backend:  $BACKEND_PID

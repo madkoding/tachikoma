@@ -15,7 +15,7 @@ const cyberpunkTheme = {
     ...oneDark['pre[class*="language-"]'],
     background: 'rgba(0, 20, 40, 0.8)',
     border: '1px solid rgba(0, 255, 255, 0.2)',
-    borderRadius: '0.5rem',
+    borderRadius: '5px',
     margin: '0.5rem 0',
   },
   'code[class*="language-"]': {
@@ -55,7 +55,7 @@ const staticComponents: Partial<Components> = {
           customStyle={{
             margin: '0.75rem 0',
             padding: '1rem',
-            borderRadius: '0.5rem',
+            borderRadius: '5px',
             background: 'rgba(0, 20, 40, 0.8)',
             border: '1px solid rgba(0, 255, 255, 0.2)',
           }}

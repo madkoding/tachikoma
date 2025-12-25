@@ -1,7 +1,7 @@
 //! =============================================================================
 //! API Gateway Proxy Handler
 //! =============================================================================
-//! Proxies requests to microservices (checklists, etc.)
+//! Proxies requests to microservices (checklists, music, etc.)
 //! =============================================================================
 
 use axum::{
@@ -10,25 +10,27 @@ use axum::{
     http::StatusCode,
     response::Response,
 };
+use futures_util::StreamExt;
 use std::sync::Arc;
 use tracing::{debug, error};
 
 use crate::AppState;
 
-/// Proxy requests to the checklists microservice
-/// Handles: /api/checklists/*
-pub async fn proxy_checklists(
-    State(state): State<Arc<AppState>>,
+/// Generic proxy function to forward requests to a microservice
+async fn proxy_to_service(
+    service_url: &str,
+    service_name: &str,
     request: Request,
+    stream_response: bool,
 ) -> Result<Response, StatusCode> {
-    let checklists_url = &state.microservices_config.checklists_url;
-    
     // Build the target URL
+    // Note: The path from request.uri() doesn't include /api prefix since it's stripped by nest()
+    // We need to add /api back for the microservice
     let path = request.uri().path();
     let query = request.uri().query().map(|q| format!("?{}", q)).unwrap_or_default();
-    let target_url = format!("{}{}{}", checklists_url, path, query);
+    let target_url = format!("{}/api{}{}", service_url, path, query);
     
-    debug!(target = %target_url, "Proxying request to checklists service");
+    debug!(target = %target_url, service = %service_name, "Proxying request");
 
     // Get method and headers
     let method = request.method().clone();
@@ -38,7 +40,7 @@ pub async fn proxy_checklists(
     let body_bytes = match axum::body::to_bytes(request.into_body(), 10 * 1024 * 1024).await {
         Ok(bytes) => bytes,
         Err(e) => {
-            error!(error = %e, "Failed to read request body");
+            error!(error = %e, service = %service_name, "Failed to read request body");
             return Err(StatusCode::BAD_REQUEST);
         }
     };
@@ -65,7 +67,7 @@ pub async fn proxy_checklists(
     let response = match req_builder.send().await {
         Ok(resp) => resp,
         Err(e) => {
-            error!(error = %e, "Failed to proxy request to checklists service");
+            error!(error = %e, service = %service_name, "Failed to proxy request");
             return Err(StatusCode::BAD_GATEWAY);
         }
     };
@@ -79,19 +81,66 @@ pub async fn proxy_checklists(
         builder = builder.header(name.as_str(), value.as_bytes());
     }
 
-    // Get response body
-    let body_bytes = match response.bytes().await {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            error!(error = %e, "Failed to read response body");
-            return Err(StatusCode::BAD_GATEWAY);
-        }
-    };
+    // For streaming responses (audio/video), use streaming body
+    if stream_response {
+        let stream = response.bytes_stream().map(|result| {
+            result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+        });
+        let body = Body::from_stream(stream);
+        
+        builder.body(body).map_err(|e| {
+            error!(error = %e, service = %service_name, "Failed to build streaming response");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
+    } else {
+        // For regular responses, buffer the full body
+        let body_bytes = match response.bytes().await {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                error!(error = %e, service = %service_name, "Failed to read response body");
+                return Err(StatusCode::BAD_GATEWAY);
+            }
+        };
 
-    let body = Body::from(body_bytes.to_vec());
+        let body = Body::from(body_bytes.to_vec());
+        
+        builder.body(body).map_err(|e| {
+            error!(error = %e, service = %service_name, "Failed to build response");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
+    }
+}
+
+/// Proxy requests to the checklists microservice
+/// Handles: /api/checklists/*
+pub async fn proxy_checklists(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Response, StatusCode> {
+    proxy_to_service(
+        &state.microservices_config.checklists_url,
+        "checklists",
+        request,
+        false, // No streaming needed for checklists
+    ).await
+}
+
+/// Proxy requests to the music microservice
+/// Handles: /api/music/*
+pub async fn proxy_music(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Response, StatusCode> {
+    let path = request.uri().path();
+    debug!("🎵 Proxying music request: {}", path);
     
-    builder.body(body).map_err(|e| {
-        error!(error = %e, "Failed to build response");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })
+    // Enable streaming for audio stream endpoints
+    let is_stream = path.contains("/stream/");
+    
+    proxy_to_service(
+        &state.microservices_config.music_url,
+        "music",
+        request,
+        is_stream,
+    ).await
 }

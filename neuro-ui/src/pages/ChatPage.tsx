@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import clsx from 'clsx';
 import { useChatStore, Message, Conversation } from '../stores/chatStore';
+import { useMusicStore } from '../stores/musicStore';
 import { chatApi, StreamCompleteResponse } from '../api/client';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
@@ -52,7 +54,16 @@ export default function ChatPage() {
     setError,
   } = useChatStore();
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Start with sidebar closed on mobile (< 1024px)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024;
+    }
+    return true;
+  });
+
+  // Check if music is playing (for mobile bottom padding)
+  const currentSong = useMusicStore(state => state.player.currentSong);
 
   // Load conversations from server on mount
   const loadConversations = useCallback(async () => {
@@ -242,19 +253,19 @@ export default function ChatPage() {
       {/* Main chat area */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="h-14 border-b border-cyber-cyan/20 flex items-center px-4 gap-4 bg-cyber-surface">
+        <header className="h-14 border-b border-cyber-cyan/20 flex items-center px-2 sm:px-4 gap-2 sm:gap-4 bg-cyber-surface">
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 hover:bg-cyber-cyan/10 rounded text-cyber-cyan lg:hidden"
+            className="p-2 hover:bg-cyber-cyan/10 rounded text-cyber-cyan flex-shrink-0"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="font-semibold truncate text-cyber-cyan font-mono text-sm">
+          <h1 className="font-semibold truncate text-cyber-cyan font-mono text-xs sm:text-sm flex-1 min-w-0">
             {currentConversation?.title || t('header.defaultTitle')}
           </h1>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
             {/* Voice Controls */}
             {voiceState.isAvailable && (
               <div className="flex items-center gap-2">
@@ -311,7 +322,7 @@ export default function ChatPage() {
         </header>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 sm:space-y-4">
           {!currentConversation || currentConversation.messages.length === 0 ? (
             <WelcomeScreen />
           ) : (
@@ -334,8 +345,11 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
-        <div className="p-4 border-t border-cyber-cyan/20 bg-cyber-surface">
+        {/* Input - sticky at bottom */}
+        <div className={clsx(
+          "p-2 sm:p-4 border-t border-cyber-cyan/20 bg-cyber-surface flex-shrink-0",
+          currentSong && "mb-20 sm:mb-0"
+        )}>
           <ChatInput onSend={handleSendMessage} disabled={isLoading} />
         </div>
       </main>

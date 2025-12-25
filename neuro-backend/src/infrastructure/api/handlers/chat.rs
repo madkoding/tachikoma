@@ -12,7 +12,7 @@ use futures_util::stream::Stream;
 use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Instant;
-use tracing::{error, instrument};
+use tracing::{error, info, instrument};
 use uuid::Uuid;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -105,6 +105,17 @@ pub async fn stream_message(
     let memory_service = state.memory_service.clone();
     let chat_service = state.chat_service.clone();
     
+    // =========================================================================
+    // TOOL DETECTION - Run before streaming to check if we need to execute tools
+    // =========================================================================
+    let tools_used = chat_service.detect_and_execute_tools(&message).await;
+    let tools_context = if !tools_used.is_empty() {
+        info!("🔧 Tools executed before streaming: {:?}", tools_used.iter().map(|(n, _)| n).collect::<Vec<_>>());
+        Some(tools_used)
+    } else {
+        None
+    };
+    
     // Create a channel for streaming
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(100);
     
@@ -132,6 +143,16 @@ pub async fn stream_message(
                     system_prompt.push_str(&format!("- {}\n", memory.content));
                 }
             }
+        }
+        
+        // Add tool results to system prompt if tools were executed
+        if let Some(ref tools) = tools_context {
+            system_prompt.push_str("\n\n=== RESULTADOS DE HERRAMIENTAS EJECUTADAS ===\n");
+            system_prompt.push_str("Las siguientes herramientas se ejecutaron automáticamente. Usa esta información para responder:\n\n");
+            for (tool_name, tool_result) in tools {
+                system_prompt.push_str(&format!("📌 {} :\n{}\n\n", tool_name, tool_result));
+            }
+            system_prompt.push_str("Responde al usuario basándote en los resultados anteriores.\n");
         }
         
         // Build messages array for Ollama

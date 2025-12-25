@@ -9,6 +9,19 @@ export default defineConfig({
     port: 5173,
     allowedHosts: ['tachikoma', 'localhost'],
     proxy: {
+      // Music streaming endpoint needs special handling
+      '/api/music/stream': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+        // Disable buffering for streaming
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            // Don't buffer the response
+            proxyRes.headers['cache-control'] = 'no-cache, no-store, must-revalidate';
+          });
+        },
+      },
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,

@@ -1,140 +1,182 @@
 {
   "version": "2.0.0",
   "tasks": [
-		{
-			"label": "🧹 Kill Dev Processes",
-			"type": "shell",
-			"command": "fuser -k 3000/tcp 2>/dev/null; fuser -k 5173/tcp 2>/dev/null; fuser -k 5174/tcp 2>/dev/null; sleep 0.3; echo '✓ Ports cleaned'",
-			"problemMatcher": [],
-			"presentation": {
-				"reveal": "silent",
-				"panel": "shared"
-			}
-		},
-		{
-			"label": "🐳 Docker Services",
-			"type": "shell",
-			"command": "./start.sh --docker",
-			"isBackground": true,
-			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "dedicated",
-				"group": "dev"
-			}
-		},
-		{
-			"label": "🦀 Backend (Rust)",
-			"type": "shell",
-			"command": "fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd neuro-backend && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 RUST_LOG=warn cargo watch -x run",
-			"isBackground": true,
-			"problemMatcher": {
-				"owner": "rust",
-				"fileLocation": [
-					"relative",
-					"${workspaceFolder}/neuro-backend"
-				],
-				"pattern": {
-					"regexp": "^error\\[E\\d+\\]: (.+)$",
-					"message": 1
-				},
-				"background": {
-					"activeOnStart": true,
-					"beginsPattern": "Compiling|Restarting",
-					"endsPattern": "NEURO-OS Backend ready|Server:"
-				}
-			},
-			"presentation": {
-				"reveal": "always",
-				"panel": "dedicated",
-				"group": "dev"
-			}
-		},
-		{
-			"label": "⚛️ User UI (Vite)",
-			"type": "shell",
-			"command": "fuser -k 5173/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh && cd neuro-ui && npm run dev",
-			"isBackground": true,
-			"problemMatcher": {
-				"owner": "vite",
-				"pattern": {
-					"regexp": "^(.*):(\\d+):(\\d+): (.*)$",
-					"file": 1,
-					"line": 2,
-					"column": 3,
-					"message": 4
-				},
-				"background": {
-					"activeOnStart": true,
-					"beginsPattern": "VITE|vite|npm",
-					"endsPattern": "ready in|Local:|localhost"
-				}
-			},
-			"presentation": {
-				"reveal": "always",
-				"panel": "dedicated",
-				"group": "dev"
-			}
-		},
-		{
-			"label": "🔧 Admin UI (Vite)",
-			"type": "shell",
-			"command": "fuser -k 5174/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh && cd neuro-admin && npm run dev",
-			"isBackground": true,
-			"problemMatcher": {
-				"owner": "vite-admin",
-				"pattern": {
-					"regexp": "^(.*):(\\d+):(\\d+): (.*)$",
-					"file": 1,
-					"line": 2,
-					"column": 3,
-					"message": 4
-				},
-				"background": {
-					"activeOnStart": true,
-					"beginsPattern": "VITE|vite|npm",
-					"endsPattern": "ready in|Local:|localhost"
-				}
-			},
-			"presentation": {
-				"reveal": "always",
-				"panel": "dedicated",
-				"group": "dev"
-			}
-		},
-		{
-			"label": "🚀 Start All Dev",
-			"dependsOn": [
-				"🐳 Docker Services",
-				"🦀 Backend (Rust)",
-				"⚛️ User UI (Vite)",
-				"🔧 Admin UI (Vite)"
-			],
-			"dependsOrder": "parallel",
-			"problemMatcher": [],
-			"runOptions": {
-				"runOn": "default"
-			}
-		},
-		{
-			"label": "🔄 Rebuild Voice Service",
-			"type": "shell",
-			"command": "./dev.sh voice",
-			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "dedicated"
-			}
-		},
-		{
-			"label": "🛑 Stop All Dev",
-			"type": "shell",
-			"command": "pkill -f 'cargo watch' ; pkill -f 'neuro-backend' ; pkill -f 'vite.*neuro-ui' ; pkill -f 'vite.*neuro-admin' ; echo '✅ All dev processes stopped'",
-			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "shared"
-			}
-		}
-	]
+    {
+      "label": "🧹 Kill Dev Processes",
+      "type": "shell",
+      "command": "fuser -k 3000/tcp 2>/dev/null; fuser -k 5173/tcp 2>/dev/null; fuser -k 5174/tcp 2>/dev/null; sleep 0.3; echo '✓ Ports cleaned'",
+      "problemMatcher": [],
+      "presentation": { "reveal": "silent", "panel": "shared" }
+    },
+    {
+      "label": "🛑 Stop Docker Services",
+      "type": "shell",
+      "command": "docker compose down 2>/dev/null; docker stop neuro-voice neuro-music neuro-checklists neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; docker rm neuro-voice neuro-music neuro-checklists neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; echo '✓ Docker services stopped and removed'",
+      "problemMatcher": [],
+      "presentation": { "reveal": "silent", "panel": "shared" }
+    },
+    {
+      "label": "🛑 Stop All",
+      "type": "shell",
+      "command": "docker compose down 2>/dev/null; docker stop neuro-voice neuro-music neuro-checklists neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; docker rm neuro-voice neuro-music neuro-checklists neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; pkill -f 'neuro-backend' 2>/dev/null; fuser -k 3000/tcp 5173/tcp 5174/tcp 2>/dev/null; echo '✓ All services stopped'",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "🐳 Docker Services",
+      "type": "shell",
+      "command": "./start.sh --docker",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "reveal": "silent", "panel": "dedicated", "group": "dev" },
+      "dependsOn": ["🛑 Stop Docker Services"]
+    },
+    {
+      "label": "⚡ Docker Services (Fast Dev)",
+      "type": "shell",
+      "command": "./dev.sh docker-dev",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "dev" },
+      "dependsOn": ["🛑 Stop Docker Services"]
+    },
+    {
+      "label": "🦀 Backend (Rust)",
+      "type": "shell",
+      "command": "fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd neuro-backend && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 MUSIC_SERVICE_URL=http://127.0.0.1:3002 CHECKLISTS_SERVICE_URL=http://127.0.0.1:3001 RUST_LOG=neuro_backend=debug,info cargo watch -x run",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "rust",
+        "fileLocation": ["relative", "${workspaceFolder}/neuro-backend"],
+        "pattern": { "regexp": "^error\\[E\\d+\\]: (.+)$", "message": 1 },
+        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Restarting", "endsPattern": "NEURO-OS Backend ready|Server:" }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "dev" }
+    },
+    {
+      "label": "🦀 Backend (after Docker)",
+      "type": "shell",
+      "command": "echo '⏳ Waiting for Docker services...' && sleep 5 && fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd neuro-backend && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 MUSIC_SERVICE_URL=http://127.0.0.1:3002 CHECKLISTS_SERVICE_URL=http://127.0.0.1:3001 RUST_LOG=info cargo watch -x run",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "rust",
+        "fileLocation": ["relative", "${workspaceFolder}/neuro-backend"],
+        "pattern": { "regexp": "^error\\[E\\d+\\]: (.+)$", "message": 1 },
+        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Restarting|Waiting", "endsPattern": "NEURO-OS Backend ready|Server:" }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "dev" },
+      "dependsOn": ["⚡ Docker Services (Fast Dev)"]
+    },
+    {
+      "label": "⚛️ User UI (Vite)",
+      "type": "shell",
+      "command": "fuser -k 5173/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh && cd neuro-ui && npm run dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^(.*):(\\d+):(\\d+): (.*)$", "file": 1, "line": 2, "column": 3, "message": 4 },
+        "background": { "activeOnStart": true, "beginsPattern": "VITE|vite|npm", "endsPattern": "ready in|Local:|localhost" }
+      },
+      "presentation": { "reveal": "silent", "panel": "dedicated", "group": "dev" }
+    },
+    {
+      "label": "⚛️ User UI (after Backend)",
+      "type": "shell",
+      "command": "echo '⏳ Waiting for Backend...' && until curl -s http://localhost:3000/api/health > /dev/null 2>&1; do sleep 2; done && echo '✓ Backend ready!' && fuser -k 5173/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh && cd neuro-ui && npm run dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^(.*):(\\d+):(\\d+): (.*)$", "file": 1, "line": 2, "column": 3, "message": 4 },
+        "background": { "activeOnStart": true, "beginsPattern": "VITE|vite|npm|Waiting", "endsPattern": "ready in|Local:|localhost" }
+      },
+      "presentation": { "reveal": "silent", "panel": "dedicated", "group": "dev" },
+      "dependsOn": ["🦀 Backend (after Docker)"]
+    },
+    {
+      "label": "🔧 Admin UI (Vite)",
+      "type": "shell",
+      "command": "fuser -k 5174/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh && cd neuro-admin && npm run dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite-admin",
+        "pattern": { "regexp": "^(.*):(\\d+):(\\d+): (.*)$", "file": 1, "line": 2, "column": 3, "message": 4 },
+        "background": { "activeOnStart": true, "beginsPattern": "VITE|vite|npm", "endsPattern": "ready in|Local:|localhost" }
+      },
+      "presentation": { "reveal": "silent", "panel": "dedicated", "group": "dev" }
+    },
+    {
+      "label": "🔧 Admin UI (after Backend)",
+      "type": "shell",
+      "command": "echo '⏳ Waiting for Backend...' && until curl -s http://localhost:3000/api/health > /dev/null 2>&1; do sleep 2; done && echo '✓ Backend ready!' && fuser -k 5174/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh && cd neuro-admin && npm run dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite-admin",
+        "pattern": { "regexp": "^(.*):(\\d+):(\\d+): (.*)$", "file": 1, "line": 2, "column": 3, "message": 4 },
+        "background": { "activeOnStart": true, "beginsPattern": "VITE|vite|npm|Waiting", "endsPattern": "ready in|Local:|localhost" }
+      },
+      "presentation": { "reveal": "silent", "panel": "dedicated", "group": "dev" },
+      "dependsOn": ["🦀 Backend (after Docker)"]
+    },
+    {
+      "label": "🚀 Start All Dev",
+      "dependsOn": ["⚛️ User UI (after Backend)", "🔧 Admin UI (after Backend)"],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "runOptions": { "runOn": "default" }
+    },
+    {
+      "label": "🏭 Start All Prod",
+      "dependsOn": ["🐳 Docker Services", "🦀 Backend (Rust)", "⚛️ User UI (Vite)", "🔧 Admin UI (Vite)"],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
+      "label": "🔄 Rebuild Voice Service",
+      "type": "shell",
+      "command": "./dev.sh voice",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "🎵 Rebuild Music Service",
+      "type": "shell",
+      "command": "docker compose build --no-cache music-service && docker compose up -d music-service",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "⚡ Rebuild Voice (Fast)",
+      "type": "shell",
+      "command": "./dev.sh rebuild-voice",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "⚡ Rebuild Music (Fast)",
+      "type": "shell",
+      "command": "./dev.sh rebuild-music",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "⚡ Rebuild Checklists (Fast)",
+      "type": "shell",
+      "command": "./dev.sh rebuild-checklists",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "🔨 Rebuild Backend (Clean)",
+      "type": "shell",
+      "command": "fuser -k 3000/tcp 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; pkill -f 'neuro-backend' 2>/dev/null; sleep 0.5; cd neuro-backend && cargo clean && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 MUSIC_SERVICE_URL=http://127.0.0.1:3002 RUST_LOG=warn cargo watch -x run",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "rust",
+        "fileLocation": ["relative", "${workspaceFolder}/neuro-backend"],
+        "pattern": { "regexp": "^error\\[E\\d+\\]: (.+)$", "message": 1 },
+        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Cleaning", "endsPattern": "NEURO-OS Backend ready|Server:" }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "dev" }
+    }
+  ]
 }

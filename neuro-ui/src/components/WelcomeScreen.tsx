@@ -5,9 +5,9 @@ export default function WelcomeScreen() {
   const { t } = useTranslation();
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-      <div className="w-20 h-20 mb-6 rounded border border-cyber-cyan/50 bg-cyber-cyan/10 flex items-center justify-center shadow-[0_0_30px_rgba(0,245,255,0.3)]">
-        <svg className="w-12 h-12 text-cyber-cyan" fill="currentColor" stroke="currentColor" viewBox="0 0 100 100">
+    <div className="flex-1 flex flex-col items-center justify-center text-center p-4 sm:p-8">
+      <div className="w-14 h-14 sm:w-20 sm:h-20 mb-4 sm:mb-6 rounded border border-cyber-cyan/50 bg-cyber-cyan/10 flex items-center justify-center shadow-[0_0_30px_rgba(0,245,255,0.3)]">
+        <svg className="w-8 h-8 sm:w-12 sm:h-12 text-cyber-cyan" fill="currentColor" stroke="currentColor" viewBox="0 0 100 100">
           <g fill="currentColor">
             <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(0 50 50)"/>
             <rect x="42" y="2" width="16" height="14" rx="1" transform="rotate(45 50 50)"/>
@@ -24,14 +24,15 @@ export default function WelcomeScreen() {
           <circle cx="50" cy="50" r="6" fill="currentColor"/>
         </svg>
       </div>
-      <h2 className="text-3xl font-bold mb-2 neon-cyan font-cyber tracking-wider glitch" data-text="TACHIKOMA">
+      <h2 className="text-xl sm:text-3xl font-bold mb-2 neon-cyan font-cyber tracking-wider glitch" data-text="TACHIKOMA">
         <TypewriterText text="TACHIKOMA" speed={40} />
       </h2>
-      <p className="text-cyber-cyan/60 max-w-md font-mono text-sm">
+      <p className="text-cyber-cyan/60 max-w-md font-mono text-xs sm:text-sm">
         <TypewriterText text={t('chat.welcomeDesc')} delay={700} speed={10} />
       </p>
       
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+      {/* Feature cards - hidden on mobile */}
+      <div className="mt-8 hidden sm:grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
         <FeatureCard
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
