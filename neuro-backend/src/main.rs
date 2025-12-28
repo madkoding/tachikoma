@@ -51,12 +51,13 @@ use crate::domain::ports::{
     memory_repository::MemoryRepository,
     search_provider::SearchProvider,
     checklist_repository::ChecklistRepository,
+    kanban_repository::KanbanRepository,
     music_repository::MusicRepository,
 };
 use crate::infrastructure::{
     api::{create_router, handlers::system::init_start_time},
     config::Config,
-    database::{DatabasePool, SurrealDbRepository, SurrealChecklistRepository, SurrealMusicRepository},
+    database::{DatabasePool, SurrealDbRepository, SurrealChecklistRepository, SurrealKanbanRepository, SurrealMusicRepository},
     services::{OllamaClient, SafeCommandExecutor, SearxngClient, VoiceEngine, VoiceConfig},
 };
 
@@ -159,6 +160,8 @@ pub struct AppState {
     pub microservices_config: crate::infrastructure::config::MicroservicesConfig,
     /// Checklist repository for data layer
     pub checklist_repository: Arc<dyn ChecklistRepository + Send + Sync>,
+    /// Kanban repository for data layer
+    pub kanban_repository: Arc<dyn KanbanRepository + Send + Sync>,
     /// Music repository for data layer
     pub music_repository: Arc<dyn MusicRepository + Send + Sync>,
 }
@@ -263,6 +266,8 @@ async fn main() -> Result<()> {
     // Create checklist and music repositories
     let checklist_repository: Arc<dyn ChecklistRepository + Send + Sync> = 
         Arc::new(SurrealChecklistRepository::new(database_pool.clone()));
+    let kanban_repository: Arc<dyn KanbanRepository + Send + Sync> = 
+        Arc::new(SurrealKanbanRepository::new(database_pool.clone()));
     let music_repository: Arc<dyn MusicRepository + Send + Sync> = 
         Arc::new(SurrealMusicRepository::new(database_pool.clone()));
     print_done(6, TOTAL_STEPS, "All repositories ready");
@@ -334,6 +339,7 @@ async fn main() -> Result<()> {
         event_broadcaster,
         microservices_config: config.microservices.clone(),
         checklist_repository,
+        kanban_repository,
         music_repository,
     });
 

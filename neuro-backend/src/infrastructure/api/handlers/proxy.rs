@@ -134,8 +134,8 @@ pub async fn proxy_music(
     let path = request.uri().path();
     debug!("🎵 Proxying music request: {}", path);
     
-    // Enable streaming for audio stream endpoints
-    let is_stream = path.contains("/stream/");
+    // Enable streaming for audio stream endpoints and SSE events
+    let is_stream = path.contains("/stream/") || path.contains("/events");
     
     proxy_to_service(
         &state.microservices_config.music_url,

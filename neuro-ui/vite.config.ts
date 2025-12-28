@@ -104,6 +104,19 @@ export default defineConfig({
           });
         },
       },
+      // Music SSE events endpoint needs special handling
+      '/api/music/events': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+        // Disable buffering for SSE streaming
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            proxyRes.headers['cache-control'] = 'no-cache, no-store, must-revalidate';
+            proxyRes.headers['x-accel-buffering'] = 'no';
+          });
+        },
+      },
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,

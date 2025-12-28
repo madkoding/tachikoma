@@ -61,8 +61,11 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /app/target/release/neuro-music /app/neuro-music
 
+# Create downloads directory
+RUN mkdir -p /data/downloads
+
 # Set ownership
-RUN chown -R neuro:neuro /app
+RUN chown -R neuro:neuro /app /data
 
 USER neuro
 
@@ -75,6 +78,7 @@ ENV MUSIC_PORT=3002 \
     DATABASE_NAME=music \
     YTDLP_PATH=/usr/local/bin/yt-dlp \
     FFMPEG_PATH=/usr/bin/ffmpeg \
+    DOWNLOADS_PATH=/data/downloads \
     RUST_LOG=info
 
 EXPOSE 3002

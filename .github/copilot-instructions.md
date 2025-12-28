@@ -4,8 +4,29 @@
 
 NEURO-OS es un ecosistema de IA modular que consiste en:
 
+## ⚠️ CONVENCIÓN DE NOMBRES ESTANDARIZADA
+
+**Todos los nombres deben seguir el patrón `neuro-{servicio}`** para mantener consistencia:
+
+| Elemento | Patrón | Ejemplo |
+|----------|--------|---------|
+| Carpeta | `neuro-{servicio}` | `neuro-voice/` |
+| Cargo.toml `name` | `neuro-{servicio}` | `name = "neuro-voice"` |
+| Servicio docker-compose | `neuro-{servicio}` | `neuro-voice:` |
+| `container_name` | `neuro-{servicio}` | `container_name: neuro-voice` |
+| Variables de entorno | `{SERVICIO}_SERVICE_URL` | `VOICE_SERVICE_URL` |
+
+**Ejemplo correcto de servicio en docker-compose.yml:**
+```yaml
+neuro-voice:                    # ✅ Nombre del servicio = neuro-voice
+  build:
+    context: ./neuro-voice      # ✅ Carpeta = neuro-voice
+    dockerfile: Dockerfile
+  container_name: neuro-voice   # ✅ container_name = neuro-voice
+```
+
 ### Servicios Core
-- **neuro-backend**: API Gateway central en Rust/Axum (puerto 3000)
+- **neuro-backend**: API Gateway central + LLM Gateway en Rust/Axum (puerto 3000)
 - **neuro-ui**: Interfaz de usuario en React/Vite (puerto 5173)
 - **neuro-admin**: Panel de administración en React/Vite (puerto 5174)
 
@@ -15,8 +36,8 @@ NEURO-OS es un ecosistema de IA modular que consiste en:
 | neuro-voice | 8100 | Síntesis de voz con Piper TTS |
 | neuro-checklists | 3001 | Gestión de checklists |
 | neuro-music | 3002 | Streaming de música YouTube |
-| neuro-chat | 3003 | Conversaciones con LLM |
-| neuro-memory | 3004 | Memoria semántica GraphRAG |
+| neuro-chat | 3003 | Conversaciones con LLM (via backend) |
+| neuro-memory | 3004 | Memoria semántica GraphRAG (embeddings via backend) |
 | neuro-agent | 3005 | Herramientas de agente IA |
 
 ### Microservicios Planeados
@@ -24,17 +45,67 @@ NEURO-OS es un ecosistema de IA modular que consiste en:
 |----------|--------|-------------|
 | neuro-kanban | 3006 | Tableros Kanban |
 | neuro-note | 3007 | Notas + transcripción de voz con IA |
-| neuro-docs | 3008 | Documentos con IA (DOCX, XLSX, PPTX, embeddings) |
+| neuro-docs | 3008 | Documentos con IA (DOCX, XLSX, PPTX, embeddings via backend) |
 | neuro-calendar | 3009 | Calendario + recordatorios |
 | neuro-pomodoro | 3010 | Timer Pomodoro |
-| neuro-image | 3011 | Galería de imágenes generadas por IA |
+| neuro-image | 3011 | Galería de imágenes generadas por IA (via backend) |
 
 ### Servicios de Infraestructura (Docker)
 | Servicio | Puerto | Descripción |
 |----------|--------|-------------|
 | SurrealDB | 8000 | Base de datos Graph + Vector |
-| Ollama | 11434 | Inferencia LLM local |
 | Searxng | 8080 | Motor de búsqueda privado |
+
+### Servicios Externos (neuro-ollama)
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| Ollama | 11434 | Inferencia LLM local (proyecto independiente) |
+
+## ⚠️ IMPORTANTE: LLM Gateway Pattern
+
+**Todas las operaciones LLM deben pasar por neuro-backend.** Los microservicios NO deben conectarse directamente a Ollama.
+
+### Endpoints LLM en backend (`/api/llm/*`)
+| Endpoint | Método | Descripción |
+|----------|--------|-------------|
+| `/api/llm/health` | GET | Estado de Ollama y modelos disponibles |
+| `/api/llm/embed` | POST | Generar embedding para un texto |
+| `/api/llm/embed/batch` | POST | Generar embeddings para múltiples textos |
+| `/api/llm/chat` | POST | Chat completo (no streaming) |
+| `/api/llm/chat/stream` | POST | Chat con streaming SSE |
+| `/api/llm/speculative/stream` | POST | Speculative decoding con streaming SSE |
+| `/api/llm/generate` | POST | Generación de tokens raw |
+
+### Model Tiers (configurados en backend)
+| Tier | Modelo | Uso |
+|------|--------|-----|
+| Light | ministral-3:3b | Draft model para speculative decoding, respuestas rápidas |
+| Standard | ministral-3:8b | Target model, uso general |
+| Heavy | ministral-3:8b | Mismo que Standard (no hay modelo más pesado por ahora) |
+| Embedding | nomic-embed-text | Embeddings vectoriales |
+
+### Ejemplo: Microservicio usando backend como LLM gateway
+
+```rust
+// En el microservicio (ej: neuro-chat)
+pub struct BackendLlmClient {
+    client: reqwest::Client,
+    base_url: String,  // BACKEND_URL, no OLLAMA_URL
+}
+
+impl BackendLlmClient {
+    pub async fn chat(&self, messages: Vec<ChatMessage>, model: Option<&str>) -> Result<ChatResponse, String> {
+        let url = format!("{}/api/llm/chat", self.base_url);
+        let body = json!({ "messages": messages, "model": model });
+        // ...
+    }
+
+    pub async fn embed(&self, text: &str) -> Result<Vec<f32>, String> {
+        let url = format!("{}/api/llm/embed", self.base_url);
+        // ...
+    }
+}
+```
 
 ## Patrón de Proxy para Microservicios
 

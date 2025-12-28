@@ -6,6 +6,7 @@ import {
   PomodoroStatsDto,
   PomodoroSessionType,
   PomodoroSessionStatus,
+  isSessionRunning,
 } from '../api/client';
 
 // =============================================================================
@@ -163,7 +164,7 @@ export const usePomodoroStore = create<PomodoroState>((set, get) => ({
   calculateRemainingSeconds: (session: PomodoroSession): number => {
     const totalSeconds = session.durationMinutes * 60;
     
-    if (session.status === 'running') {
+    if (isSessionRunning(session.status)) {
       // Calculate elapsed time since start
       const now = new Date();
       const startTime = session.startedAt;
@@ -219,7 +220,7 @@ export const usePomodoroStore = create<PomodoroState>((set, get) => ({
   tick: () => {
     const { activeSession, remainingSeconds, completeSession, settings } = get();
     
-    if (!activeSession || activeSession.status !== 'running') {
+    if (!activeSession || !isSessionRunning(activeSession.status)) {
       get().stopTimer();
       return;
     }
@@ -281,7 +282,7 @@ export const usePomodoroStore = create<PomodoroState>((set, get) => ({
         });
         
         // Start timer if session is running
-        if (session.status === 'running') {
+        if (isSessionRunning(session.status)) {
           get().startTimer();
         }
       } else {

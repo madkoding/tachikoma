@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, Pause, SkipForward, SkipBack, GripHorizontal, Music } from 'lucide-react';
-import { useMusicStore, formatDuration } from '../../stores/musicStore';
+import { usePlayerState, usePlayerActions, formatDuration } from '../../stores/musicStore';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SpectrumAnalyzer } from './SpectrumAnalyzer';
+import { AnimatedLedDigits } from '../common';
 
 interface MiniPlayerProps {
   onClose?: () => void;
@@ -11,7 +12,8 @@ interface MiniPlayerProps {
 export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { player, togglePlay, nextSong, previousSong, seek } = useMusicStore();
+  const player = usePlayerState();
+  const { togglePlay, nextSong, previousSong, seek } = usePlayerActions();
   const mobileProgressRef = useRef<HTMLDivElement>(null);
   
   // Check if mobile
@@ -35,19 +37,26 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
   }, []);
 
   // Detect keyboard open/close on mobile via visualViewport and focus events
+  const focusOutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
   useEffect(() => {
     if (!isMobile) return;
 
     const handleFocusIn = (e: FocusEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        // Clear any pending focusout timeout
+        if (focusOutTimeoutRef.current) {
+          clearTimeout(focusOutTimeoutRef.current);
+          focusOutTimeoutRef.current = null;
+        }
         setIsKeyboardOpen(true);
       }
     };
 
     const handleFocusOut = () => {
       // Small delay to avoid flickering when switching between inputs
-      setTimeout(() => {
+      focusOutTimeoutRef.current = setTimeout(() => {
         const activeElement = document.activeElement as HTMLElement;
         if (!activeElement || 
             (activeElement.tagName !== 'INPUT' && 
@@ -55,6 +64,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
              !activeElement.isContentEditable)) {
           setIsKeyboardOpen(false);
         }
+        focusOutTimeoutRef.current = null;
       }, 100);
     };
 
@@ -64,72 +74,124 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
     return () => {
       document.removeEventListener('focusin', handleFocusIn);
       document.removeEventListener('focusout', handleFocusOut);
+      // Cleanup timeout on unmount
+      if (focusOutTimeoutRef.current) {
+        clearTimeout(focusOutTimeoutRef.current);
+      }
     };
   }, [isMobile]);
   
   // Draggable state (only for desktop)
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const currentPosRef = useRef({ x: 0, y: 0 });
 
-  // Initialize position from localStorage
+  // Initialize position from localStorage (v3 uses correct transform logic)
   useEffect(() => {
-    const saved = localStorage.getItem('miniPlayerPosition');
+    const saved = localStorage.getItem('miniPlayerPosition_v3');
     if (saved) {
       try {
         const pos = JSON.parse(saved);
-        setPosition(pos);
+        // Validate bounds
+        const minX = -(window.innerWidth - 320 - 32);
+        const maxX = 16;
+        const minY = -(window.innerHeight - 160);
+        const maxY = 16;
+        const validPos = {
+          x: Math.max(minX, Math.min(maxX, pos.x || 0)),
+          y: Math.max(minY, Math.min(maxY, pos.y || 0)),
+        };
+        setPosition(validPos);
+        currentPosRef.current = validPos;
       } catch {
         // Use default position
       }
     }
+    // Clear old versions
+    localStorage.removeItem('miniPlayerPosition');
+    localStorage.removeItem('miniPlayerPosition_v2');
   }, []);
 
   // Save position to localStorage
   useEffect(() => {
     if (position.x !== 0 || position.y !== 0) {
-      localStorage.setItem('miniPlayerPosition', JSON.stringify(position));
+      localStorage.setItem('miniPlayerPosition_v3', JSON.stringify(position));
     }
   }, [position]);
+
+  // All drag handlers use refs only - no React state during drag
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current || !containerRef.current) return;
+      
+      const deltaX = e.clientX - dragStartRef.current.x;
+      const deltaY = e.clientY - dragStartRef.current.y;
+      
+      // Calculate new position
+      // X: negativo = izquierda, positivo = derecha (desde bottom-right)
+      // Y: negativo = arriba, positivo = abajo (desde bottom-right)
+      const rawX = dragStartRef.current.posX + deltaX;
+      const rawY = dragStartRef.current.posY + deltaY;
+      
+      // Bounds: player is 320px wide, ~140px tall, anchored at bottom:16, right:16
+      // Can move left (negative X) until hitting left edge
+      const minX = -(window.innerWidth - 320 - 32);
+      const maxX = 16; // Can't go past right edge
+      // Can move up (negative Y) until hitting top edge  
+      const minY = -(window.innerHeight - 160);
+      const maxY = 16; // Can't go past bottom edge
+      
+      const newX = Math.max(minX, Math.min(maxX, rawX));
+      const newY = Math.max(minY, Math.min(maxY, rawY));
+      
+      // Update ref (no re-render)
+      currentPosRef.current = { x: newX, y: newY };
+      
+      // Apply directly to DOM using transform (GPU accelerated)
+      containerRef.current.style.transform = `translate(${newX}px, ${newY}px)`;
+    };
+
+    const handleMouseUp = () => {
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        // Only update React state when drag ends (for persistence)
+        setPosition({ ...currentPosRef.current });
+        if (containerRef.current) {
+          containerRef.current.style.userSelect = 'auto';
+          containerRef.current.style.transition = '';
+          containerRef.current.style.willChange = 'auto';
+        }
+      }
+    };
+
+    // Always listen - handlers check isDraggingRef internally
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []); // Empty deps - handlers use refs only
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
+    isDraggingRef.current = true;
     dragStartRef.current = {
       x: e.clientX,
       y: e.clientY,
-      posX: position.x,
-      posY: position.y,
+      posX: currentPosRef.current.x,
+      posY: currentPosRef.current.y,
     };
-  }, [position]);
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging) return;
-    
-    const deltaX = e.clientX - dragStartRef.current.x;
-    const deltaY = e.clientY - dragStartRef.current.y;
-    
-    setPosition({
-      x: dragStartRef.current.posX + deltaX,
-      y: dragStartRef.current.posY + deltaY,
-    });
-  }, [isDragging]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  useEffect(() => {
-    if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-      };
+    if (containerRef.current) {
+      containerRef.current.style.userSelect = 'none';
+      containerRef.current.style.transition = 'none';
+      containerRef.current.style.willChange = 'transform';
     }
-  }, [isDragging, handleMouseMove, handleMouseUp]);
+  }, []);
 
   // Don't show on music page
   if (location.pathname === '/music') return null;
@@ -159,18 +221,17 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
   // Mobile version - fixed bottom bar
   if (isMobile) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-xl border-t border-cyber-cyan/30 safe-area-inset-bottom overflow-hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/70 backdrop-blur-xl border-t border-cyber-cyan/30 safe-area-inset-bottom overflow-hidden">
         {/* Spectrum Background - Blurred */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 blur-xl scale-150">
+          <div className="absolute inset-0 blur-2xl scale-[1.5]">
             <SpectrumAnalyzer 
               barCount={32} 
               compact 
               showReflection={false}
-              className="h-full w-full opacity-60"
+              className="h-full w-full"
             />
           </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/60 via-transparent to-gray-900/60" />
         </div>
         
         {/* Progress bar at top - clickable */}
@@ -178,15 +239,15 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
           ref={mobileProgressRef}
           onClick={handleMobileProgressClick}
           onTouchStart={handleMobileProgressClick}
-          className="h-2 bg-gray-800/80 relative cursor-pointer active:h-3 transition-all z-10"
+          className="h-2 bg-gray-800/80 relative cursor-pointer active:h-3 transition-all z-10 rounded-[5px] overflow-hidden mx-1"
         >
           <div 
-            className="h-full bg-gradient-to-r from-cyber-cyan to-cyber-purple transition-all duration-200"
+            className="h-full bg-gradient-to-r from-cyber-cyan to-cyber-purple transition-all duration-200 rounded-[5px]"
             style={{ width: `${progress}%` }}
           />
           {/* Knob indicator */}
           <div 
-            className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg"
+            className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-[5px] shadow-lg"
             style={{ left: `calc(${progress}% - 6px)` }}
           />
         </div>
@@ -219,9 +280,12 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
             onClick={() => navigate('/music')}
             aria-label={`Reproduciendo: ${player.currentSong.title}`}
           >
-            <span className="led-time text-[9px] leading-none block mb-0.5">
-              {formatDuration(player.currentTime)}/{formatDuration(player.duration)}
-            </span>
+            <AnimatedLedDigits 
+              value={`${formatDuration(player.currentTime)}/${formatDuration(player.duration)}`} 
+              variant="time" 
+              className="text-[9px] leading-none block mb-0.5"
+              animate={false}
+            />
             <div className="font-medium text-white text-xs truncate font-cyber leading-tight">
               {player.currentSong.title}
             </div>
@@ -271,31 +335,31 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
   // Desktop version - floating draggable
   return (
     <div 
+      ref={containerRef}
       className="fixed z-50 animate-in slide-in-from-bottom-5 duration-300"
       style={{ 
-        bottom: `${16 - position.y}px`, 
-        right: `${16 - position.x}px`,
-        userSelect: isDragging ? 'none' : 'auto',
+        bottom: '16px', 
+        right: '16px',
+        transform: `translate(${position.x}px, ${position.y}px)`,
       }}
     >
-      <div className="bg-gray-900/95 backdrop-blur-xl border border-cyber-cyan/30 shadow-2xl shadow-cyber-cyan/20 overflow-hidden w-80 relative">
+      <div className="bg-gray-900/70 backdrop-blur-xl border border-cyber-cyan/30 shadow-2xl shadow-cyber-cyan/20 overflow-hidden w-80 relative">
         {/* Spectrum Background - Blurred */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 blur-xl scale-150">
+          <div className="absolute inset-0 blur-2xl scale-[1.5]">
             <SpectrumAnalyzer 
               barCount={32} 
               compact 
               showReflection={false}
-              className="h-full w-full opacity-60"
+              className="h-full w-full"
             />
           </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/60 via-transparent to-gray-900/60" />
         </div>
         
         {/* Progress bar at top */}
-        <div className="h-1 bg-gray-800 relative z-10">
+        <div className="h-1 bg-gray-800 relative z-10 rounded-[5px] overflow-hidden mx-1">
           <div 
-            className="h-full bg-gradient-to-r from-cyber-cyan to-cyber-purple transition-all duration-200"
+            className="h-full bg-gradient-to-r from-cyber-cyan to-cyber-purple transition-all duration-200 rounded-[5px]"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -338,9 +402,12 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
               onClick={() => navigate('/music')}
               aria-label={`Reproduciendo: ${player.currentSong.title}`}
             >
-              <div className="text-xs led-time mb-0.5">
-                {formatDuration(player.currentTime)} / {formatDuration(player.duration)}
-              </div>
+              <AnimatedLedDigits 
+                value={`${formatDuration(player.currentTime)} / ${formatDuration(player.duration)}`} 
+                variant="time" 
+                className="text-xs mb-0.5"
+                animate={false}
+              />
               <div className="font-medium text-white text-sm truncate font-cyber overflow-hidden">
                 <span className="inline-block animate-marquee">{player.currentSong.title}</span>
               </div>

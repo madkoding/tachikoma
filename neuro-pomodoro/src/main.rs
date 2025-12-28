@@ -2,12 +2,12 @@
 //! Neuro-Pomodoro Microservice
 //! =============================================================================
 //! Pomodoro timer service for productivity tracking.
-//! Uses neuro-backend as data layer via HTTP client.
+//! Uses in-memory storage for sessions and settings.
 //! =============================================================================
 
-mod backend_client;
 mod config;
 mod handlers;
+mod memory_store;
 mod models;
 mod routes;
 
@@ -15,12 +15,12 @@ use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::backend_client::BackendClient;
 use crate::config::Config;
+use crate::memory_store::MemoryStore;
 
 /// Application state shared across handlers
 pub struct AppState {
-    pub client: BackendClient,
+    pub store: MemoryStore,
     pub config: Config,
 }
 
@@ -41,14 +41,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("🍅 Neuro-Pomodoro Microservice");
     info!("================================");
     info!("Port: {}", config.port);
-    info!("Backend URL: {}", config.backend_url);
 
-    // Create backend client
-    let client = BackendClient::new(&config);
-    info!("✅ Backend client initialized");
+    // Create in-memory store
+    let store = MemoryStore::new();
+    info!("✅ In-memory store initialized");
 
     // Create app state
-    let state = Arc::new(AppState { client, config: config.clone() });
+    let state = Arc::new(AppState { store, config: config.clone() });
 
     // Build router
     let app = routes::create_router(state);

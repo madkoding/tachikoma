@@ -81,6 +81,20 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/agent/commands", get(handlers::get_allowed_commands))
         
         // =====================================================================
+        // LLM Gateway - ONLY interface to Ollama
+        // =====================================================================
+        // All microservices (neuro-chat, neuro-memory, etc.) must use these
+        // endpoints instead of connecting directly to Ollama.
+        // =====================================================================
+        .route("/llm/health", get(handlers::llm_health))
+        .route("/llm/embed", post(handlers::llm_embed))
+        .route("/llm/embed/batch", post(handlers::llm_embed_batch))
+        .route("/llm/chat", post(handlers::llm_chat))
+        .route("/llm/chat/stream", post(handlers::llm_chat_stream))
+        .route("/llm/chat/speculative/stream", post(handlers::llm_speculative_stream))
+        .route("/llm/generate", post(handlers::llm_generate))
+        
+        // =====================================================================
         // Data Layer - Direct Database Access for Microservices
         // =====================================================================
         // Checklists data layer
@@ -104,8 +118,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/data/playlists/:id/songs", get(handlers::list_playlist_songs))
         .route("/data/playlists/:id/songs", post(handlers::create_song))
         .route("/data/playlists/:id/reorder", post(handlers::reorder_songs))
+        .route("/data/playlists/:id/suggestions-timestamp", post(handlers::update_suggestions_timestamp))
         
         // Music data layer - Songs
+        .route("/data/songs/liked", get(handlers::get_liked_songs))
         .route("/data/songs/by-youtube-id", get(handlers::get_song_by_youtube_id))
         .route("/data/songs/:id", get(handlers::get_song))
         .route("/data/songs/:id", patch(handlers::update_song))
@@ -118,6 +134,23 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/data/music/top-songs", get(handlers::get_most_played_songs))
         .route("/data/music/equalizer", get(handlers::get_equalizer_settings))
         .route("/data/music/equalizer", put(handlers::save_equalizer_settings))
+        
+        // Kanban data layer - Boards
+        .route("/data/kanban/boards", get(handlers::list_boards))
+        .route("/data/kanban/boards", post(handlers::create_board))
+        .route("/data/kanban/boards/:id", get(handlers::get_board))
+        .route("/data/kanban/boards/:id", patch(handlers::update_board))
+        .route("/data/kanban/boards/:id", delete(handlers::delete_board))
+        // Kanban data layer - Columns
+        .route("/data/kanban/boards/:board_id/columns", post(handlers::create_column))
+        .route("/data/kanban/columns/:column_id", patch(handlers::update_column))
+        .route("/data/kanban/columns/:column_id/reorder", post(handlers::reorder_column))
+        .route("/data/kanban/columns/:column_id", delete(handlers::delete_column))
+        // Kanban data layer - Cards
+        .route("/data/kanban/columns/:column_id/cards", post(handlers::create_card))
+        .route("/data/kanban/cards/:card_id", patch(handlers::update_card))
+        .route("/data/kanban/cards/:card_id/move", post(handlers::move_card))
+        .route("/data/kanban/cards/:card_id", delete(handlers::delete_card))
         
         // =====================================================================
         // API Gateway - Proxy to Microservices

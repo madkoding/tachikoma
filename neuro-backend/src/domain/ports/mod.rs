@@ -16,6 +16,7 @@
 
 pub mod checklist_repository;
 pub mod command_executor;
+pub mod kanban_repository;
 pub mod llm_provider;
 pub mod memory_repository;
 pub mod music_repository;

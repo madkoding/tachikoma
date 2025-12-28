@@ -49,13 +49,23 @@
 
 | Service | Port | Description |
 |---------|------|-------------|
-| neuro-backend | 3000 | Central API Gateway |
+| neuro-backend | 3000 | Central API Gateway + LLM Gateway |
 | neuro-checklists | 3001 | Checklist management |
 | neuro-music | 3002 | YouTube music streaming |
 | neuro-chat | 3003 | LLM conversations |
 | neuro-memory | 3004 | GraphRAG semantic memory |
 | neuro-agent | 3005 | AI agent tools |
 | neuro-voice | 8100 | Piper TTS synthesis |
+
+### External Services (neuro-ollama)
+
+Ollama runs independently in the [neuro-ollama](https://github.com/madkoding/neuro-ollama) project:
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Ollama | 11434 | LLM inference server |
+
+**Important**: All LLM operations (chat, embeddings, speculative decoding) go through neuro-backend's `/api/llm/*` endpoints. Microservices should NOT connect directly to Ollama.
 
 ### Planned Microservices
 
@@ -152,26 +162,22 @@ cp .env.example .env
 # Edit .env with your settings
 ```
 
-### 2. Start Infrastructure
+### 2. Start Ollama (External)
+
+First, clone and start neuro-ollama in a separate directory:
 
 ```bash
-docker-compose up -d surrealdb searxng ollama
+# In a separate project directory (not in kibo)
+git clone https://github.com/madkoding/neuro-ollama.git
+cd neuro-ollama
+./setup.sh  # Downloads models and starts Ollama
 ```
 
-### 3. Pull Required Models
+### 3. Start Infrastructure
 
 ```bash
-# Fast model (required)
-docker exec -it ollama ollama pull ministral:3b
-
-# Balanced model (recommended)
-docker exec -it ollama ollama pull qwen2.5:7b
-
-# Complex/Coding model (optional)
-docker exec -it ollama ollama pull qwen2.5-coder:14b
-
-# Embedding model (required)
-docker exec -it ollama ollama pull nomic-embed-text
+# In the kibo directory
+docker-compose up -d surrealdb searxng
 ```
 
 ### 4. Run Backend

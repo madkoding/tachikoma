@@ -172,6 +172,8 @@ impl DatabasePool {
             "DEFINE FIELD description ON TABLE playlist TYPE option<string>",
             "DEFINE FIELD cover_url ON TABLE playlist TYPE option<string>",
             "DEFINE FIELD is_suggestions ON TABLE playlist TYPE bool DEFAULT false",
+            "DEFINE FIELD is_favorites ON TABLE playlist TYPE bool DEFAULT false",
+            "DEFINE FIELD last_suggestions_update ON TABLE playlist TYPE option<datetime>",
             "DEFINE FIELD shuffle ON TABLE playlist TYPE bool DEFAULT false",
             "DEFINE FIELD repeat_mode ON TABLE playlist TYPE string DEFAULT 'off'",
             "DEFINE FIELD song_count ON TABLE playlist TYPE int DEFAULT 0",
@@ -191,9 +193,9 @@ impl DatabasePool {
             "DEFINE FIELD thumbnail_url ON TABLE song TYPE option<string>",
             "DEFINE FIELD song_order ON TABLE song TYPE int DEFAULT 0",
             "DEFINE FIELD play_count ON TABLE song TYPE int DEFAULT 0",
+            "DEFINE FIELD is_liked ON TABLE song TYPE bool DEFAULT false",
             "DEFINE FIELD last_played ON TABLE song TYPE option<datetime>",
             "DEFINE FIELD created_at ON TABLE song TYPE datetime DEFAULT time::now()",
-            "DEFINE INDEX idx_song_playlist ON TABLE song COLUMNS playlist_id",
             // Listening history
             "DEFINE TABLE listening_history SCHEMAFULL",
             "DEFINE FIELD song_id ON TABLE listening_history TYPE string",
@@ -224,6 +226,36 @@ impl DatabasePool {
                 Err(e) => {
                     error!("❌ Failed to execute '{}': {}", stmt, e);
                 }
+            }
+        }
+
+        // Run migrations to fix existing data BEFORE creating indexes
+        let migrations = [
+            // Set default is_liked for songs that don't have it
+            "UPDATE song SET is_liked = false WHERE is_liked = NONE",
+            // Set default is_favorites for playlists that don't have it
+            "UPDATE playlist SET is_favorites = false WHERE is_favorites = NONE",
+            // Set default is_suggestions for playlists that don't have it  
+            "UPDATE playlist SET is_suggestions = false WHERE is_suggestions = NONE",
+        ];
+
+        for migration in migrations.iter() {
+            debug!("🔄 Running migration: {}", migration);
+            if let Err(e) = self.client.query(*migration).await {
+                error!("❌ Migration failed '{}': {}", migration, e);
+            }
+        }
+
+        // Create indexes AFTER migrations have fixed the data
+        let indexes = [
+            "DEFINE INDEX idx_song_playlist ON TABLE song COLUMNS playlist_id",
+            "DEFINE INDEX idx_song_liked ON TABLE song COLUMNS is_liked",
+        ];
+
+        for idx in indexes.iter() {
+            debug!("📇 Creating index: {}", idx);
+            if let Err(e) = self.client.query(*idx).await {
+                error!("❌ Index creation failed '{}': {}", idx, e);
             }
         }
 

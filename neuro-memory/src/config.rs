@@ -1,6 +1,10 @@
 //! =============================================================================
 //! Configuration
 //! =============================================================================
+//! 
+//! NEURO-OS Memory Service configuration.
+//! All LLM/embedding operations go through neuro-backend's /api/llm/* endpoints.
+//! =============================================================================
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -11,7 +15,8 @@ pub struct Config {
     pub database_pass: String,
     pub database_ns: String,
     pub database_db: String,
-    pub ollama_url: String,
+    /// Backend URL - the gateway to all LLM operations (embeddings, etc.)
+    pub backend_url: String,
 }
 
 impl Config {
@@ -32,8 +37,8 @@ impl Config {
                 .unwrap_or_else(|_| "neuro".to_string()),
             database_db: std::env::var("DATABASE_DB")
                 .unwrap_or_else(|_| "memories".to_string()),
-            ollama_url: std::env::var("OLLAMA_URL")
-                .unwrap_or_else(|_| "http://localhost:11434".to_string()),
+            backend_url: std::env::var("BACKEND_URL")
+                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
         }
     }
 }

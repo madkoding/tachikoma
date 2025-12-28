@@ -6,10 +6,12 @@
 
 mod pool;
 mod surreal_checklist_repository;
+mod surreal_kanban_repository;
 mod surreal_music_repository;
 mod surreal_repository;
 
 pub use pool::DatabasePool;
 pub use surreal_checklist_repository::SurrealChecklistRepository;
+pub use surreal_kanban_repository::SurrealKanbanRepository;
 pub use surreal_music_repository::SurrealMusicRepository;
 pub use surreal_repository::SurrealDbRepository;

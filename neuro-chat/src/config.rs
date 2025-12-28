@@ -11,10 +11,14 @@ pub struct Config {
     pub database_pass: String,
     pub database_ns: String,
     pub database_db: String,
-    pub ollama_url: String,
+    /// URL to neuro-backend - the only gateway to Ollama
+    pub backend_url: String,
     pub memory_service_url: String,
-    pub default_model: String,
-    pub fast_model: String,
+    // Speculative decoding configuration (optional overrides, backend uses defaults)
+    pub speculative_enabled: bool,
+    pub draft_model: Option<String>,
+    pub target_model: Option<String>,
+    pub speculative_lookahead: usize,
 }
 
 impl Config {
@@ -35,14 +39,23 @@ impl Config {
                 .unwrap_or_else(|_| "neuro".to_string()),
             database_db: std::env::var("DATABASE_DB")
                 .unwrap_or_else(|_| "chat".to_string()),
-            ollama_url: std::env::var("OLLAMA_URL")
-                .unwrap_or_else(|_| "http://localhost:11434".to_string()),
+            // Backend URL - the ONLY gateway to Ollama
+            backend_url: std::env::var("BACKEND_URL")
+                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
             memory_service_url: std::env::var("MEMORY_SERVICE_URL")
                 .unwrap_or_else(|_| "http://localhost:3004".to_string()),
-            default_model: std::env::var("DEFAULT_MODEL")
-                .unwrap_or_else(|_| "qwen2.5-coder:7b".to_string()),
-            fast_model: std::env::var("FAST_MODEL")
-                .unwrap_or_else(|_| "qwen2.5:3b".to_string()),
+            // Speculative decoding (optional overrides - backend has defaults)
+            speculative_enabled: std::env::var("SPECULATIVE_ENABLED")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .unwrap_or(false),
+            // None means use backend defaults (Light tier for draft, Standard for target)
+            draft_model: std::env::var("DRAFT_MODEL").ok(),
+            target_model: std::env::var("TARGET_MODEL").ok(),
+            speculative_lookahead: std::env::var("SPECULATIVE_LOOKAHEAD")
+                .unwrap_or_else(|_| "5".to_string())
+                .parse()
+                .unwrap_or(5),
         }
     }
 }

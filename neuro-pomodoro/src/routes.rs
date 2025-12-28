@@ -1,7 +1,7 @@
 //! API Routes
 
 use axum::{
-    routing::{get, post, patch},
+    routing::{get, post, patch, put},
     Router,
 };
 use std::sync::Arc;
@@ -22,7 +22,15 @@ pub fn create_router(state: Arc<AppState>) -> Router {
     let api_routes = Router::new()
         // Timer state
         .route("/pomodoro/state", get(handlers::get_timer_state))
-        // Sessions
+        // Active session API (for frontend)
+        .route("/pomodoro/sessions/active", get(handlers::get_active_session))
+        .route("/pomodoro/sessions/start", post(handlers::start_session))
+        .route("/pomodoro/sessions/pause", post(handlers::pause_active_session))
+        .route("/pomodoro/sessions/resume", post(handlers::resume_active_session))
+        .route("/pomodoro/sessions/complete", post(handlers::complete_active_session))
+        .route("/pomodoro/sessions/cancel", post(handlers::cancel_active_session))
+        .route("/pomodoro/sessions/history", get(handlers::get_session_history))
+        // Legacy session API (with ID)
         .route("/pomodoro/sessions", post(handlers::start_session))
         .route("/pomodoro/sessions", get(handlers::get_today_sessions))
         .route("/pomodoro/sessions/:id", patch(handlers::update_session))
@@ -33,6 +41,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         // Settings
         .route("/pomodoro/settings", get(handlers::get_settings))
         .route("/pomodoro/settings", post(handlers::save_settings))
+        .route("/pomodoro/settings", put(handlers::update_settings))
         // Stats
         .route("/pomodoro/stats", get(handlers::get_stats))
         .route("/pomodoro/stats/daily", get(handlers::get_daily_stats))

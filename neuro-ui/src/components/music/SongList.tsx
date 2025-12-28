@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Play, 
   Pause, 
@@ -9,10 +9,29 @@ import {
   GripVertical,
   Clock,
   ExternalLink,
-  Sparkles
+  Sparkles,
+  ArrowUpDown,
+  TrendingUp,
+  SortAsc,
+  Timer,
+  Disc3,
+  User,
+  Heart,
+  ImageIcon
 } from 'lucide-react';
-import { useMusicStore, formatDuration } from '../../stores/musicStore';
+import { useMusicStore, usePlayerState, formatDuration } from '../../stores/musicStore';
 import { SongDto, PlaylistWithSongsDto } from '../../api/client';
+import { AnimatedLedDigits } from '../common';
+
+type SortOption = 'most_played' | 'alphabetical' | 'duration' | 'album' | 'artist';
+
+const SORT_OPTIONS: { value: SortOption; label: string; icon: React.ReactNode }[] = [
+  { value: 'most_played', label: 'Más escuchadas', icon: <TrendingUp className="w-4 h-4" /> },
+  { value: 'alphabetical', label: 'Alfabético', icon: <SortAsc className="w-4 h-4" /> },
+  { value: 'duration', label: 'Duración', icon: <Timer className="w-4 h-4" /> },
+  { value: 'album', label: 'Álbum', icon: <Disc3 className="w-4 h-4" /> },
+  { value: 'artist', label: 'Artista', icon: <User className="w-4 h-4" /> },
+];
 
 interface SongListProps {
   playlist: PlaylistWithSongsDto;
@@ -20,20 +39,49 @@ interface SongListProps {
 }
 
 export const SongList: React.FC<SongListProps> = ({ playlist, onEditSong }) => {
+  // Use optimized selector for player state
+  const player = usePlayerState();
+  
+  // Get other actions from store directly (these don't change, so won't cause re-renders)
   const { 
-    player, 
     playSong, 
     togglePlay, 
     deleteSong,
     reorderSongs,
     newSongIds,
-    markSongAsSeen
+    markSongAsSeen,
+    toggleSongLike,
+    fetchSongCover
   } = useMusicStore();
   
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [draggedSong, setDraggedSong] = useState<string | null>(null);
   const [dragOverSong, setDragOverSong] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<SortOption>('most_played');
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
+  const [fetchingCoverIds, setFetchingCoverIds] = useState<Set<string>>(new Set());
+
+  // Sort songs based on selected option
+  const sortedSongs = useMemo(() => {
+    const songs = [...playlist.songs];
+    
+    switch (sortBy) {
+      case 'most_played':
+        return songs.sort((a, b) => b.play_count - a.play_count);
+      case 'alphabetical':
+        return songs.sort((a, b) => a.title.localeCompare(b.title));
+      case 'duration':
+        return songs.sort((a, b) => a.duration - b.duration);
+      case 'album':
+        return songs.sort((a, b) => (a.album || '').localeCompare(b.album || ''));
+      case 'artist':
+        return songs.sort((a, b) => (a.artist || '').localeCompare(b.artist || ''));
+      default:
+        return songs;
+    }
+  }, [playlist.songs, sortBy]);
 
   const handlePlay = (song: SongDto) => {
     if (player.currentSong?.id === song.id) {
@@ -95,35 +143,83 @@ export const SongList: React.FC<SongListProps> = ({ playlist, onEditSong }) => {
     );
   }
 
-  return (
-    <div className="divide-y divide-gray-800/50">
-      {playlist.songs.map((song, index) => {
-        const isPlaying = player.currentSong?.id === song.id && player.isPlaying;
-        const isCurrentSong = player.currentSong?.id === song.id;
-        const isDragging = draggedSong === song.id;
-        const isDragOver = dragOverSong === song.id;
-        const isNew = newSongIds.has(song.id);
+  const currentSortOption = SORT_OPTIONS.find(opt => opt.value === sortBy);
 
-        return (
-          <div
-            key={song.id}
-            draggable
-            onDragStart={(e) => handleDragStart(e, song.id)}
-            onDragOver={(e) => handleDragOver(e, song.id)}
-            onDragEnd={handleDragEnd}
-            onClick={() => handlePlay(song)}
-            onAnimationEnd={() => isNew && markSongAsSeen(song.id)}
-            className={`
-              group flex items-center gap-2 sm:gap-3 p-2 sm:p-3 cursor-pointer transition-all
-              ${isCurrentSong 
-                ? 'bg-cyan-500/10' 
-                : 'hover:bg-gray-800/50'
-              }
-              ${isDragging ? 'opacity-50' : ''}
-              ${isDragOver ? 'border-t-2 border-cyan-500' : ''}
-              ${isNew ? 'animate-slide-in-glow' : ''}
-            `}
+  return (
+    <div>
+      {/* Sort selector */}
+      <div className="flex items-center justify-end px-2 sm:px-3 py-2 border-b border-gray-800/50">
+        <div className="relative">
+          <button
+            onClick={() => setShowSortMenu(!showSortMenu)}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:text-white bg-gray-800/50 hover:bg-gray-800 rounded-md transition-all"
           >
+            <ArrowUpDown className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{currentSortOption?.label}</span>
+            {currentSortOption?.icon}
+          </button>
+          
+          {showSortMenu && (
+            <>
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setShowSortMenu(false)}
+              />
+              <div className="absolute right-0 top-full mt-1 w-48 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden">
+                {SORT_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setSortBy(option.value);
+                      setShowSortMenu(false);
+                    }}
+                    className={`
+                      w-full flex items-center gap-3 px-3 py-2 text-sm transition-all
+                      ${sortBy === option.value 
+                        ? 'bg-cyan-500/20 text-cyan-400' 
+                        : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                      }
+                    `}
+                  >
+                    {option.icon}
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+      
+      {/* Song list */}
+      <div className="divide-y divide-gray-800/50">
+        {sortedSongs.map((song, index) => {
+          const isPlaying = player.currentSong?.id === song.id && player.isPlaying;
+          const isCurrentSong = player.currentSong?.id === song.id;
+          const isDragging = draggedSong === song.id;
+          const isDragOver = dragOverSong === song.id;
+          const isNew = newSongIds.has(song.id);
+
+          return (
+            <div
+              key={song.id}
+              draggable
+              onDragStart={(e) => handleDragStart(e, song.id)}
+              onDragOver={(e) => handleDragOver(e, song.id)}
+              onDragEnd={handleDragEnd}
+              onClick={() => handlePlay(song)}
+              onAnimationEnd={() => isNew && markSongAsSeen(song.id)}
+              className={`
+                group flex items-center gap-2 sm:gap-3 p-2 sm:p-3 cursor-pointer transition-all
+                ${isCurrentSong 
+                  ? 'bg-cyan-500/10' 
+                  : 'hover:bg-gray-800/50'
+                }
+                ${isDragging ? 'opacity-50' : ''}
+                ${isDragOver ? 'border-t-2 border-cyan-500' : ''}
+                ${isNew ? 'animate-slide-in-glow' : ''}
+              `}
+            >
             {/* New song indicator */}
             {isNew && (
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan-400 via-purple-500 to-pink-500 animate-pulse" />
@@ -137,9 +233,8 @@ export const SongList: React.FC<SongListProps> = ({ playlist, onEditSong }) => {
                     {[1, 2, 3].map(i => (
                       <div
                         key={i}
-                        className="w-1 bg-cyan-400 rounded-full animate-pulse"
+                        className="w-1 bg-cyan-400 rounded-full animate-equalizer-bar"
                         style={{
-                          height: `${Math.random() * 100}%`,
                           animationDelay: `${i * 0.15}s`,
                         }}
                       />
@@ -188,18 +283,56 @@ export const SongList: React.FC<SongListProps> = ({ playlist, onEditSong }) => {
               </div>
             </div>
 
-            {/* Duration */}
-            <div className="flex items-center gap-1 text-xs led-time flex-shrink-0">
-              <Clock className="w-3 h-3 hidden sm:block" />
-              {formatDuration(song.duration)}
-            </div>
-
-            {/* Play count - hidden on mobile */}
+            {/* Play count - hidden on mobile, positioned before duration */}
             {song.play_count > 0 && (
-              <div className="hidden sm:block text-xs text-gray-600">
-                {song.play_count}×
+              <div className="hidden sm:block flex-shrink-0">
+                <AnimatedLedDigits 
+                  value={`${song.play_count}×`} 
+                  variant="cyan"
+                />
               </div>
             )}
+
+            {/* Duration */}
+            <div className="flex items-center gap-1 text-xs flex-shrink-0">
+              <Clock className="w-3 h-3 hidden sm:block" />
+              <AnimatedLedDigits value={formatDuration(song.duration)} variant="time" />
+            </div>
+
+            {/* Like Button */}
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (likingIds.has(song.id)) return;
+                console.log('👆 Like button clicked for song:', song.id, song.title);
+                setLikingIds(prev => new Set(prev).add(song.id));
+                try {
+                  await toggleSongLike(song.id);
+                } catch (err) {
+                  console.error('Failed to toggle like:', err);
+                } finally {
+                  setLikingIds(prev => {
+                    const next = new Set(prev);
+                    next.delete(song.id);
+                    return next;
+                  });
+                }
+              }}
+              disabled={likingIds.has(song.id)}
+              className={`p-1 transition-all flex-shrink-0 ${
+                likingIds.has(song.id)
+                  ? 'text-gray-400 cursor-wait'
+                  : song.is_liked
+                    ? 'text-red-500 hover:text-red-400'
+                    : 'text-gray-500 hover:text-red-500 sm:opacity-0 group-hover:opacity-100'
+              }`}
+              title={song.is_liked ? 'Quitar de Me gusta' : 'Añadir a Me gusta'}
+            >
+              <Heart 
+                className={`w-4 h-4 ${likingIds.has(song.id) ? 'animate-pulse' : ''}`}
+                fill={song.is_liked ? 'currentColor' : 'none'} 
+              />
+            </button>
 
             {/* Menu */}
             <button
@@ -243,6 +376,31 @@ export const SongList: React.FC<SongListProps> = ({ playlist, onEditSong }) => {
                       Editar
                     </button>
                   )}
+                  {/* Hide cover search for special playlists (Me gusta / Sugerencias) */}
+                  {!playlist.is_favorites && !playlist.is_suggestions && (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (fetchingCoverIds.has(song.id)) return;
+                        setFetchingCoverIds(prev => new Set(prev).add(song.id));
+                        try {
+                          await fetchSongCover(song.id);
+                        } finally {
+                          setFetchingCoverIds(prev => {
+                            const next = new Set(prev);
+                            next.delete(song.id);
+                            return next;
+                          });
+                          setMenuOpen(null);
+                        }
+                      }}
+                      disabled={fetchingCoverIds.has(song.id)}
+                      className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <ImageIcon className={`w-4 h-4 ${fetchingCoverIds.has(song.id) ? 'animate-pulse' : ''}`} />
+                      {fetchingCoverIds.has(song.id) ? 'Buscando...' : 'Buscar carátula'}
+                    </button>
+                  )}
                   <button
                     onClick={(e) => handleDelete(song.id, e)}
                     className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
@@ -260,6 +418,7 @@ export const SongList: React.FC<SongListProps> = ({ playlist, onEditSong }) => {
           </div>
         );
       })}
+      </div>
     </div>
   );
 };

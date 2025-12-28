@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
-const HEALTH_CHECK_INTERVAL = 5000; // Check every 5 seconds
+const HEALTH_CHECK_INTERVAL = 60000; // Check every 60 seconds
 const INITIAL_CHECK_DELAY = 1000; // Wait 1 second before first check
 
 export interface ConnectionStatus {

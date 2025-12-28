@@ -6,7 +6,7 @@
 # =============================================================================
 
 [package]
-name = "voice-service"
+name = "neuro-voice"
 version = "1.0.0"
 edition = "2021"
 authors = ["NEURO-OS Team"]

@@ -10,6 +10,7 @@ pub struct Config {
     pub ffmpeg_path: String,
     pub musicbrainz_api: String,
     pub coverart_api: String,
+    pub downloads_path: String,
 }
 
 impl Config {
@@ -30,6 +31,8 @@ impl Config {
                 .unwrap_or_else(|_| "https://musicbrainz.org/ws/2".to_string()),
             coverart_api: env::var("COVERART_API")
                 .unwrap_or_else(|_| "https://coverartarchive.org".to_string()),
+            downloads_path: env::var("DOWNLOADS_PATH")
+                .unwrap_or_else(|_| "/data/downloads".to_string()),
         }
     }
 }

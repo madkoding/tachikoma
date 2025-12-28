@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Search, Plus, Loader2, Music, ExternalLink } from 'lucide-react';
-import { useMusicStore, formatDuration } from '../../stores/musicStore';
-import { YouTubeSearchResultDto, CreateSongRequest } from '../../api/client';
+import { Search, Plus, Loader2, Music, ExternalLink, Sparkles, Database } from 'lucide-react';
+import { useSearchState, formatDuration } from '../../stores/musicStore';
+import { EnrichedSearchResultDto, CreateSongRequest } from '../../api/client';
+import { AnimatedLedDigits } from '../common';
 
 interface YouTubeSearchProps {
   playlistId: string;
@@ -9,7 +10,8 @@ interface YouTubeSearchProps {
 }
 
 export const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ playlistId, onSongAdded }) => {
-  const { searchResults, isSearching, searchYouTube, clearSearch, addSong } = useMusicStore();
+  // Use optimized selector for search state
+  const { searchResults, isSearching, searchYouTube, addSong, clearSearch } = useSearchState();
   const [query, setQuery] = useState('');
   const [addingIds, setAddingIds] = useState<Set<string>>(new Set());
 
@@ -20,16 +22,18 @@ export const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ playlistId, onSong
     }
   };
 
-  const handleAddSong = async (result: YouTubeSearchResultDto) => {
+  const handleAddSong = async (result: EnrichedSearchResultDto) => {
     if (addingIds.has(result.video_id)) return;
     
     setAddingIds(prev => new Set(prev).add(result.video_id));
     
     try {
+      // Use enriched metadata
       const request: CreateSongRequest = {
         youtube_url: `https://www.youtube.com/watch?v=${result.video_id}`,
         title: result.title,
-        artist: result.channel,
+        artist: result.artist || result.channel || undefined,
+        album: result.album || undefined,
       };
       
       await addSong(playlistId, request);
@@ -125,6 +129,7 @@ export const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ playlistId, onSong
           
           {searchResults.map((result) => {
             const isAdding = addingIds.has(result.video_id);
+            const isEnriched = result.source === 'music_brainz' || result.source === 'llm_inference';
             
             return (
               <div
@@ -138,21 +143,37 @@ export const YouTubeSearch: React.FC<YouTubeSearchProps> = ({ playlistId, onSong
                     alt={result.title}
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute bottom-1 right-1 px-1 bg-black/80 text-[10px] led-time">
-                    {formatDuration(result.duration)}
+                  <div className="absolute bottom-1 right-1 px-1 bg-black/80 text-[10px]">
+                    <AnimatedLedDigits value={formatDuration(result.duration)} variant="time" />
                   </div>
                 </div>
 
-                {/* Info */}
+                {/* Info - Show enriched metadata */}
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-white truncate text-sm">
+                  <div className="font-medium text-white truncate text-sm flex items-center gap-1.5">
                     {result.title}
+                    {isEnriched && (
+                      <span title={result.source === 'music_brainz' ? 'Metadata de MusicBrainz' : 'Metadata generada por IA'}>
+                        {result.source === 'music_brainz' ? (
+                          <Database className="w-3 h-3 text-cyan-400" />
+                        ) : (
+                          <Sparkles className="w-3 h-3 text-purple-400" />
+                        )}
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-gray-400 truncate flex items-center gap-2">
-                    <span>{result.channel}</span>
+                    {result.artist ? (
+                      <span className="text-cyan-400">{result.artist}</span>
+                    ) : (
+                      <span>{result.channel}</span>
+                    )}
+                    {result.album && (
+                      <span className="text-gray-500">• {result.album}</span>
+                    )}
                     {result.view_count && (
                       <span className="text-gray-600">
-                        {(result.view_count / 1000000).toFixed(1)}M vistas
+                        • {(result.view_count / 1000000).toFixed(1)}M vistas
                       </span>
                     )}
                   </div>

@@ -251,7 +251,7 @@ export default function ChatPage() {
         useNotificationStore.getState().notifyFromTools(tools);
         
         if (tools.includes('create_playlist')) {
-          console.log('🎵 Playlist tool detected! Starting polling...');
+          console.log('🎵 Playlist tool detected!');
           try {
             // Wait a bit for the playlist to be created
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -263,16 +263,16 @@ export default function ChatPage() {
             const playlists = useMusicStore.getState().playlists;
             if (playlists.length > 0) {
               const newestPlaylist = playlists[0]; // Sorted by created_at desc
-              console.log('🎵 Starting polling for playlist:', newestPlaylist.name);
+              console.log('🎵 Viewing new playlist:', newestPlaylist.name);
               
-              // Fetch full playlist detail
+              // Fetch full playlist detail - SSE will handle updates automatically
               await useMusicStore.getState().fetchPlaylistDetail(newestPlaylist.id);
               
-              // Start polling for new songs
-              useMusicStore.getState().startPolling(newestPlaylist.id);
+              // Start watching this playlist for updates (uses SSE with polling fallback)
+              useMusicStore.getState().startWatchingPlaylist(newestPlaylist.id);
             }
           } catch (error) {
-            console.error('Failed to start playlist polling:', error);
+            console.error('Failed to handle playlist creation:', error);
           }
         }
       }

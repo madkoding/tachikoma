@@ -11,13 +11,13 @@ export default function DashboardPage() {
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['graph-stats'],
     queryFn: graphApi.getStats,
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 
   const { data: health, isLoading: healthLoading } = useQuery({
     queryKey: ['system-health'],
     queryFn: systemApi.getHealth,
-    refetchInterval: 10000,
+    refetchInterval: 60000,
   });
 
   const { data: models, isLoading: modelsLoading } = useQuery({

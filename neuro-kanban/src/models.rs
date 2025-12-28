@@ -1,7 +1,12 @@
+//! =============================================================================
+//! Kanban Models
+//! =============================================================================
+//! No longer depends on SurrealDB - uses backend data layer
+//! =============================================================================
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use std::collections::HashMap;
 
 // =============================================================================
 // Card (Tarjeta Kanban)
@@ -16,6 +21,7 @@ pub struct Card {
     pub color: Option<String>,
     pub labels: Vec<String>,
     pub due_date: Option<DateTime<Utc>>,
+    #[serde(alias = "card_order")]
     pub order: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -55,7 +61,8 @@ pub struct Column {
     pub board_id: Uuid,
     pub name: String,
     pub color: Option<String>,
-    pub wip_limit: Option<i32>, // Work In Progress limit
+    pub wip_limit: Option<i32>,
+    #[serde(alias = "column_order")]
     pub order: i32,
     pub cards: Vec<Card>,
     pub created_at: DateTime<Utc>,
@@ -125,81 +132,4 @@ pub struct UpdateBoardRequest {
     pub description: Option<String>,
     pub color: Option<String>,
     pub is_archived: Option<bool>,
-}
-
-// =============================================================================
-// In-Memory State
-// =============================================================================
-
-#[derive(Debug, Clone, Default)]
-pub struct KanbanState {
-    pub boards: HashMap<Uuid, Board>,
-}
-
-impl KanbanState {
-    pub fn new() -> Self {
-        Self {
-            boards: HashMap::new(),
-        }
-    }
-}
-
-impl Board {
-    pub fn to_summary(&self) -> BoardSummary {
-        let card_count: usize = self.columns.iter().map(|c| c.cards.len()).sum();
-        BoardSummary {
-            id: self.id,
-            name: self.name.clone(),
-            description: self.description.clone(),
-            color: self.color.clone(),
-            is_archived: self.is_archived,
-            column_count: self.columns.len(),
-            card_count,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-        }
-    }
-}
-
-// =============================================================================
-// Default Columns
-// =============================================================================
-
-pub fn create_default_columns(board_id: Uuid) -> Vec<Column> {
-    let now = Utc::now();
-    vec![
-        Column {
-            id: Uuid::new_v4(),
-            board_id,
-            name: "To Do".to_string(),
-            color: Some("#6366f1".to_string()), // Indigo
-            wip_limit: None,
-            order: 0,
-            cards: vec![],
-            created_at: now,
-            updated_at: now,
-        },
-        Column {
-            id: Uuid::new_v4(),
-            board_id,
-            name: "In Progress".to_string(),
-            color: Some("#f59e0b".to_string()), // Amber
-            wip_limit: Some(5),
-            order: 1,
-            cards: vec![],
-            created_at: now,
-            updated_at: now,
-        },
-        Column {
-            id: Uuid::new_v4(),
-            board_id,
-            name: "Done".to_string(),
-            color: Some("#22c55e".to_string()), // Green
-            wip_limit: None,
-            order: 2,
-            cards: vec![],
-            created_at: now,
-            updated_at: now,
-        },
-    ]
 }

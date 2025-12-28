@@ -14,7 +14,7 @@ services:
   # ===========================================================================
   # Voice Service - Development Build
   # ===========================================================================
-  voice-service:
+  neuro-voice:
     build:
       context: ./neuro-voice
       dockerfile: Dockerfile.dev
@@ -29,7 +29,7 @@ services:
   # ===========================================================================
   # Checklists Service - Development Build
   # ===========================================================================
-  checklists-service:
+  neuro-checklists:
     build:
       context: ./neuro-checklists
       dockerfile: Dockerfile.dev
@@ -42,7 +42,7 @@ services:
   # ===========================================================================
   # Music Service - Development Build
   # ===========================================================================
-  music-service:
+  neuro-music:
     build:
       context: ./neuro-music
       dockerfile: Dockerfile.dev
@@ -50,12 +50,15 @@ services:
       - cargo-cache-music:/root/.cargo/registry
       - cargo-git-music:/root/.cargo/git
       - music-target:/app/target
+      - music-downloads:/data/downloads
       - ./neuro-music/src:/app/src:ro
+    environment:
+      - DOWNLOADS_PATH=/data/downloads
 
   # ===========================================================================
   # Chat Service - Development Build
   # ===========================================================================
-  chat-service:
+  neuro-chat:
     build:
       context: ./neuro-chat
       dockerfile: Dockerfile.dev
@@ -68,7 +71,7 @@ services:
   # ===========================================================================
   # Memory Service - Development Build
   # ===========================================================================
-  memory-service:
+  neuro-memory:
     build:
       context: ./neuro-memory
       dockerfile: Dockerfile.dev
@@ -81,7 +84,7 @@ services:
   # ===========================================================================
   # Agent Service - Development Build
   # ===========================================================================
-  agent-service:
+  neuro-agent:
     build:
       context: ./neuro-agent
       dockerfile: Dockerfile.dev
@@ -94,7 +97,7 @@ services:
   # ===========================================================================
   # Pomodoro Service - Development Build
   # ===========================================================================
-  pomodoro-service:
+  neuro-pomodoro:
     build:
       context: ./neuro-pomodoro
       dockerfile: Dockerfile.dev
@@ -113,7 +116,7 @@ services:
   # ===========================================================================
   # Kanban Service - Development Build
   # ===========================================================================
-  kanban-service:
+  neuro-kanban:
     build:
       context: ./neuro-kanban
       dockerfile: Dockerfile.dev
@@ -132,7 +135,7 @@ services:
   # ===========================================================================
   # Note Service - Development Build
   # ===========================================================================
-  note-service:
+  neuro-note:
     build:
       context: ./neuro-note
       dockerfile: Dockerfile.dev
@@ -151,7 +154,7 @@ services:
   # ===========================================================================
   # Docs Service - Development Build
   # ===========================================================================
-  docs-service:
+  neuro-docs:
     build:
       context: ./neuro-docs
       dockerfile: Dockerfile.dev
@@ -170,7 +173,7 @@ services:
   # ===========================================================================
   # Calendar Service - Development Build
   # ===========================================================================
-  calendar-service:
+  neuro-calendar:
     build:
       context: ./neuro-calendar
       dockerfile: Dockerfile.dev
@@ -189,7 +192,7 @@ services:
   # ===========================================================================
   # Image Service - Development Build
   # ===========================================================================
-  image-service:
+  neuro-image:
     build:
       context: ./neuro-image
       dockerfile: Dockerfile.dev
@@ -234,6 +237,8 @@ volumes:
     name: neuro-cargo-git-music
   music-target:
     name: neuro-music-target
+  music-downloads:
+    name: neuro-music-downloads
 
   # Chat service cache
   cargo-cache-chat:

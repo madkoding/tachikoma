@@ -32,7 +32,12 @@ struct PlaylistRecord {
     name: String,
     description: Option<String>,
     cover_url: Option<String>,
+    #[serde(default)]
+    is_favorites: bool,
+    #[serde(default)]
     is_suggestions: bool,
+    #[serde(default)]
+    last_suggestions_update: Option<chrono::DateTime<chrono::Utc>>,
     shuffle: bool,
     repeat_mode: String,
     song_count: i32,
@@ -55,6 +60,8 @@ struct SongRecord {
     thumbnail_url: Option<String>,
     song_order: i32,
     play_count: i32,
+    #[serde(default)]
+    is_liked: bool,
     last_played: Option<chrono::DateTime<chrono::Utc>>,
     created_at: chrono::DateTime<chrono::Utc>,
 }
@@ -74,7 +81,9 @@ impl From<PlaylistRecord> for Playlist {
             name: record.name,
             description: record.description,
             cover_url: record.cover_url,
+            is_favorites: record.is_favorites,
             is_suggestions: record.is_suggestions,
+            last_suggestions_update: record.last_suggestions_update,
             shuffle: record.shuffle,
             repeat_mode: record.repeat_mode.parse().unwrap_or_default(),
             song_count: record.song_count,
@@ -100,6 +109,7 @@ impl From<SongRecord> for Song {
             thumbnail_url: record.thumbnail_url,
             song_order: record.song_order,
             play_count: record.play_count,
+            is_liked: record.is_liked,
             last_played: record.last_played,
             created_at: record.created_at,
         }
@@ -179,7 +189,15 @@ impl MusicRepository for SurrealMusicRepository {
             None => return Ok(None),
         };
 
-        let songs = self.get_songs_by_playlist(id).await?;
+        let mut songs = self.get_songs_by_playlist(id).await?;
+
+        // For favorites playlist, enrich songs with total play count across all playlists
+        if playlist.is_favorites {
+            for song in &mut songs {
+                let total = self.get_total_play_count_by_youtube_id(&song.youtube_id).await?;
+                song.play_count = total;
+            }
+        }
 
         Ok(Some(PlaylistWithSongs { playlist, songs }))
     }
@@ -192,7 +210,8 @@ impl MusicRepository for SurrealMusicRepository {
                 name = $name,
                 description = $description,
                 cover_url = $cover_url,
-                is_suggestions = false,
+                is_favorites = $is_favorites,
+                is_suggestions = $is_suggestions,
                 shuffle = false,
                 repeat_mode = 'off',
                 song_count = 0,
@@ -208,6 +227,8 @@ impl MusicRepository for SurrealMusicRepository {
             .bind(("name", data.name.clone()))
             .bind(("description", data.description.clone()))
             .bind(("cover_url", data.cover_url.clone()))
+            .bind(("is_favorites", data.is_favorites))
+            .bind(("is_suggestions", data.is_suggestions))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
@@ -351,7 +372,7 @@ impl MusicRepository for SurrealMusicRepository {
                 artist = $artist,
                 album = $album,
                 duration = $duration,
-                cover_url = NONE,
+                cover_url = $cover_url,
                 thumbnail_url = $thumbnail_url,
                 song_order = $song_order,
                 play_count = 0,
@@ -370,6 +391,7 @@ impl MusicRepository for SurrealMusicRepository {
             .bind(("artist", metadata.artist.clone()))
             .bind(("album", metadata.album.clone()))
             .bind(("duration", metadata.duration))
+            .bind(("cover_url", data.cover_url.clone()))
             .bind(("thumbnail_url", metadata.thumbnail_url.clone()))
             .bind(("song_order", next_order))
             .await
@@ -387,10 +409,11 @@ impl MusicRepository for SurrealMusicRepository {
             artist: metadata.artist,
             album: metadata.album,
             duration: metadata.duration,
-            cover_url: None,
+            cover_url: data.cover_url,
             thumbnail_url: metadata.thumbnail_url,
             song_order: next_order,
             play_count: 0,
+            is_liked: false,
             last_played: None,
             created_at: now,
         })
@@ -403,7 +426,7 @@ impl MusicRepository for SurrealMusicRepository {
         };
 
         let query = format!(
-            "UPDATE song:`{}` SET title = $title, artist = $artist, album = $album, cover_url = $cover_url, song_order = $song_order",
+            "UPDATE song:`{}` SET title = $title, artist = $artist, album = $album, cover_url = $cover_url, song_order = $song_order, is_liked = $is_liked",
             id
         );
 
@@ -414,6 +437,7 @@ impl MusicRepository for SurrealMusicRepository {
             .bind(("album", data.album.clone().or(existing.album.clone())))
             .bind(("cover_url", data.cover_url.clone().or(existing.cover_url.clone())))
             .bind(("song_order", data.song_order.unwrap_or(existing.song_order)))
+            .bind(("is_liked", data.is_liked.unwrap_or(existing.is_liked)))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
@@ -421,8 +445,7 @@ impl MusicRepository for SurrealMusicRepository {
     }
 
     async fn delete_song(&self, id: Uuid) -> Result<bool, DomainError> {
-        let song = self.get_song(id).await?;
-        
+        // Use DELETE RETURN BEFORE to get the song data in one atomic operation
         let query = format!("DELETE song:`{}` RETURN BEFORE", id);
         let mut result = self.pool.client().query(&query).await
             .map_err(|e| DomainError::database(e.to_string()))?;
@@ -430,11 +453,14 @@ impl MusicRepository for SurrealMusicRepository {
         let deleted: Vec<SongRecord> = result.take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        if let Some(s) = song {
-            self.update_playlist_stats(s.playlist_id).await?;
+        // Only update stats if we actually deleted something
+        if let Some(song_record) = deleted.first() {
+            let song = Song::from(song_record.clone());
+            self.update_playlist_stats(song.playlist_id).await?;
+            Ok(true)
+        } else {
+            Ok(false)
         }
-
-        Ok(!deleted.is_empty())
     }
 
     async fn increment_play_count(&self, id: Uuid) -> Result<(), DomainError> {
@@ -521,5 +547,49 @@ impl MusicRepository for SurrealMusicRepository {
             .map_err(|e| DomainError::database(e.to_string()))?;
         
         Ok(())
+    }
+
+    async fn get_liked_songs(&self) -> Result<Vec<Song>, DomainError> {
+        let mut result = self.pool.client()
+            .query("SELECT * FROM song WHERE is_liked = true ORDER BY updated_at DESC")
+            .await
+            .map_err(|e| DomainError::database(e.to_string()))?;
+        
+        let records: Vec<SongRecord> = result.take(0)
+            .map_err(|e| DomainError::database(e.to_string()))?;
+        
+        Ok(records.into_iter().map(Song::from).collect())
+    }
+
+    async fn update_suggestions_timestamp(&self, id: Uuid) -> Result<(), DomainError> {
+        let query = format!(
+            "UPDATE playlist:`{}` SET last_suggestions_update = time::now(), updated_at = time::now()",
+            id
+        );
+        
+        self.pool.client()
+            .query(&query)
+            .await
+            .map_err(|e| DomainError::database(e.to_string()))?;
+        
+        Ok(())
+    }
+
+    async fn get_total_play_count_by_youtube_id(&self, youtube_id: &str) -> Result<i32, DomainError> {
+        let mut result = self.pool.client()
+            .query("SELECT math::sum(play_count) as total FROM song WHERE youtube_id = $youtube_id GROUP ALL")
+            .bind(("youtube_id", youtube_id))
+            .await
+            .map_err(|e| DomainError::database(e.to_string()))?;
+        
+        #[derive(Debug, Deserialize)]
+        struct SumResult {
+            total: Option<i64>,
+        }
+        
+        let records: Vec<SumResult> = result.take(0)
+            .map_err(|e| DomainError::database(e.to_string()))?;
+        
+        Ok(records.first().and_then(|r| r.total).unwrap_or(0) as i32)
     }
 }

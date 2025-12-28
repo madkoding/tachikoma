@@ -1,10 +1,12 @@
 import { memo } from 'react';
+import AnimatedLedDigits from './AnimatedLedDigits';
 
 interface LedDateProps {
   readonly date: Date | string;
   readonly format?: 'full' | 'date' | 'time' | 'relative';
   readonly className?: string;
   readonly showIcon?: boolean;
+  readonly animated?: boolean;
 }
 
 function formatRelativeTime(date: Date): string {
@@ -52,6 +54,7 @@ function LedDate({
   format = 'full',
   className = '',
   showIcon = false,
+  animated = true,
 }: LedDateProps) {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   const formattedDate = formatDateTime(dateObj, format);
@@ -71,7 +74,11 @@ function LedDate({
           />
         </svg>
       )}
-      <span className="led-digits">{formattedDate}</span>
+      {animated ? (
+        <AnimatedLedDigits value={formattedDate} duration={500} />
+      ) : (
+        <span className="led-digits">{formattedDate}</span>
+      )}
     </span>
   );
 }

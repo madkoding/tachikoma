@@ -370,6 +370,8 @@ export interface PlaylistDto {
   description?: string;
   cover_url?: string;
   is_suggestions: boolean;
+  is_favorites: boolean;
+  last_suggestions_update?: string;
   shuffle: boolean;
   repeat_mode: 'off' | 'one' | 'all';
   song_count: number;
@@ -391,6 +393,7 @@ export interface SongDto {
   thumbnail_url?: string;
   song_order: number;
   play_count: number;
+  is_liked: boolean;
   last_played?: string;
   created_at: string;
 }
@@ -401,6 +404,8 @@ export interface PlaylistWithSongsDto {
   description?: string;
   cover_url?: string;
   is_suggestions: boolean;
+  is_favorites: boolean;
+  last_suggestions_update?: string;
   shuffle: boolean;
   repeat_mode: 'off' | 'one' | 'all';
   song_count: number;
@@ -438,6 +443,7 @@ export interface UpdateSongRequest {
   album?: string;
   cover_url?: string;
   song_order?: number;
+  is_liked?: boolean;
 }
 
 export interface EqualizerSettingsDto {
@@ -453,6 +459,33 @@ export interface YouTubeSearchResultDto {
   duration: number;
   thumbnail: string;
   view_count?: number;
+}
+
+export type MetadataSource = 'music_brainz' | 'llm_inference' | 'original';
+
+export interface EnrichedSearchResultDto {
+  video_id: string;
+  original_title: string;
+  title: string;
+  artist?: string;
+  album?: string;
+  channel?: string;
+  duration: number;
+  thumbnail: string;
+  view_count?: number;
+  source: MetadataSource;
+}
+
+export interface EnrichMetadataRequest {
+  title: string;
+  channel?: string;
+}
+
+export interface EnrichMetadataResponse {
+  title: string;
+  artist?: string;
+  album?: string;
+  source: MetadataSource;
 }
 
 export interface YouTubeMetadataDto {
@@ -535,6 +568,17 @@ export const musicApi = {
     return `${API_BASE_URL}/music/stream/${songId}`;
   },
 
+  // Download song as OGG (for caching liked songs)
+  downloadSong: async (songId: string): Promise<Blob> => {
+    const response = await api.get(`/music/download/${songId}`, {
+      responseType: 'blob',
+      headers: {
+        'Accept': 'audio/ogg, audio/mpeg, audio/*',
+      },
+    });
+    return response.data;
+  },
+
   getStreamInfo: async (songId: string): Promise<StreamInfoDto> => {
     const response = await api.get<StreamInfoDto>(`/music/stream/${songId}/info`);
     return response.data;
@@ -545,6 +589,18 @@ export const musicApi = {
     const response = await api.get<YouTubeSearchResultDto[]>('/music/youtube/search', {
       params: { q: query, limit }
     });
+    return response.data;
+  },
+
+  searchYouTubeEnriched: async (query: string, limit = 10): Promise<EnrichedSearchResultDto[]> => {
+    const response = await api.get<EnrichedSearchResultDto[]>('/music/youtube/search/enriched', {
+      params: { q: query, limit }
+    });
+    return response.data;
+  },
+
+  enrichMetadata: async (request: EnrichMetadataRequest): Promise<EnrichMetadataResponse> => {
+    const response = await api.post<EnrichMetadataResponse>('/music/youtube/enrich', request);
     return response.data;
   },
 
@@ -600,14 +656,45 @@ export const musicApi = {
     const response = await api.get<SongDto[]>('/music/stats/most-played', { params: { limit } });
     return response.data;
   },
+
+  // Special Playlists (Me gusta / Sugerencias)
+  initSpecialPlaylists: async (): Promise<PlaylistDto[]> => {
+    const response = await api.post<PlaylistDto[]>('/music/init-special-playlists');
+    return response.data;
+  },
+
+  toggleSongLike: async (songId: string): Promise<SongDto> => {
+    const response = await api.post<SongDto>(`/music/songs/${songId}/toggle-like`);
+    return response.data;
+  },
+
+  fetchSongCover: async (songId: string): Promise<SongDto> => {
+    const response = await api.post<SongDto>(`/music/songs/${songId}/fetch-cover`);
+    return response.data;
+  },
+
+  getLikedSongs: async (): Promise<SongDto[]> => {
+    const response = await api.get<SongDto[]>('/music/songs/liked');
+    return response.data;
+  },
+
+  refreshSuggestions: async (): Promise<PlaylistWithSongsDto> => {
+    const response = await api.post<PlaylistWithSongsDto>('/music/playlists/suggestions/refresh');
+    return response.data;
+  },
 };
 
 // =============================================================================
 // Pomodoro API Types
 // =============================================================================
 
-export type PomodoroSessionStatus = 'running' | 'paused' | 'completed' | 'cancelled';
+export type PomodoroSessionStatus = 'working' | 'short_break' | 'long_break' | 'paused' | 'completed' | 'cancelled';
 export type PomodoroSessionType = 'work' | 'short_break' | 'long_break';
+
+// Helper to check if session is actively running
+export const isSessionRunning = (status: PomodoroSessionStatus): boolean => {
+  return status === 'working' || status === 'short_break' || status === 'long_break';
+};
 
 export interface PomodoroSessionDto {
   id: string;
@@ -763,7 +850,7 @@ export interface KanbanColumnDto {
   updated_at: string;
 }
 
-export interface KanbanBoardDto {
+ export interface KanbanBoardDto {
   id: string;
   name: string;
   description?: string;

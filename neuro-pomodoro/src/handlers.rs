@@ -5,9 +5,9 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use chrono::Utc;
+use chrono::{NaiveDate, Utc};
 use std::sync::Arc;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::models::*;
@@ -28,19 +28,14 @@ pub async fn get_timer_state(
 ) -> Result<Json<TimerState>, StatusCode> {
     debug!("Getting timer state");
     
-    // Get today's date
     let today = Utc::now().format("%Y-%m-%d").to_string();
+    let sessions = state.store.get_today_sessions();
     
-    // Get sessions for today
-    let sessions = state.client.get_today_sessions().await.unwrap_or_default();
-    
-    // Find active session (not completed or cancelled)
     let active_session = sessions.iter().find(|s| {
         matches!(s.status, SessionStatus::Working | SessionStatus::ShortBreak | 
                  SessionStatus::LongBreak | SessionStatus::Paused)
     }).cloned();
     
-    // Calculate today's stats
     let completed_pomodoros = sessions.iter()
         .filter(|s| s.session_type == SessionType::Work && s.status == SessionStatus::Completed)
         .count() as u32;
@@ -56,8 +51,7 @@ pub async fn get_timer_state(
         .map(|s| s.duration_minutes)
         .sum();
     
-    // Get settings
-    let settings = state.client.get_settings().await.unwrap_or_default();
+    let settings = state.store.get_settings();
     
     Ok(Json(TimerState {
         active_session,
@@ -80,8 +74,7 @@ pub async fn start_session(
 ) -> Result<Json<PomodoroSession>, StatusCode> {
     info!("Starting new {:?} session", request.session_type);
     
-    // Get settings for default durations
-    let settings = state.client.get_settings().await.unwrap_or_default();
+    let settings = state.store.get_settings();
     
     let duration = request.duration_minutes.unwrap_or_else(|| {
         match request.session_type {
@@ -107,14 +100,8 @@ pub async fn start_session(
         created_at: Utc::now(),
     };
     
-    match state.client.create_session(&session).await {
-        Ok(created) => Ok(Json(created)),
-        Err(e) => {
-            error!("Failed to create session: {}", e);
-            // Return the session anyway for client-side tracking
-            Ok(Json(session))
-        }
-    }
+    let created = state.store.create_session(&session);
+    Ok(Json(created))
 }
 
 /// Update a session (pause, resume, update elapsed time)
@@ -125,12 +112,9 @@ pub async fn update_session(
 ) -> Result<Json<PomodoroSession>, StatusCode> {
     debug!("Updating session {}: {:?}", id, request);
     
-    match state.client.update_session(&id.to_string(), &request).await {
-        Ok(session) => Ok(Json(session)),
-        Err(e) => {
-            error!("Failed to update session: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
+    match state.store.update_session(&id, &request) {
+        Some(session) => Ok(Json(session)),
+        None => Err(StatusCode::NOT_FOUND),
     }
 }
 
@@ -147,12 +131,9 @@ pub async fn complete_session(
         task_description: None,
     };
     
-    match state.client.update_session(&id.to_string(), &update).await {
-        Ok(session) => Ok(Json(session)),
-        Err(e) => {
-            error!("Failed to complete session: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
+    match state.store.update_session(&id, &update) {
+        Some(session) => Ok(Json(session)),
+        None => Err(StatusCode::NOT_FOUND),
     }
 }
 
@@ -169,12 +150,9 @@ pub async fn cancel_session(
         task_description: None,
     };
     
-    match state.client.update_session(&id.to_string(), &update).await {
-        Ok(session) => Ok(Json(session)),
-        Err(e) => {
-            error!("Failed to cancel session: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
+    match state.store.update_session(&id, &update) {
+        Some(session) => Ok(Json(session)),
+        None => Err(StatusCode::NOT_FOUND),
     }
 }
 
@@ -192,12 +170,9 @@ pub async fn pause_session(
         task_description: None,
     };
     
-    match state.client.update_session(&id.to_string(), &update).await {
-        Ok(session) => Ok(Json(session)),
-        Err(e) => {
-            error!("Failed to pause session: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
+    match state.store.update_session(&id, &update) {
+        Some(session) => Ok(Json(session)),
+        None => Err(StatusCode::NOT_FOUND),
     }
 }
 
@@ -208,14 +183,9 @@ pub async fn resume_session(
 ) -> Result<Json<PomodoroSession>, StatusCode> {
     info!("Resuming session {}", id);
     
-    // Get current session to determine what type it was
-    let session = match state.client.get_session(&id.to_string()).await {
-        Ok(Some(s)) => s,
-        Ok(None) => return Err(StatusCode::NOT_FOUND),
-        Err(e) => {
-            error!("Failed to get session: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
+    let session = match state.store.get_session(&id) {
+        Some(s) => s,
+        None => return Err(StatusCode::NOT_FOUND),
     };
     
     let new_status = match session.session_type {
@@ -230,12 +200,9 @@ pub async fn resume_session(
         task_description: None,
     };
     
-    match state.client.update_session(&id.to_string(), &update).await {
-        Ok(session) => Ok(Json(session)),
-        Err(e) => {
-            error!("Failed to resume session: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
+    match state.store.update_session(&id, &update) {
+        Some(session) => Ok(Json(session)),
+        None => Err(StatusCode::NOT_FOUND),
     }
 }
 
@@ -244,9 +211,7 @@ pub async fn get_settings(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<PomodoroSettings>, StatusCode> {
     debug!("Getting settings");
-    
-    let settings = state.client.get_settings().await.unwrap_or_default();
-    Ok(Json(settings))
+    Ok(Json(state.store.get_settings()))
 }
 
 /// Save user settings
@@ -255,15 +220,8 @@ pub async fn save_settings(
     Json(settings): Json<PomodoroSettings>,
 ) -> Result<Json<PomodoroSettings>, StatusCode> {
     info!("Saving settings");
-    
-    match state.client.save_settings(&settings).await {
-        Ok(saved) => Ok(Json(saved)),
-        Err(e) => {
-            error!("Failed to save settings: {}", e);
-            // Return the settings anyway
-            Ok(Json(settings))
-        }
-    }
+    let saved = state.store.save_settings(&settings);
+    Ok(Json(saved))
 }
 
 /// Get today's sessions
@@ -271,29 +229,7 @@ pub async fn get_today_sessions(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<PomodoroSession>>, StatusCode> {
     debug!("Getting today's sessions");
-    
-    let sessions = state.client.get_today_sessions().await.unwrap_or_default();
-    Ok(Json(sessions))
-}
-
-/// Get stats for a date range
-pub async fn get_stats(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Query(params): axum::extract::Query<StatsQuery>,
-) -> Result<Json<Vec<DailyStats>>, StatusCode> {
-    let today = Utc::now().format("%Y-%m-%d").to_string();
-    let start = params.start.unwrap_or_else(|| today.clone());
-    let end = params.end.unwrap_or(today);
-    
-    debug!("Getting stats from {} to {}", start, end);
-    
-    match state.client.get_stats_range(&start, &end).await {
-        Ok(stats) => Ok(Json(stats)),
-        Err(e) => {
-            error!("Failed to get stats: {}", e);
-            Ok(Json(vec![]))
-        }
-    }
+    Ok(Json(state.store.get_today_sessions()))
 }
 
 /// Query parameters for stats endpoint
@@ -304,38 +240,47 @@ pub struct StatsQuery {
     pub date: Option<String>,
 }
 
+/// Get stats for a date range
+pub async fn get_stats(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Query(params): axum::extract::Query<StatsQuery>,
+) -> Result<Json<Vec<DailyStats>>, StatusCode> {
+    let today = Utc::now().format("%Y-%m-%d").to_string();
+    let start_str = params.start.unwrap_or_else(|| today.clone());
+    let end_str = params.end.unwrap_or(today);
+    
+    debug!("Getting stats from {} to {}", start_str, end_str);
+    
+    let start = NaiveDate::parse_from_str(&start_str, "%Y-%m-%d")
+        .unwrap_or_else(|_| Utc::now().date_naive());
+    let end = NaiveDate::parse_from_str(&end_str, "%Y-%m-%d")
+        .unwrap_or_else(|_| Utc::now().date_naive());
+    
+    Ok(Json(state.store.get_stats_range(start, end)))
+}
+
 /// Get daily stats (for a specific date or today)
 pub async fn get_daily_stats(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(params): axum::extract::Query<StatsQuery>,
 ) -> Result<Json<DailyStats>, StatusCode> {
-    let date = params.date.unwrap_or_else(|| Utc::now().format("%Y-%m-%d").to_string());
+    let date_str = params.date.unwrap_or_else(|| Utc::now().format("%Y-%m-%d").to_string());
     
-    debug!("Getting daily stats for {}", date);
+    debug!("Getting daily stats for {}", date_str);
     
-    match state.client.get_stats_range(&date, &date).await {
-        Ok(stats) => {
-            // Return the stats for the day, or empty stats if not found
-            let day_stats = stats.into_iter().next().unwrap_or_else(|| DailyStats {
-                date: date.clone(),
-                total_sessions: 0,
-                completed_sessions: 0,
-                total_work_minutes: 0,
-                total_break_minutes: 0,
-            });
-            Ok(Json(day_stats))
-        }
-        Err(e) => {
-            error!("Failed to get daily stats: {}", e);
-            Ok(Json(DailyStats {
-                date,
-                total_sessions: 0,
-                completed_sessions: 0,
-                total_work_minutes: 0,
-                total_break_minutes: 0,
-            }))
-        }
-    }
+    let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
+        .unwrap_or_else(|_| Utc::now().date_naive());
+    
+    let stats = state.store.get_stats_range(date, date);
+    let day_stats = stats.into_iter().next().unwrap_or_else(|| DailyStats {
+        date: date_str,
+        total_sessions: 0,
+        completed_sessions: 0,
+        total_work_minutes: 0,
+        total_break_minutes: 0,
+    });
+    
+    Ok(Json(day_stats))
 }
 
 /// Get weekly stats (last 7 days)
@@ -345,16 +290,197 @@ pub async fn get_weekly_stats(
     let today = Utc::now().date_naive();
     let week_ago = today - chrono::Duration::days(6);
     
-    let start = week_ago.format("%Y-%m-%d").to_string();
-    let end = today.format("%Y-%m-%d").to_string();
+    debug!("Getting weekly stats from {} to {}", week_ago, today);
     
-    debug!("Getting weekly stats from {} to {}", start, end);
+    Ok(Json(state.store.get_stats_range(week_ago, today)))
+}
+
+// =============================================================================
+// Active Session API (for frontend compatibility)
+// =============================================================================
+
+/// Get active session (if any)
+pub async fn get_active_session(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Option<PomodoroSession>>, StatusCode> {
+    debug!("Getting active session");
     
-    match state.client.get_stats_range(&start, &end).await {
-        Ok(stats) => Ok(Json(stats)),
-        Err(e) => {
-            error!("Failed to get weekly stats: {}", e);
-            Ok(Json(vec![]))
+    let sessions = state.store.get_today_sessions();
+    
+    let active_session = sessions.into_iter().find(|s| {
+        matches!(s.status, SessionStatus::Working | SessionStatus::ShortBreak | 
+                 SessionStatus::LongBreak | SessionStatus::Paused)
+    });
+    
+    Ok(Json(active_session))
+}
+
+/// Pause the active session (without needing ID)
+pub async fn pause_active_session(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<PomodoroSession>, StatusCode> {
+    info!("Pausing active session");
+    
+    let sessions = state.store.get_today_sessions();
+    let active_session = sessions.into_iter().find(|s| {
+        matches!(s.status, SessionStatus::Working | SessionStatus::ShortBreak | SessionStatus::LongBreak)
+    });
+    
+    match active_session {
+        Some(session) => {
+            let update = UpdateSessionRequest {
+                elapsed_seconds: None,
+                status: Some(SessionStatus::Paused),
+                task_description: None,
+            };
+            
+            match state.store.update_session(&session.id, &update) {
+                Some(updated) => Ok(Json(updated)),
+                None => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
         }
+        None => Err(StatusCode::NOT_FOUND),
     }
+}
+
+/// Resume the active (paused) session (without needing ID)
+pub async fn resume_active_session(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<PomodoroSession>, StatusCode> {
+    info!("Resuming active session");
+    
+    let sessions = state.store.get_today_sessions();
+    let paused_session = sessions.into_iter().find(|s| s.status == SessionStatus::Paused);
+    
+    match paused_session {
+        Some(session) => {
+            let new_status = match session.session_type {
+                SessionType::Work => SessionStatus::Working,
+                SessionType::ShortBreak => SessionStatus::ShortBreak,
+                SessionType::LongBreak => SessionStatus::LongBreak,
+            };
+            
+            let update = UpdateSessionRequest {
+                elapsed_seconds: None,
+                status: Some(new_status),
+                task_description: None,
+            };
+            
+            match state.store.update_session(&session.id, &update) {
+                Some(updated) => Ok(Json(updated)),
+                None => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+/// Complete the active session (without needing ID)
+pub async fn complete_active_session(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<PomodoroSession>, StatusCode> {
+    info!("Completing active session");
+    
+    let sessions = state.store.get_today_sessions();
+    let active_session = sessions.into_iter().find(|s| {
+        matches!(s.status, SessionStatus::Working | SessionStatus::ShortBreak | 
+                 SessionStatus::LongBreak | SessionStatus::Paused)
+    });
+    
+    match active_session {
+        Some(session) => {
+            let update = UpdateSessionRequest {
+                elapsed_seconds: None,
+                status: Some(SessionStatus::Completed),
+                task_description: None,
+            };
+            
+            match state.store.update_session(&session.id, &update) {
+                Some(updated) => Ok(Json(updated)),
+                None => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+/// Cancel the active session (without needing ID)
+pub async fn cancel_active_session(
+    State(state): State<Arc<AppState>>,
+) -> Result<StatusCode, StatusCode> {
+    info!("Cancelling active session");
+    
+    let sessions = state.store.get_today_sessions();
+    let active_session = sessions.into_iter().find(|s| {
+        matches!(s.status, SessionStatus::Working | SessionStatus::ShortBreak | 
+                 SessionStatus::LongBreak | SessionStatus::Paused)
+    });
+    
+    match active_session {
+        Some(session) => {
+            let update = UpdateSessionRequest {
+                elapsed_seconds: None,
+                status: Some(SessionStatus::Cancelled),
+                task_description: None,
+            };
+            
+            match state.store.update_session(&session.id, &update) {
+                Some(_) => Ok(StatusCode::NO_CONTENT),
+                None => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+/// Get session history
+pub async fn get_session_history(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Query(params): axum::extract::Query<HistoryQuery>,
+) -> Result<Json<Vec<PomodoroSession>>, StatusCode> {
+    let limit = params.limit.unwrap_or(20);
+    debug!("Getting session history (limit: {})", limit);
+    
+    let sessions = state.store.get_today_sessions();
+    let history: Vec<_> = sessions.into_iter()
+        .filter(|s| matches!(s.status, SessionStatus::Completed | SessionStatus::Cancelled))
+        .take(limit)
+        .collect();
+    
+    Ok(Json(history))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct HistoryQuery {
+    pub limit: Option<usize>,
+}
+
+/// Update settings (PUT method)
+pub async fn update_settings(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<UpdateSettingsRequest>,
+) -> Result<Json<PomodoroSettings>, StatusCode> {
+    info!("Updating settings");
+    
+    let mut settings = state.store.get_settings();
+    
+    if let Some(v) = request.work_duration_minutes { settings.work_duration_minutes = v; }
+    if let Some(v) = request.short_break_minutes { settings.short_break_minutes = v; }
+    if let Some(v) = request.long_break_minutes { settings.long_break_minutes = v; }
+    if let Some(v) = request.sessions_until_long_break { settings.sessions_until_long_break = v; }
+    if let Some(v) = request.auto_start_breaks { settings.auto_start_breaks = v; }
+    if let Some(v) = request.auto_start_work { settings.auto_start_work = v; }
+    
+    let saved = state.store.save_settings(&settings);
+    Ok(Json(saved))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateSettingsRequest {
+    pub work_duration_minutes: Option<u32>,
+    pub short_break_minutes: Option<u32>,
+    pub long_break_minutes: Option<u32>,
+    pub sessions_until_long_break: Option<u32>,
+    pub auto_start_breaks: Option<bool>,
+    pub auto_start_work: Option<bool>,
 }

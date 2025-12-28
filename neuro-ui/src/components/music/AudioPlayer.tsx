@@ -1,10 +1,18 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { useMusicStore, useHasHydrated } from '../../stores/musicStore';
 import { musicApi } from '../../api/client';
 import { useMediaSession } from '../../hooks/useMediaSession';
+import { songCache } from '../../services/songCache';
 
 // Equalizer frequency bands in Hz (8 bands)
 const EQ_FREQUENCIES = [60, 170, 310, 600, 1000, 3000, 6000, 12000];
+
+// Minimum buffer time in seconds before starting playback (for streaming)
+const MIN_BUFFER_SECONDS = 3;
+// Maximum time to wait for buffer before playing anyway (in ms)
+const MAX_BUFFER_WAIT_MS = 5000;
+// Minimum buffer to start playing after timeout (in seconds)
+const MIN_BUFFER_FALLBACK = 0.5;
 
 /**
  * AudioPlayer - Global audio element that handles all playback
@@ -22,7 +30,6 @@ export const AudioPlayer: React.FC = () => {
     setPlayerLoading,
     setCurrentTime,
     setDuration,
-    setSpectrumData,
   } = useMusicStore();
 
   // Track hydration state using the proper Zustand API
@@ -51,6 +58,14 @@ export const AudioPlayer: React.FC = () => {
   
   const animationRef = useRef<number | null>(null);
   const isAudioInitializedRef = useRef(false);
+  // Reuse Uint8Array to avoid memory allocation every frame
+  const spectrumDataArrayRef = useRef<Uint8Array | null>(null);
+  
+  // Cache-related state
+  const [isFromCache, setIsFromCache] = useState(false);
+  const currentBlobUrlRef = useRef<string | null>(null);
+  const hasEnoughBufferRef = useRef(false);
+  const bufferTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Get audio filters from store
   const audioFilters = useMusicStore(state => state.audioFilters);
@@ -234,21 +249,26 @@ export const AudioPlayer: React.FC = () => {
         return 0.35 + Math.pow(position, 0.7) * 1.45;
       };
       
+      // Create reusable Uint8Array for spectrum data (avoid allocations every frame)
+      spectrumDataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+      
       let frameCount = 0;
+      const barCount = 32;
+      const step = Math.floor(analyser.frequencyBinCount / barCount);
+      
       const updateSpectrum = () => {
-        if (!analyserRef.current) return;
+        if (!analyserRef.current || !spectrumDataArrayRef.current) return;
         
-        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-        analyserRef.current.getByteFrequencyData(dataArray);
+        // Reuse the existing Uint8Array instead of creating a new one
+        analyserRef.current.getByteFrequencyData(spectrumDataArrayRef.current);
         
-        const barCount = 32;
-        const bars: number[] = [];
-        const step = Math.floor(dataArray.length / barCount);
+        const bars: number[] = new Array(barCount);
         
         for (let i = 0; i < barCount; i++) {
           let sum = 0;
+          const baseIndex = i * step;
           for (let j = 0; j < step; j++) {
-            sum += dataArray[i * step + j];
+            sum += spectrumDataArrayRef.current[baseIndex + j];
           }
           // Normalize to 0-1 and apply gain boost
           let normalized = (sum / step / 255) * 2.0;
@@ -261,10 +281,11 @@ export const AudioPlayer: React.FC = () => {
             normalized = 0.4 + (normalized - 0.4) * 0.4;
           }
           
-          bars.push(Math.min(1, Math.max(0, normalized)));
+          bars[i] = Math.min(1, Math.max(0, normalized));
         }
         
-        setSpectrumData(bars);
+        // Use getState() to avoid re-render loops - this is called ~60fps
+        useMusicStore.getState().setSpectrumData(bars);
         
         // Log every 60 frames (~1 second) for debugging
         frameCount++;
@@ -281,7 +302,7 @@ export const AudioPlayer: React.FC = () => {
     } catch (error) {
       console.error('Failed to initialize audio context:', error);
     }
-  }, [setSpectrumData]);
+  }, []); // No dependencies - setSpectrumData is accessed via getState()
 
   // Retry audio initialization when hydration completes
   useEffect(() => {
@@ -412,18 +433,93 @@ export const AudioPlayer: React.FC = () => {
     };
   }, []);
 
-  // Handle audio source change
+  // Handle audio source change - check cache first, then stream
   useEffect(() => {
     if (!audioRef.current || !player.currentSong) return;
 
-    const streamUrl = musicApi.getStreamUrl(player.currentSong.id);
-    audioRef.current.src = streamUrl;
-    audioRef.current.load();
+    const loadAudioSource = async () => {
+      // Clean up previous blob URL if any
+      if (currentBlobUrlRef.current) {
+        URL.revokeObjectURL(currentBlobUrlRef.current);
+        currentBlobUrlRef.current = null;
+      }
+      
+      // Clear any existing buffer timeout
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current);
+        bufferTimeoutRef.current = null;
+      }
+      
+      hasEnoughBufferRef.current = false;
+      setPlayerLoading(true);
 
-    if (player.isPlaying) {
-      audioRef.current.play().catch(console.error);
-    }
-  }, [player.currentSong?.id]);
+      // Check cache first
+      const cachedBlob = await songCache.get(player.currentSong!.id);
+      
+      if (cachedBlob) {
+        // Play from cache
+        console.log('🎵 Playing from cache:', player.currentSong!.title);
+        const blobUrl = URL.createObjectURL(cachedBlob);
+        currentBlobUrlRef.current = blobUrl;
+        audioRef.current!.src = blobUrl;
+        setIsFromCache(true);
+        hasEnoughBufferRef.current = true; // Cache is fully loaded
+      } else {
+        // Stream from server
+        console.log('🎵 Streaming from server:', player.currentSong!.title);
+        const streamUrl = musicApi.getStreamUrl(player.currentSong!.id);
+        audioRef.current!.src = streamUrl;
+        setIsFromCache(false);
+        
+        // Set a timeout to start playing even if buffer is small
+        bufferTimeoutRef.current = setTimeout(() => {
+          if (!hasEnoughBufferRef.current && audioRef.current) {
+            const buffered = audioRef.current.buffered;
+            if (buffered.length > 0) {
+              const currentTime = audioRef.current.currentTime || 0;
+              const bufferedEnd = buffered.end(buffered.length - 1);
+              const bufferedSeconds = bufferedEnd - currentTime;
+              
+              if (bufferedSeconds >= MIN_BUFFER_FALLBACK) {
+                console.log(`🎵 Buffer timeout - starting with ${bufferedSeconds.toFixed(1)}s buffer`);
+                hasEnoughBufferRef.current = true;
+                setPlayerLoading(false);
+                if (player.isPlaying && audioRef.current.paused) {
+                  audioRef.current.play().catch(console.error);
+                }
+              }
+            }
+          }
+        }, MAX_BUFFER_WAIT_MS);
+      }
+
+      audioRef.current!.load();
+
+      if (player.isPlaying) {
+        // For streaming, wait for buffer before playing
+        if (!hasEnoughBufferRef.current) {
+          // Will be handled by onCanPlay/onProgress or timeout
+          console.log('🎵 Waiting for buffer...');
+        } else {
+          audioRef.current!.play().catch(console.error);
+        }
+      }
+    };
+
+    loadAudioSource();
+
+    // Cleanup blob URL on unmount or song change
+    return () => {
+      if (currentBlobUrlRef.current) {
+        URL.revokeObjectURL(currentBlobUrlRef.current);
+        currentBlobUrlRef.current = null;
+      }
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current);
+        bufferTimeoutRef.current = null;
+      }
+    };
+  }, [player.currentSong?.id, setPlayerLoading]);
 
   // Handle play/pause
   useEffect(() => {
@@ -472,7 +568,10 @@ export const AudioPlayer: React.FC = () => {
       } else if (player.currentSong?.duration) {
         setDuration(player.currentSong.duration);
       }
-      setPlayerLoading(false);
+      // Only set loading false for cached content - streaming will be handled by buffer logic
+      if (isFromCache || hasEnoughBufferRef.current) {
+        setPlayerLoading(false);
+      }
       initAudioContext();
     }
   };
@@ -500,9 +599,79 @@ export const AudioPlayer: React.FC = () => {
   };
 
   const handleCanPlay = () => {
-    setPlayerLoading(false);
-    if (player.isPlaying && audioRef.current) {
-      audioRef.current.play().catch(console.error);
+    if (!audioRef.current) return;
+
+    // If we already have enough buffer, don't re-check
+    if (hasEnoughBufferRef.current) {
+      if (player.isPlaying && audioRef.current.paused) {
+        audioRef.current.play().catch(console.error);
+      }
+      return;
+    }
+
+    // For cached songs, we can play immediately
+    if (isFromCache) {
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current);
+        bufferTimeoutRef.current = null;
+      }
+      setPlayerLoading(false);
+      hasEnoughBufferRef.current = true;
+      if (player.isPlaying) {
+        audioRef.current.play().catch(console.error);
+      }
+      return;
+    }
+
+    // For streaming, check buffer level
+    const buffered = audioRef.current.buffered;
+    if (buffered.length > 0) {
+      const currentTime = audioRef.current.currentTime || 0;
+      const bufferedEnd = buffered.end(buffered.length - 1);
+      const bufferedSeconds = bufferedEnd - currentTime;
+
+      // Only log occasionally to avoid spam
+      console.log(`🎵 CanPlay - Buffer: ${bufferedSeconds.toFixed(1)}s / ${MIN_BUFFER_SECONDS}s required`);
+
+      if (bufferedSeconds >= MIN_BUFFER_SECONDS) {
+        if (bufferTimeoutRef.current) {
+          clearTimeout(bufferTimeoutRef.current);
+          bufferTimeoutRef.current = null;
+        }
+        hasEnoughBufferRef.current = true;
+        setPlayerLoading(false);
+        if (player.isPlaying) {
+          audioRef.current.play().catch(console.error);
+        }
+      }
+      // Don't log "still buffering" here - progress event will handle updates
+    }
+  };
+
+  // Handle progress (buffer updates) for streaming
+  const handleProgress = () => {
+    if (!audioRef.current || isFromCache || hasEnoughBufferRef.current) return;
+
+    const buffered = audioRef.current.buffered;
+    if (buffered.length > 0) {
+      const currentTime = audioRef.current.currentTime || 0;
+      const bufferedEnd = buffered.end(buffered.length - 1);
+      const bufferedSeconds = bufferedEnd - currentTime;
+
+      console.log(`🎵 Progress - Buffer: ${bufferedSeconds.toFixed(1)}s / ${MIN_BUFFER_SECONDS}s required`);
+
+      if (bufferedSeconds >= MIN_BUFFER_SECONDS && !hasEnoughBufferRef.current) {
+        console.log(`🎵 Buffer ready: ${bufferedSeconds.toFixed(1)}s`);
+        if (bufferTimeoutRef.current) {
+          clearTimeout(bufferTimeoutRef.current);
+          bufferTimeoutRef.current = null;
+        }
+        hasEnoughBufferRef.current = true;
+        setPlayerLoading(false);
+        if (player.isPlaying && audioRef.current.paused) {
+          audioRef.current.play().catch(console.error);
+        }
+      }
     }
   };
 
@@ -526,6 +695,7 @@ export const AudioPlayer: React.FC = () => {
       onEnded={handleEnded}
       onError={handleError}
       onCanPlay={handleCanPlay}
+      onProgress={handleProgress}
       onLoadStart={() => setPlayerLoading(true)}
       style={{ display: 'none' }}
     />

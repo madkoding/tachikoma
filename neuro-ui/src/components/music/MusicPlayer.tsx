@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   Play, 
   Pause, 
@@ -9,313 +9,59 @@ import {
   Shuffle, 
   Repeat, 
   Repeat1,
-  Music
+  Music,
+  Heart
 } from 'lucide-react';
-import { useMusicStore, formatDuration, RepeatMode } from '../../stores/musicStore';
+import { useMusicStore, usePlayerState, usePlayerActions, formatDuration, RepeatMode } from '../../stores/musicStore';
 import { musicApi } from '../../api/client';
 import { SpectrumAnalyzer } from './SpectrumAnalyzer';
-
-// Equalizer frequency bands in Hz (8 bands)
-const EQ_FREQUENCIES = [60, 170, 310, 600, 1000, 3000, 6000, 12000];
+import { AnimatedLedDigits } from '../common';
 
 interface MusicPlayerProps {
   compact?: boolean;
 }
 
 export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => {
-  const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const mobileProgressRef = useRef<HTMLDivElement>(null);
   
-  const {
-    player,
-    equalizer,
-    togglePlay,
-    nextSong,
-    previousSong,
-    seek,
-    setVolume,
-    toggleMute,
-    toggleShuffle,
-    setRepeatMode,
-    setSpectrumData,
-  } = useMusicStore();
-
-  // Audio context for spectrum analysis and equalizer
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const eqFiltersRef = useRef<BiquadFilterNode[]>([]);
-  const highpassFilterRef = useRef<BiquadFilterNode | null>(null);
-  const lowpassFilterRef = useRef<BiquadFilterNode | null>(null);
-  const animationRef = useRef<number | null>(null);
-  const isAudioInitializedRef = useRef(false);
-
-  // Get audio filters from store
-  const audioFilters = useMusicStore(state => state.audioFilters);
-
-  // Initialize audio context, analyzer, and equalizer
-  const initAudioContext = useCallback(() => {
-    if (!audioRef.current || isAudioInitializedRef.current) return;
-
-    try {
-      const audioContext = new AudioContext();
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.8;
-
-      const source = audioContext.createMediaElementSource(audioRef.current);
-      const gainNode = audioContext.createGain();
-
-      // Create highpass filter
-      const highpassFilter = audioContext.createBiquadFilter();
-      highpassFilter.type = 'highpass';
-      highpassFilter.frequency.value = 80;
-      highpassFilter.Q.value = 0.7;
-
-      // Create lowpass filter
-      const lowpassFilter = audioContext.createBiquadFilter();
-      lowpassFilter.type = 'lowpass';
-      lowpassFilter.frequency.value = 12000;
-      lowpassFilter.Q.value = 0.7;
-
-      // Create equalizer filters for each frequency band
-      const eqFilters: BiquadFilterNode[] = EQ_FREQUENCIES.map((freq, index) => {
-        const filter = audioContext.createBiquadFilter();
-        filter.type = 'peaking';
-        filter.frequency.value = freq;
-        filter.Q.value = 1.4; // Quality factor
-        filter.gain.value = equalizer.bands[index] || 0;
-        return filter;
-      });
-
-      // Connect the audio chain:
-      // source -> highpass -> lowpass -> eq filters -> analyser -> gain -> destination
-      // Analyser is BEFORE gain so volume doesn't affect spectrum
-      let lastNode: AudioNode = source;
-      
-      // Highpass and lowpass filters (start bypassed)
-      lastNode.connect(highpassFilter);
-      lastNode = highpassFilter;
-      
-      lastNode.connect(lowpassFilter);
-      lastNode = lowpassFilter;
-      
-      // EQ filters
-      eqFilters.forEach((filter) => {
-        lastNode.connect(filter);
-        lastNode = filter;
-      });
-      
-      // Analyser (before volume)
-      lastNode.connect(analyser);
-      
-      // Gain (volume control) after analyser
-      analyser.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-
-      // Store references
-      audioContextRef.current = audioContext;
-      analyserRef.current = analyser;
-      sourceRef.current = source;
-      gainNodeRef.current = gainNode;
-      eqFiltersRef.current = eqFilters;
-      highpassFilterRef.current = highpassFilter;
-      lowpassFilterRef.current = lowpassFilter;
-      isAudioInitializedRef.current = true;
-
-      console.log('🎵 Audio context initialized with equalizer and filters');
-
-      // Start spectrum animation
-      const updateSpectrum = () => {
-        if (!analyserRef.current) return;
-        
-        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-        analyserRef.current.getByteFrequencyData(dataArray);
-        
-        // Convert to 32 bars normalized to 0-1
-        const barCount = 32;
-        const bars: number[] = [];
-        const step = Math.floor(dataArray.length / barCount);
-        
-        for (let i = 0; i < barCount; i++) {
-          let sum = 0;
-          for (let j = 0; j < step; j++) {
-            sum += dataArray[i * step + j];
-          }
-          bars.push(sum / step / 255);
-        }
-        
-        setSpectrumData(bars);
-        animationRef.current = requestAnimationFrame(updateSpectrum);
-      };
-
-      updateSpectrum();
-    } catch (error) {
-      console.error('Failed to initialize audio context:', error);
-    }
-  }, [setSpectrumData, equalizer.bands]);
-
-  // Initialize audio context when audio element is available
-  useEffect(() => {
-    if (audioRef.current && !isAudioInitializedRef.current) {
-      initAudioContext();
-    }
-  }, [initAudioContext]);
-
-  // Update equalizer filters when bands change
-  useEffect(() => {
-    if (!eqFiltersRef.current.length) return;
-    
-    eqFiltersRef.current.forEach((filter, index) => {
-      if (equalizer.enabled) {
-        filter.gain.value = equalizer.bands[index] || 0;
-      } else {
-        filter.gain.value = 0; // Bypass when disabled
-      }
-    });
-  }, [equalizer.bands, equalizer.enabled]);
-
-  // Update highpass/lowpass filters when they change
-  useEffect(() => {
-    if (highpassFilterRef.current) {
-      // When disabled, set frequency to 0 (bypass)
-      highpassFilterRef.current.frequency.value = audioFilters.highpassEnabled 
-        ? audioFilters.highpassFreq 
-        : 0;
-    }
-    if (lowpassFilterRef.current) {
-      // When disabled, set frequency to max (bypass)
-      lowpassFilterRef.current.frequency.value = audioFilters.lowpassEnabled 
-        ? audioFilters.lowpassFreq 
-        : 22050;
-    }
-  }, [audioFilters.highpassEnabled, audioFilters.lowpassEnabled, audioFilters.highpassFreq, audioFilters.lowpassFreq]);
-
-  // Resume audio context on user interaction (required by browsers)
-  useEffect(() => {
-    const resumeAudioContext = () => {
-      if (audioContextRef.current?.state === 'suspended') {
-        audioContextRef.current.resume();
-      }
-    };
-
-    document.addEventListener('click', resumeAudioContext);
-    document.addEventListener('keydown', resumeAudioContext);
-
-    return () => {
-      document.removeEventListener('click', resumeAudioContext);
-      document.removeEventListener('keydown', resumeAudioContext);
-    };
-  }, []);
-
-  // Handle visibility change - prevent playback stopping when switching tabs
-  // Store playing state before tab becomes hidden
-  const wasPlayingRef = useRef(false);
-  const isPlayingRef = useRef(false);
+  // Use optimized selectors instead of destructuring the entire store
+  const player = usePlayerState();
+  const { 
+    togglePlay, 
+    nextSong, 
+    previousSong, 
+    seek, 
+    setVolume, 
+    toggleMute, 
+    toggleShuffle 
+  } = usePlayerActions();
   
-  // Keep isPlayingRef in sync with player.isPlaying
-  useEffect(() => {
-    isPlayingRef.current = player.isPlaying;
-  }, [player.isPlaying]);
-  
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        // Store current playing state when leaving tab
-        wasPlayingRef.current = isPlayingRef.current;
-        console.log('🎵 Tab hidden, was playing:', wasPlayingRef.current);
-      } else if (document.visibilityState === 'visible') {
-        console.log('🎵 Tab visible, resuming... wasPlaying:', wasPlayingRef.current);
-        // Resume audio context when tab becomes visible
-        if (audioContextRef.current?.state === 'suspended') {
-          audioContextRef.current.resume().then(() => {
-            console.log('🎵 AudioContext resumed');
-          });
-        }
-        // If was playing before tab switch, resume playback
-        if (wasPlayingRef.current && audioRef.current && audioRef.current.paused) {
-          console.log('🎵 Resuming playback...');
-          audioRef.current.play().catch(e => console.error('Resume failed:', e));
-        }
-      }
-    };
+  // These actions aren't in usePlayerActions, get them separately
+  const { setRepeatMode, toggleSongLike } = useMusicStore();
 
-    // Also handle page show event for back/forward cache
-    const handlePageShow = (e: PageTransitionEvent) => {
-      if (e.persisted && audioRef.current?.paused && wasPlayingRef.current) {
-        audioContextRef.current?.resume();
-        audioRef.current.play().catch(console.error);
-      }
-    };
+  // State for like button loading
+  const [isLiking, setIsLiking] = useState(false);
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('pageshow', handlePageShow);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('pageshow', handlePageShow);
-    };
-  }, []); // No dependencies - use refs instead
-
-  // Handle audio source change
-  useEffect(() => {
-    if (!audioRef.current || !player.currentSong) return;
-
-    const streamUrl = musicApi.getStreamUrl(player.currentSong.id);
-    audioRef.current.src = streamUrl;
-    audioRef.current.load();
-
-    if (player.isPlaying) {
-      audioRef.current.play().catch(console.error);
-    }
-  }, [player.currentSong?.id]);
-
-  // Handle play/pause
-  useEffect(() => {
-    if (!audioRef.current) return;
-
-    if (player.isPlaying) {
-      // Don't call pause() on error - this would cause a loop
-      // The audio might fail to play in background but that's ok
-      // It will resume when the tab becomes visible
-      audioRef.current.play().catch((error) => {
-        // Only log, don't change state - tab switching can cause this
-        console.log('🎵 Play interrupted (tab switch?):', error.name);
-      });
-    } else {
-      audioRef.current.pause();
-    }
-  }, [player.isPlaying]);
-
-  // Handle volume
-  useEffect(() => {
-    if (!audioRef.current) return;
-    audioRef.current.volume = player.isMuted ? 0 : player.volume;
-  }, [player.volume, player.isMuted]);
-
-  // Progress bar click
+  // Progress bar click - updates store, AudioPlayer will handle the actual seek
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!progressRef.current || !audioRef.current) return;
+    if (!progressRef.current) return;
     
     const rect = progressRef.current.getBoundingClientRect();
     const percent = (e.clientX - rect.left) / rect.width;
     const newTime = percent * player.duration;
     
-    audioRef.current.currentTime = newTime;
     seek(newTime);
   };
 
   // Mobile progress bar click
   const handleMobileProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!mobileProgressRef.current || !audioRef.current) return;
+    if (!mobileProgressRef.current) return;
     
     const rect = mobileProgressRef.current.getBoundingClientRect();
     const percent = (e.clientX - rect.left) / rect.width;
     const newTime = percent * player.duration;
     
-    audioRef.current.currentTime = newTime;
     seek(newTime);
   };
 
@@ -327,20 +73,11 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
     setRepeatMode(nextMode);
   };
 
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, []);
-
   const progress = player.duration > 0 ? (player.currentTime / player.duration) * 100 : 0;
 
   if (!player.currentSong && !compact) {
     return (
-      <div className="h-16 sm:h-24 bg-gray-900/80 backdrop-blur-xl border-t border-cyan-500/30 flex items-center justify-center text-gray-500 px-2">
+      <div className="h-16 sm:h-24 bg-gray-900/60 backdrop-blur-xl border-t border-cyan-500/30 flex items-center justify-center text-gray-500 px-2">
         <Music className="w-5 h-5 sm:w-6 sm:h-6 mr-2 opacity-50" />
         <span className="text-xs sm:text-sm">Selecciona una canción para reproducir</span>
       </div>
@@ -351,27 +88,25 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
 
   return (
     <div className={`
-      bg-gray-900/90 backdrop-blur-xl border-t border-cyan-500/30
+      bg-gray-900/60 backdrop-blur-xl border-t border-cyan-500/30
       ${compact ? 'p-2' : 'p-2 sm:p-4 pt-3 sm:pt-4'}
       w-full relative overflow-hidden
     `}>
       {/* Spectrum Background - Blurred */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute inset-0 blur-xl scale-150">
+        <div className="absolute inset-0 blur-2xl scale-[1.5]">
           <SpectrumAnalyzer 
             barCount={32} 
             compact 
             showReflection={false}
-            className="h-full w-full opacity-60"
+            className="h-full w-full"
           />
         </div>
-        {/* Gradient overlay to fade spectrum */}
-        <div className="absolute inset-0 bg-gradient-to-t from-gray-900/60 via-transparent to-gray-900/60" />
       </div>
       
       {/* Audio element is now in AudioPlayer component (global) */}
 
-      <div className="max-w-screen-xl mx-auto flex items-center gap-2 sm:gap-4 relative z-10">
+      <div className="max-w-screen-xl mx-auto flex items-center gap-2 sm:gap-4 relative z-30">
         {/* Song Info */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           {/* Cover Art */}
@@ -405,6 +140,36 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
               </div>
             )}
           </div>
+
+          {/* Like Button */}
+          <button
+            onClick={async () => {
+              if (!player.currentSong || isLiking) return;
+              console.log('👆 MusicPlayer like button clicked for song:', player.currentSong.id, player.currentSong.title);
+              setIsLiking(true);
+              try {
+                await toggleSongLike(player.currentSong.id);
+              } catch (err) {
+                console.error('Failed to toggle like:', err);
+              } finally {
+                setIsLiking(false);
+              }
+            }}
+            disabled={isLiking || !player.currentSong}
+            className={`p-1.5 sm:p-2 transition-all flex-shrink-0 ${
+              isLiking
+                ? 'text-gray-400 cursor-wait'
+                : player.currentSong?.is_liked
+                  ? 'text-red-500 hover:text-red-400'
+                  : 'text-gray-400 hover:text-red-500'
+            }`}
+            title={player.currentSong?.is_liked ? 'Quitar de Me gusta' : 'Añadir a Me gusta'}
+          >
+            <Heart 
+              className={`w-4 h-4 sm:w-5 sm:h-5 ${isLiking ? 'animate-pulse' : ''}`}
+              fill={player.currentSong?.is_liked ? 'currentColor' : 'none'} 
+            />
+          </button>
         </div>
 
         {/* Center Controls */}
@@ -481,14 +246,26 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
           {!compact && (
             <>
               {/* Mobile progress bar - full width, minimal */}
-              <div className="flex sm:hidden w-full absolute -top-1 left-0 right-0">
+              <div className="flex sm:hidden w-full absolute -top-1 left-0 right-0 z-40">
                 <div
                   ref={mobileProgressRef}
-                  onClick={handleMobileProgressClick}
-                  className="w-full h-1 bg-gray-700 cursor-pointer"
+                  className="w-full h-3 bg-gray-700 cursor-pointer rounded-[5px] overflow-hidden relative"
                 >
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={progress}
+                    onChange={(e) => {
+                      const newProgress = parseFloat(e.target.value);
+                      const newTime = (newProgress / 100) * player.duration;
+                      seek(newTime);
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  />
                   <div
-                    className="h-full bg-gradient-to-r from-cyan-500 to-purple-500"
+                    className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 rounded-[5px] pointer-events-none"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -496,34 +273,52 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
               
               {/* Desktop progress bar */}
               <div className="hidden sm:flex items-center gap-2 w-48 md:w-72 lg:w-96">
-                <span className="text-[10px] sm:text-xs led-time w-10 sm:w-12 text-right">
-                  {formatDuration(player.currentTime)}
-                </span>
+                <AnimatedLedDigits 
+                  value={formatDuration(player.currentTime)} 
+                  variant="time" 
+                  className="text-[10px] sm:text-xs w-10 sm:w-12 text-right"
+                  animate={false}
+                />
                 
                 <div
                   ref={progressRef}
-                  onClick={handleProgressClick}
-                  className="flex-1 h-1 bg-gray-700 cursor-pointer group relative"
+                  className="flex-1 h-3 bg-gray-700 cursor-pointer group relative rounded-[5px] overflow-hidden"
                 >
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={progress}
+                    onChange={(e) => {
+                      const newProgress = parseFloat(e.target.value);
+                      const newTime = (newProgress / 100) * player.duration;
+                      seek(newTime);
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  />
                   {/* Progress fill */}
                   <div
-                    className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 relative"
+                    className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 relative rounded-[5px] pointer-events-none"
                     style={{ width: `${progress}%` }}
                   >
                     {/* Knob */}
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity rounded-[5px]" />
                   </div>
                   
                   {/* Glow effect */}
                   <div
-                    className="absolute h-full bg-cyan-500/30 blur-sm"
+                    className="absolute h-full bg-cyan-500/30 blur-sm rounded-[5px] pointer-events-none"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
                 
-                <span className="text-[10px] sm:text-xs led-time w-10 sm:w-12">
-                  {formatDuration(player.duration)}
-                </span>
+                <AnimatedLedDigits 
+                  value={formatDuration(player.duration)} 
+                  variant="time" 
+                  className="text-[10px] sm:text-xs w-10 sm:w-12"
+                  animate={false}
+                />
               </div>
             </>
           )}
@@ -542,7 +337,7 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
             )}
           </button>
           
-          <div className="w-16 md:w-24 h-1 bg-gray-700 cursor-pointer group relative">
+          <div className="w-16 md:w-24 h-3 bg-gray-700 cursor-pointer group relative rounded-[5px] overflow-hidden">
             <input
               type="range"
               min="0"
@@ -550,10 +345,10 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
               step="0.01"
               value={player.isMuted ? 0 : player.volume}
               onChange={(e) => setVolume(parseFloat(e.target.value))}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             />
             <div
-              className="h-full bg-gradient-to-r from-gray-400 to-white"
+              className="h-full bg-gradient-to-r from-gray-400 to-white rounded-[5px] pointer-events-none"
               style={{ width: `${(player.isMuted ? 0 : player.volume) * 100}%` }}
             />
           </div>

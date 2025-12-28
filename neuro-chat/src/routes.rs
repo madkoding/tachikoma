@@ -20,6 +20,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         // Chat
         .route("/chat", post(handlers::send_message))
         .route("/chat/stream", post(handlers::stream_message))
+        .route("/chat/speculative/stream", post(handlers::speculative_stream))
         
         // Conversations
         .route("/chat/conversations", get(handlers::list_conversations))

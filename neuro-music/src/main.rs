@@ -9,7 +9,10 @@ mod audio_dsp;
 mod backend_client;
 mod config;
 mod cover_art;
+mod downloader;
+mod events;
 mod handlers;
+mod metadata_enricher;
 mod models;
 mod routes;
 mod youtube;
@@ -21,14 +24,20 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use crate::backend_client::BackendClient;
 use crate::config::Config;
 use crate::cover_art::CoverArtService;
+use crate::downloader::Downloader;
+use crate::events::MusicEventBroadcaster;
+use crate::metadata_enricher::MetadataEnricher;
 use crate::youtube::YouTubeService;
 
 /// Application state shared across handlers
 pub struct AppState {
     pub client: BackendClient,
     pub config: Config,
-    pub youtube: YouTubeService,
+    pub youtube: Arc<YouTubeService>,
     pub cover_art: CoverArtService,
+    pub downloader: Arc<Downloader>,
+    pub metadata_enricher: MetadataEnricher,
+    pub event_broadcaster: Arc<MusicEventBroadcaster>,
 }
 
 #[tokio::main]
@@ -60,8 +69,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("✅ Backend client initialized");
 
     // Create services
-    let youtube = YouTubeService::new(&config);
+    let youtube = Arc::new(YouTubeService::new(&config));
     let cover_art = CoverArtService::new(&config);
+    let downloader = Arc::new(Downloader::new(config.clone(), youtube.clone()));
+    let metadata_enricher = MetadataEnricher::new(&config);
+
+    // Ensure downloads directory exists
+    if let Err(e) = downloader.ensure_downloads_dir().await {
+        info!("⚠️ Could not create downloads directory: {}", e);
+    } else {
+        info!("✅ Downloads directory: {}", config.downloads_path);
+    }
+
+    // Create event broadcaster for SSE
+    let event_broadcaster = Arc::new(MusicEventBroadcaster::new());
+    info!("✅ Event broadcaster initialized");
 
     // Create app state
     let state = Arc::new(AppState { 
@@ -69,6 +91,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config: config.clone(),
         youtube,
         cover_art,
+        downloader,
+        metadata_enricher,
+        event_broadcaster,
     });
 
     // Build router
@@ -84,6 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("  ▸ Streaming: /api/music/stream/:song_id");
     info!("  ▸ YouTube: /api/music/youtube/*");
     info!("  ▸ Equalizer: /api/music/equalizer");
+    info!("  ▸ Events SSE: /api/music/events");
 
     axum::serve(listener, app).await?;
 

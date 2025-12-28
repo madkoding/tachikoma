@@ -1,3 +1,10 @@
+//! =============================================================================
+//! Neuro-Kanban Microservice
+//! =============================================================================
+//! Independent microservice for managing Kanban boards.
+//! Uses neuro-backend as data layer via HTTP client.
+//! =============================================================================
+
 mod config;
 mod models;
 mod handlers;
@@ -5,25 +12,25 @@ mod routes;
 mod backend_client;
 
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::backend_client::BackendClient;
 use crate::config::Config;
-use crate::models::KanbanState;
 
+/// Application state shared across handlers
 pub struct AppState {
+    pub client: BackendClient,
     pub config: Config,
-    pub kanban: RwLock<KanbanState>,
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "neuro_kanban=debug,info".into()),
+                .unwrap_or_else(|_| "neuro_kanban=info,tower_http=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -32,23 +39,30 @@ async fn main() {
     let config = Config::from_env();
     let port = config.port;
 
-    // Initialize state
-    let state = Arc::new(AppState {
-        config,
-        kanban: RwLock::new(KanbanState::default()),
-    });
+    info!("🗂️  Neuro-Kanban Microservice");
+    info!("================================");
+    info!("Port: {}", config.port);
+    info!("Backend URL: {}", config.backend_url);
+
+    // Create backend client
+    let client = BackendClient::new(&config);
+    info!("✅ Backend client initialized");
+
+    // Create app state
+    let state = Arc::new(AppState { client, config });
 
     // Build router
     let app = routes::create_router(state);
 
     // Start server
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
-        .await
-        .expect("Failed to bind port");
+    let addr = format!("0.0.0.0:{}", port);
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
 
-    info!("🗂️ NEURO-OS Kanban Service running on port {}", port);
+    info!("🚀 Server listening on {}", addr);
+    info!("  ▸ Health: GET /api/health");
+    info!("  ▸ API: /api/kanban/*");
 
-    axum::serve(listener, app)
-        .await
-        .expect("Failed to start server");
+    axum::serve(listener, app).await?;
+
+    Ok(())
 }

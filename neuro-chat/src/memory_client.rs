@@ -2,7 +2,7 @@
 //! Memory Service Client
 //! =============================================================================
 
-use tracing::{debug, error};
+use tracing::debug;
 
 use crate::models::*;
 

@@ -7,5 +7,6 @@
 pub mod agent;
 pub mod chat;
 pub mod checklist;
+pub mod kanban;
 pub mod memory;
 pub mod music;

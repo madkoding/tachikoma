@@ -1,8 +1,17 @@
 import { useTranslation } from 'react-i18next';
+import { useState, useEffect, memo } from 'react';
 import TypewriterText from './common/TypewriterText';
 
 export default function WelcomeScreen() {
   const { t } = useTranslation();
+  // Lazy render feature cards to avoid creating 8+ TypewriterText instances at once
+  const [showFeatures, setShowFeatures] = useState(false);
+
+  useEffect(() => {
+    // Wait for main title and description to finish typing before showing features
+    const timer = setTimeout(() => setShowFeatures(true), 1200);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center p-4 sm:p-8">
@@ -31,53 +40,55 @@ export default function WelcomeScreen() {
         <TypewriterText text={t('chat.welcomeDesc')} delay={700} speed={10} />
       </p>
       
-      {/* Feature cards - hidden on mobile */}
-      <div className="mt-8 hidden sm:grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
-        <FeatureCard
-          icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          }
-          title={t('feature.memory')}
-          description={t('feature.memoryDesc')}
-          delay={1500}
-        />
-        <FeatureCard
-          icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          }
-          title={t('feature.search')}
-          description={t('feature.searchDesc')}
-          delay={1700}
-        />
-        <FeatureCard
-          icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                    d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          }
-          title={t('feature.cmd')}
-          description={t('feature.cmdDesc')}
-          delay={1900}
-        />
-        <FeatureCard
-          icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                    d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          }
-          title={t('feature.model')}
-          description={t('feature.modelDesc')}
-          delay={2100}
-        />
-      </div>
+      {/* Feature cards - hidden on mobile, lazy rendered to reduce simultaneous TypewriterText instances */}
+      {showFeatures && (
+        <div className="mt-8 hidden sm:grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+          <FeatureCard
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            }
+            title={t('feature.memory')}
+            description={t('feature.memoryDesc')}
+            delay={300}
+          />
+          <FeatureCard
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            }
+            title={t('feature.search')}
+            description={t('feature.searchDesc')}
+            delay={500}
+          />
+          <FeatureCard
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            }
+            title={t('feature.cmd')}
+            description={t('feature.cmdDesc')}
+            delay={700}
+          />
+          <FeatureCard
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            }
+            title={t('feature.model')}
+            description={t('feature.modelDesc')}
+            delay={900}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -89,7 +100,7 @@ interface FeatureCardProps {
   readonly delay?: number;
 }
 
-function FeatureCard({ icon, title, description, delay = 0 }: Readonly<FeatureCardProps>) {
+const FeatureCard = memo(function FeatureCard({ icon, title, description, delay = 0 }: Readonly<FeatureCardProps>) {
   return (
     <div className="cyber-card text-left hover:border-cyber-cyan/50 transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,245,255,0.2)]">
       <div className="text-cyber-cyan mb-2">{icon}</div>
@@ -101,4 +112,4 @@ function FeatureCard({ icon, title, description, delay = 0 }: Readonly<FeatureCa
       </p>
     </div>
   );
-}
+});

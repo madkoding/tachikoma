@@ -99,4 +99,17 @@ pub trait MusicRepository: Send + Sync {
 
     /// Save equalizer settings
     async fn save_equalizer_settings(&self, settings: EqualizerSettings) -> Result<(), DomainError>;
+
+    // =========================================================================
+    // Likes & Special Playlists
+    // =========================================================================
+
+    /// Get all liked songs across all playlists
+    async fn get_liked_songs(&self) -> Result<Vec<Song>, DomainError>;
+
+    /// Update the last_suggestions_update timestamp for a playlist
+    async fn update_suggestions_timestamp(&self, id: Uuid) -> Result<(), DomainError>;
+
+    /// Get total play count for a song across all playlists (by youtube_id)
+    async fn get_total_play_count_by_youtube_id(&self, youtube_id: &str) -> Result<i32, DomainError>;
 }
