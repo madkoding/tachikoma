@@ -1,0 +1,6 @@
+# Tauri build artifacts
+target/
+WixTools/
+
+# macOS
+.DS_Store

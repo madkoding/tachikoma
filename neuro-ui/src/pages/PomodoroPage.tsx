@@ -349,7 +349,7 @@ function SettingsPanel() {
                 </div>
                 <input 
                   type="number" min={field.min} max={field.max} 
-                  value={(localSettings as Record<string, number>)[field.key]} 
+                  value={(localSettings as any)[field.key]} 
                   onChange={(e) => setLocalSettings({ ...localSettings, [field.key]: parseInt(e.target.value) || field.default })} 
                   className="w-16 px-2 py-1 bg-cyber-bg border border-cyber-cyan/30 rounded text-center font-mono text-sm"
                   style={{ color: field.color }}
@@ -366,10 +366,10 @@ function SettingsPanel() {
               <div key={toggle.key} className="flex items-center justify-between p-2 bg-black/30 rounded-lg border border-cyber-cyan/10">
                 <span className="text-sm text-cyber-cyan/80 font-mono">{toggle.label}</span>
                 <button 
-                  onClick={() => setLocalSettings({ ...localSettings, [toggle.key]: !(localSettings as Record<string, boolean>)[toggle.key] })} 
-                  className={`w-12 h-6 rounded-full transition-all ${(localSettings as Record<string, boolean>)[toggle.key] ? 'bg-cyber-cyan' : 'bg-cyber-cyan/20'}`}
+                  onClick={() => setLocalSettings({ ...localSettings, [toggle.key]: !(localSettings as any)[toggle.key] })} 
+                  className={`w-12 h-6 rounded-full transition-all ${(localSettings as any)[toggle.key] ? 'bg-cyber-cyan' : 'bg-cyber-cyan/20'}`}
                 >
-                  <div className={`w-5 h-5 bg-cyber-bg rounded-full shadow transition-transform ${(localSettings as Record<string, boolean>)[toggle.key] ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                  <div className={`w-5 h-5 bg-cyber-bg rounded-full shadow transition-transform ${(localSettings as any)[toggle.key] ? 'translate-x-6' : 'translate-x-0.5'}`} />
                 </button>
               </div>
             ))}

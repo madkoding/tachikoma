@@ -260,7 +260,7 @@ export const AudioPlayer: React.FC = () => {
         if (!analyserRef.current || !spectrumDataArrayRef.current) return;
         
         // Reuse the existing Uint8Array instead of creating a new one
-        analyserRef.current.getByteFrequencyData(spectrumDataArrayRef.current);
+        analyserRef.current.getByteFrequencyData(spectrumDataArrayRef.current as any);
         
         const bars: number[] = new Array(barCount);
         

@@ -95,7 +95,7 @@ async fn warm_up_model(llm_provider: &Arc<dyn crate::domain::ports::llm_provider
     // Spawn warmup task
     let llm = llm_provider.clone();
     let warmup_handle = tokio::spawn(async move {
-        llm.generate("hi", Some("ministral-3:3b")).await
+        llm.generate("hi", Some("qwen3:0.6b")).await
     });
     
     // Animate spinner while waiting

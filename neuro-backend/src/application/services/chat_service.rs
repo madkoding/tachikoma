@@ -630,9 +630,9 @@ Responde SOLO con la categoría, una sola palabra:"#,
     /// Auto-select model based on task analysis
     /// =========================================================================
     /// Analyzes the user message to determine the appropriate model tier:
-    /// - Light (ministral-3:3b): Default for most tasks, quick questions
-    /// - Standard (qwen2.5-coder:7b): Complex reasoning, analysis
-    /// - Heavy (qwen2.5-coder:14b): Code generation, deep technical tasks
+    /// - Light (qwen3:0.6b): Default for most tasks, quick questions
+    /// - Standard (qwen3:0.6b): Complex reasoning, analysis
+    /// - Heavy (qwen3:0.6b): Code generation, deep technical tasks
     /// =========================================================================
     pub fn select_model_for_task(&self, message: &str) -> String {
         let msg_lower = message.to_lowercase();

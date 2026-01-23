@@ -1,8 +1,37 @@
 # Neuro UI
 
-Interfaz de usuario para el sistema Neuro.
+Interfaz de usuario para el sistema Neuro - disponible como **aplicación web** y **aplicación de escritorio** (Windows, Linux, macOS).
 
-## Configuración
+## 🚀 Inicio Rápido
+
+### Desarrollo Web
+```bash
+npm install
+npm run dev
+```
+Servidor en `http://localhost:5173`
+
+### Desarrollo Desktop
+```bash
+npm run tauri:dev
+```
+Abre la aplicación de escritorio con hot-reload.
+
+## 🖥️ Aplicación de Escritorio
+
+NEURO-OS puede compilarse como aplicación de escritorio nativa usando **Tauri**.
+
+### Build para tu plataforma actual
+```bash
+npm run tauri:build
+```
+
+### Documentación completa
+- [QUICKSTART_DESKTOP.md](QUICKSTART_DESKTOP.md) - Inicio rápido
+- [DESKTOP_BUILD.md](DESKTOP_BUILD.md) - Guía completa de compilación
+- Ver también: [../NEURO_DESKTOP_SETUP.md](../NEURO_DESKTOP_SETUP.md)
+
+## ⚙️ Configuración
 
 ### Variables de Entorno
 

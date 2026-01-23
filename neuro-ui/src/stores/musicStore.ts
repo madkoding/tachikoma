@@ -1262,7 +1262,7 @@ export const usePlayerActions = () => useMusicStore((state) => ({
   setVolume: state.setVolume,
   toggleMute: state.toggleMute,
   toggleShuffle: state.toggleShuffle,
-  cycleRepeatMode: state.cycleRepeatMode,
+  setRepeatMode: state.setRepeatMode,
   playSong: state.playSong,
 }));
 

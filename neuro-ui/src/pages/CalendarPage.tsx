@@ -130,7 +130,7 @@ function EventModal({
           .slice(0, 16)
       : ''
   );
-  const [allDay, setAllDay] = useState(event?.allDay || false);
+  const [allDay] = useState(event?.allDay || false);
   const [location, setLocation] = useState(event?.location || '');
   const [color, setColor] = useState(event?.color || '#00d4ff');
   const [eventType, setEventType] = useState<EventType>(event?.eventType || 'event');
@@ -309,7 +309,7 @@ function EventModal({
 // =============================================================================
 
 function EventItem({ event, compact = false, onClick }: { event: CalendarEvent; compact?: boolean; onClick: () => void }) {
-  const typeIcons: Record<EventType, string> = { event: '📅', meeting: '👥', task: '✓', reminder: '🔔', birthday: '��', holiday: '🎉' };
+  const typeIcons: Record<EventType, string> = { event: '📅', task: '✓', reminder: '🔔', birthday: '🎂', holiday: '🎉' };
 
   if (compact) {
     return (
@@ -410,7 +410,6 @@ function CalendarGrid({ currentDate, events, weekStart, onSelectDate, onSelectEv
 // =============================================================================
 
 function WeekView({ currentDate, events, weekStart, onSelectDate, onSelectEvent }: { currentDate: Date; events: CalendarEvent[]; weekStart: WeekStart; onSelectDate: (date: Date) => void; onSelectEvent: (event: CalendarEvent) => void }) {
-  const { t } = useTranslation();
   const today = new Date(); today.setHours(0, 0, 0, 0);
   
   // Get start of current week
@@ -723,8 +722,6 @@ function EventsSidebar({ events, selectedDate, onSelectEvent, onNewEvent }: { ev
     const eventDate = new Date(event.startTime);
     return eventDate.getFullYear() === displayDate.getFullYear() && eventDate.getMonth() === displayDate.getMonth() && eventDate.getDate() === displayDate.getDate();
   }).sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-
-  const isToday = displayDate.toDateString() === new Date().toDateString();
 
   // Format date for LED display (DD/MM/YYYY)
   const formatLedDate = (date: Date) => {

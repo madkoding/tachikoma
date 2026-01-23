@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, Pause, SkipForward, SkipBack, GripHorizontal, Music } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, GripHorizontal, Music, SlidersHorizontal } from 'lucide-react';
 import { usePlayerState, usePlayerActions, formatDuration } from '../../stores/musicStore';
+import { usePerformanceSettings } from '../../stores/performanceStore';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SpectrumAnalyzer } from './SpectrumAnalyzer';
+import { EqualizerModal } from './EqualizerModal';
 import { AnimatedLedDigits } from '../common';
 
 interface MiniPlayerProps {
@@ -15,6 +17,12 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
   const player = usePlayerState();
   const { togglePlay, nextSong, previousSong, seek } = usePlayerActions();
   const mobileProgressRef = useRef<HTMLDivElement>(null);
+  
+  // Performance settings
+  const perfSettings = usePerformanceSettings();
+  
+  // State for equalizer modal
+  const [isEqualizerOpen, setIsEqualizerOpen] = useState(false);
   
   // Check if mobile
   const [isMobile, setIsMobile] = useState(() => {
@@ -222,17 +230,23 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
   if (isMobile) {
     return (
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/70 backdrop-blur-xl border-t border-cyber-cyan/30 safe-area-inset-bottom overflow-hidden">
-        {/* Spectrum Background - Blurred */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 blur-2xl scale-[1.5]">
-            <SpectrumAnalyzer 
-              barCount={32} 
-              compact 
-              showReflection={false}
-              className="h-full w-full"
-            />
+        {/* Spectrum Background - conditionally rendered based on performance */}
+        {perfSettings.enableSpectrumAnalyzer && (
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {perfSettings.enableBlurEffects ? (
+              <div className="absolute inset-0 blur-2xl scale-[1.5]">
+                <SpectrumAnalyzer 
+                  barCount={perfSettings.spectrumBarCount} 
+                  compact 
+                  showReflection={false}
+                  className="h-full w-full"
+                />
+              </div>
+            ) : (
+              <div className="absolute inset-0 bg-gradient-to-t from-cyan-500/10 via-purple-500/5 to-transparent" />
+            )}
           </div>
-        </div>
+        )}
         
         {/* Progress bar at top - clickable */}
         <div 
@@ -299,35 +313,51 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
             <button
               type="button"
               onClick={previousSong}
-              className="p-2 text-gray-400 active:text-white transition-all"
+              className="p-1.5 text-gray-400 active:text-white transition-all"
               aria-label="Canción anterior"
             >
-              <SkipBack className="w-6 h-6" />
+              <SkipBack className="w-5 h-5" />
             </button>
             
             <button
               type="button"
               onClick={togglePlay}
-              className="p-3 bg-cyber-cyan text-black active:bg-cyber-cyan/80 transition-all rounded-full mx-1"
+              className="p-2 bg-cyber-cyan text-black active:bg-cyber-cyan/80 transition-all rounded-full mx-0.5"
               aria-label={player.isPlaying ? 'Pausar' : 'Reproducir'}
             >
               {player.isPlaying ? (
-                <Pause className="w-6 h-6" />
+                <Pause className="w-5 h-5" />
               ) : (
-                <Play className="w-6 h-6 ml-0.5" />
+                <Play className="w-5 h-5 ml-0.5" />
               )}
             </button>
             
             <button
               type="button"
               onClick={nextSong}
-              className="p-2 text-gray-400 active:text-white transition-all"
+              className="p-1.5 text-gray-400 active:text-white transition-all"
               aria-label="Siguiente canción"
             >
-              <SkipForward className="w-6 h-6" />
+              <SkipForward className="w-5 h-5" />
+            </button>
+            
+            {/* Equalizer Button */}
+            <button
+              type="button"
+              onClick={() => setIsEqualizerOpen(true)}
+              className="p-1.5 text-gray-400 active:text-cyan-400 transition-all"
+              aria-label="Ecualizador"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
             </button>
           </div>
         </div>
+        
+        {/* Equalizer Modal */}
+        <EqualizerModal 
+          isOpen={isEqualizerOpen} 
+          onClose={() => setIsEqualizerOpen(false)} 
+        />
       </div>
     );
   }
@@ -344,17 +374,23 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
       }}
     >
       <div className="bg-gray-900/70 backdrop-blur-xl border border-cyber-cyan/30 shadow-2xl shadow-cyber-cyan/20 overflow-hidden w-80 relative">
-        {/* Spectrum Background - Blurred */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 blur-2xl scale-[1.5]">
-            <SpectrumAnalyzer 
-              barCount={32} 
-              compact 
-              showReflection={false}
-              className="h-full w-full"
-            />
+        {/* Spectrum Background - conditionally rendered based on performance */}
+        {perfSettings.enableSpectrumAnalyzer && (
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {perfSettings.enableBlurEffects ? (
+              <div className="absolute inset-0 blur-2xl scale-[1.5]">
+                <SpectrumAnalyzer 
+                  barCount={perfSettings.spectrumBarCount} 
+                  compact 
+                  showReflection={false}
+                  className="h-full w-full"
+                />
+              </div>
+            ) : (
+              <div className="absolute inset-0 bg-gradient-to-t from-cyan-500/10 via-purple-500/5 to-transparent" />
+            )}
           </div>
-        </div>
+        )}
         
         {/* Progress bar at top */}
         <div className="h-1 bg-gray-800 relative z-10 rounded-[5px] overflow-hidden mx-1">
@@ -417,32 +453,48 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = () => {
             </button>
 
             {/* Controls */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <button
                 type="button"
                 onClick={togglePlay}
-                className="p-2.5 bg-cyber-cyan text-black hover:bg-cyber-cyan/80 transition-all rounded-full"
+                className="p-2 bg-cyber-cyan text-black hover:bg-cyber-cyan/80 transition-all rounded-full"
                 aria-label={player.isPlaying ? 'Pausar' : 'Reproducir'}
               >
                 {player.isPlaying ? (
-                  <Pause className="w-5 h-5" />
+                  <Pause className="w-4 h-4" />
                 ) : (
-                  <Play className="w-5 h-5 ml-0.5" />
+                  <Play className="w-4 h-4 ml-0.5" />
                 )}
               </button>
               
               <button
                 type="button"
                 onClick={nextSong}
-                className="p-2.5 text-gray-400 hover:text-white hover:bg-gray-800 transition-all"
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 transition-all"
                 aria-label="Siguiente canción"
               >
-                <SkipForward className="w-5 h-5" />
+                <SkipForward className="w-4 h-4" />
+              </button>
+              
+              {/* Equalizer Button */}
+              <button
+                type="button"
+                onClick={() => setIsEqualizerOpen(true)}
+                className="p-2 text-gray-400 hover:text-cyan-400 hover:bg-gray-800 transition-all"
+                aria-label="Ecualizador"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
         </div>
       </div>
+      
+      {/* Equalizer Modal */}
+      <EqualizerModal 
+        isOpen={isEqualizerOpen} 
+        onClose={() => setIsEqualizerOpen(false)} 
+      />
     </div>
   );
 };

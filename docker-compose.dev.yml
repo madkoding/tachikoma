@@ -18,6 +18,15 @@ services:
     build:
       context: ./neuro-voice
       dockerfile: Dockerfile.dev
+    ports:
+      - "8100:8100"
+    environment:
+      - RUST_LOG=info,voice_service=debug
+      - HOST=0.0.0.0
+      - PORT=8100
+      - PIPER_BIN=/app/piper/piper
+      - MODELS_DIR=/app/models
+      - DEFAULT_VOICE=es_MX-claude-high
     volumes:
       # Persistent cargo cache - dependencies won't recompile!
       - cargo-cache-voice:/root/.cargo/registry
@@ -33,6 +42,14 @@ services:
     build:
       context: ./neuro-checklists
       dockerfile: Dockerfile.dev
+    ports:
+      - "3001:3001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3001
+      - BACKEND_URL=http://host.docker.internal:3000
     volumes:
       - cargo-cache-checklists:/root/.cargo/registry
       - cargo-git-checklists:/root/.cargo/git
@@ -46,14 +63,21 @@ services:
     build:
       context: ./neuro-music
       dockerfile: Dockerfile.dev
+    ports:
+      - "3002:3002"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3002
+      - BACKEND_URL=http://host.docker.internal:3000
+      - DOWNLOADS_PATH=/data/downloads
     volumes:
       - cargo-cache-music:/root/.cargo/registry
       - cargo-git-music:/root/.cargo/git
       - music-target:/app/target
       - music-downloads:/data/downloads
       - ./neuro-music/src:/app/src:ro
-    environment:
-      - DOWNLOADS_PATH=/data/downloads
 
   # ===========================================================================
   # Chat Service - Development Build
@@ -62,6 +86,20 @@ services:
     build:
       context: ./neuro-chat
       dockerfile: Dockerfile.dev
+    ports:
+      - "3003:3003"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3003
+      - DATABASE_URL=ws://surrealdb:8000
+      - DATABASE_USER=${SURREAL_USER:-root}
+      - DATABASE_PASS=${SURREAL_PASS:-neuroos_secret_2024}
+      - DATABASE_NAMESPACE=neuro
+      - DATABASE_NAME=chat
+      - BACKEND_URL=http://host.docker.internal:3000
+      - MEMORY_SERVICE_URL=http://neuro-memory:3004
     volumes:
       - cargo-cache-chat:/root/.cargo/registry
       - cargo-git-chat:/root/.cargo/git
@@ -75,6 +113,19 @@ services:
     build:
       context: ./neuro-memory
       dockerfile: Dockerfile.dev
+    ports:
+      - "3004:3004"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3004
+      - DATABASE_URL=ws://surrealdb:8000
+      - DATABASE_USER=${SURREAL_USER:-root}
+      - DATABASE_PASS=${SURREAL_PASS:-neuroos_secret_2024}
+      - DATABASE_NAMESPACE=neuro
+      - DATABASE_NAME=memories
+      - BACKEND_URL=http://host.docker.internal:3000
     volumes:
       - cargo-cache-memory:/root/.cargo/registry
       - cargo-git-memory:/root/.cargo/git
@@ -88,6 +139,12 @@ services:
     build:
       context: ./neuro-agent
       dockerfile: Dockerfile.dev
+    ports:
+      - "3005:3005"
+    environment:
+      - RUST_LOG=info
+      - PORT=3005
+      - SEARXNG_URL=http://searxng:8080
     volumes:
       - cargo-cache-agent:/root/.cargo/registry
       - cargo-git-agent:/root/.cargo/git

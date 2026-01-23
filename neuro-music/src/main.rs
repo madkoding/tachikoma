@@ -42,6 +42,9 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Debug: print to stderr immediately
+    eprintln!("🎵 neuro-music starting...");
+    
     // Initialize tracing
     tracing_subscriber::registry()
         .with(
@@ -51,8 +54,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    eprintln!("🔧 Tracing initialized");
+
     // Load configuration
     let config = Config::from_env();
+    eprintln!("📦 Config loaded: port={}", config.port);
     
     info!("🎵 Neuro-Music Microservice");
     info!("============================");

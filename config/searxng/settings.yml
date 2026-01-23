@@ -29,7 +29,7 @@ server:
 
 ui:
   static_use_hash: true
-  default_theme: simple
+  default_theme: modern
   results_on_new_tab: false
 
 # Enable JSON output for API consumption

@@ -49,7 +49,7 @@ pub enum ModelTier {
     /// - Quality: Good for simple tasks
     /// 
     /// # Model Examples
-    /// - ministral-3:3b
+    /// - qwen3:0.6b
     /// - phi-3-mini
     /// - gemma-2b
     /// =======================================================================
@@ -123,9 +123,9 @@ impl ModelTier {
     /// =========================================================================
     pub fn default_model(&self) -> &'static str {
         match self {
-            ModelTier::Light => "ministral-3:3b",
-            ModelTier::Standard => "ministral-3:8b",
-            ModelTier::Heavy => "ministral-3:8b",  // Same as Standard for now
+            ModelTier::Light => "qwen3:0.6b",
+            ModelTier::Standard => "qwen3:0.6b",
+            ModelTier::Heavy => "qwen3:0.6b",  // Same as Standard for now
             ModelTier::Embedding => "nomic-embed-text",
         }
     }
@@ -360,7 +360,7 @@ impl ModelConfig {
     pub fn for_quick_response() -> Self {
         Self {
             tier: ModelTier::Light,
-            model_name: "ministral-3:3b".to_string(),
+            model_name: "qwen3:0.6b".to_string(),
             temperature: 0.5,
             top_p: 0.9,
             max_tokens: 256,
@@ -409,9 +409,9 @@ mod tests {
 
     #[test]
     fn test_default_models() {
-        assert_eq!(ModelTier::Light.default_model(), "ministral-3:3b");
-        assert_eq!(ModelTier::Standard.default_model(), "qwen2.5-coder:7b");
-        assert_eq!(ModelTier::Heavy.default_model(), "qwen2.5-coder:14b");
+        assert_eq!(ModelTier::Light.default_model(), "qwen3:0.6b");
+        assert_eq!(ModelTier::Standard.default_model(), "qwen3:0.6b");
+        assert_eq!(ModelTier::Heavy.default_model(), "qwen3:0.6b");
         assert_eq!(ModelTier::Embedding.default_model(), "nomic-embed-text");
     }
 }

@@ -52,11 +52,11 @@ RUN mkdir -p src && \
 COPY src ./src
 
 ENV RUST_LOG=info
-ENV MUSIC_PORT=3002
+ENV PORT=3002
 ENV DOWNLOADS_PATH=/data/downloads
 
 EXPOSE 3002
 
 # Compile and run - always recompiles if source changed
 # The volume-mounted src will be used, triggering recompilation
-CMD cargo build && ./target/debug/neuro-music
+CMD ["sh", "-c", "cargo build && exec ./target/debug/neuro-music"]

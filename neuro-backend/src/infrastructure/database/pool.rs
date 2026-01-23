@@ -208,6 +208,39 @@ impl DatabasePool {
             "DEFINE FIELD enabled ON TABLE equalizer_settings TYPE bool DEFAULT true",
             "DEFINE FIELD preset ON TABLE equalizer_settings TYPE option<string>",
             "DEFINE FIELD bands ON TABLE equalizer_settings TYPE array DEFAULT [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]",
+            
+            // =====================================================================
+            // Kanban tables
+            // =====================================================================
+            "DEFINE TABLE kanban_board SCHEMAFULL",
+            "DEFINE FIELD name ON TABLE kanban_board TYPE string",
+            "DEFINE FIELD description ON TABLE kanban_board TYPE option<string>",
+            "DEFINE FIELD color ON TABLE kanban_board TYPE option<string>",
+            "DEFINE FIELD is_archived ON TABLE kanban_board TYPE bool DEFAULT false",
+            "DEFINE FIELD created_at ON TABLE kanban_board TYPE datetime DEFAULT time::now()",
+            "DEFINE FIELD updated_at ON TABLE kanban_board TYPE datetime DEFAULT time::now()",
+            // Kanban column table
+            "DEFINE TABLE kanban_column SCHEMAFULL",
+            "DEFINE FIELD board_id ON TABLE kanban_column TYPE string",
+            "DEFINE FIELD name ON TABLE kanban_column TYPE string",
+            "DEFINE FIELD color ON TABLE kanban_column TYPE option<string>",
+            "DEFINE FIELD wip_limit ON TABLE kanban_column TYPE option<int>",
+            "DEFINE FIELD column_order ON TABLE kanban_column TYPE int DEFAULT 0",
+            "DEFINE FIELD created_at ON TABLE kanban_column TYPE datetime DEFAULT time::now()",
+            "DEFINE FIELD updated_at ON TABLE kanban_column TYPE datetime DEFAULT time::now()",
+            "DEFINE INDEX idx_column_board ON TABLE kanban_column COLUMNS board_id",
+            // Kanban card table
+            "DEFINE TABLE kanban_card SCHEMAFULL",
+            "DEFINE FIELD column_id ON TABLE kanban_card TYPE string",
+            "DEFINE FIELD title ON TABLE kanban_card TYPE string",
+            "DEFINE FIELD description ON TABLE kanban_card TYPE option<string>",
+            "DEFINE FIELD color ON TABLE kanban_card TYPE option<string>",
+            "DEFINE FIELD labels ON TABLE kanban_card TYPE array DEFAULT []",
+            "DEFINE FIELD due_date ON TABLE kanban_card TYPE option<datetime>",
+            "DEFINE FIELD card_order ON TABLE kanban_card TYPE int DEFAULT 0",
+            "DEFINE FIELD created_at ON TABLE kanban_card TYPE datetime DEFAULT time::now()",
+            "DEFINE FIELD updated_at ON TABLE kanban_card TYPE datetime DEFAULT time::now()",
+            "DEFINE INDEX idx_card_column ON TABLE kanban_card COLUMNS column_id",
         ];
 
         for (i, stmt) in statements.iter().enumerate() {

@@ -5,9 +5,7 @@ import {
   Loader2, 
   Music, 
   X, 
-  CheckSquare,
-  Sparkles,
-  Database
+  CheckSquare
 } from 'lucide-react';
 import { useMusicStore, useCurrentPlaylistDetail, formatDuration } from '../../stores/musicStore';
 import { EnrichedSearchResultDto, CreateSongRequest, musicApi } from '../../api/client';

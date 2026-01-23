@@ -178,7 +178,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/calendar/*path", any(handlers::proxy_calendar))
         // Image microservice proxy
         .route("/images", any(handlers::proxy_image))
-        .route("/images/*path", any(handlers::proxy_image));
+        .route("/images/*path", any(handlers::proxy_image))
+        // Voice microservice proxy
+        .route("/voice/proxy", any(handlers::proxy_voice))
+        .route("/voice/proxy/*path", any(handlers::proxy_voice));
 
     // Compose final router
     Router::new()

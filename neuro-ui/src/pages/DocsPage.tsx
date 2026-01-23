@@ -25,13 +25,14 @@ function DocModal({
   const { t } = useTranslation();
   const [title, setTitle] = useState(doc?.title || '');
   const [content, setContent] = useState(doc?.content || '');
-  const [docType, setDocType] = useState<DocumentType>(doc?.docType || 'doc');
+  const [docType, setDocType] = useState<DocumentType>(doc?.docType || 'text');
   const [folderId, setFolderId] = useState(doc?.folderId || '');
 
   const DOC_TYPES: { value: DocumentType; label: string; icon: string }[] = [
-    { value: 'doc', label: t('docs.type.doc', 'Document'), icon: '📄' },
+    { value: 'text', label: t('docs.type.text', 'Text'), icon: '📄' },
+    { value: 'markdown', label: t('docs.type.markdown', 'Markdown'), icon: '📝' },
+    { value: 'code', label: t('docs.type.code', 'Code'), icon: '💻' },
     { value: 'spreadsheet', label: t('docs.type.spreadsheet', 'Spreadsheet'), icon: '📊' },
-    { value: 'presentation', label: t('docs.type.presentation', 'Presentation'), icon: '📽️' },
     { value: 'pdf', label: t('docs.type.pdf', 'PDF'), icon: '📑' },
   ];
 
@@ -100,8 +101,8 @@ function DocModal({
 // =============================================================================
 
 function DocItem({ doc, onClick, onToggleStar }: { doc: Document; onClick: () => void; onToggleStar: () => void }) {
-  const typeIcons: Record<DocumentType, string> = { doc: '📄', spreadsheet: '��', presentation: '📽️', pdf: '📑' };
-  const typeColors: Record<DocumentType, string> = { doc: '#00d4ff', spreadsheet: '#00ff9f', presentation: '#ff6b00', pdf: '#ef4444' };
+  const typeIcons: Record<DocumentType, string> = { text: '📄', markdown: '📝', code: '💻', spreadsheet: '📊', pdf: '📑' };
+  const typeColors: Record<DocumentType, string> = { text: '#00d4ff', markdown: '#00ff9f', code: '#ff6b00', spreadsheet: '#a855f7', pdf: '#ef4444' };
 
   return (
     <button onClick={onClick} className="w-full text-left p-3 sm:p-4 rounded-xl border border-cyber-cyan/20 bg-cyber-surface/50 transition-all hover:border-cyber-cyan/40 hover:bg-cyber-cyan/5 group">

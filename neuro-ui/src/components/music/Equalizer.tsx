@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Volume2, Music2, Zap, Waves, Mic } from 'lucide-react';
+import { Volume2, Zap, Waves, Mic } from 'lucide-react';
 import { useMusicStore, EQUALIZER_FREQUENCIES, EQUALIZER_PRESETS } from '../../stores/musicStore';
 
 interface EqualizerProps {
@@ -13,8 +13,6 @@ export const Equalizer: React.FC<EqualizerProps> = ({ className = '' }) => {
     setEqualizerBand, 
     loadEqualizerPreset, 
     updateEqualizer,
-    toggleHighpass,
-    toggleLowpass,
     toggleLoudness,
     toggleBassBoost,
     toggleStereoWide,
@@ -92,37 +90,7 @@ export const Equalizer: React.FC<EqualizerProps> = ({ className = '' }) => {
       {/* Audio Filters Section */}
       <div className="mb-4 p-2 bg-gray-800/50 border border-gray-700">
         {/* Filter buttons grid */}
-        <div className="grid grid-cols-6 gap-2">
-          {/* Highpass Filter */}
-          <button
-            type="button"
-            onClick={toggleHighpass}
-            className={`aspect-square flex flex-col items-center justify-center p-1.5 text-[9px] font-medium transition-all font-mono rounded ${
-              audioFilters.highpassEnabled
-                ? 'bg-cyber-cyan text-black shadow-md shadow-cyber-cyan/30'
-                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-            }`}
-            title={`Highpass Filter: ${audioFilters.highpassFreq}Hz - Elimina sub-graves`}
-          >
-            <Volume2 className="w-4 h-4 mb-0.5" />
-            <span>HPF</span>
-          </button>
-
-          {/* Lowpass Filter */}
-          <button
-            type="button"
-            onClick={toggleLowpass}
-            className={`aspect-square flex flex-col items-center justify-center p-1.5 text-[9px] font-medium transition-all font-mono rounded ${
-              audioFilters.lowpassEnabled
-                ? 'bg-cyber-purple text-white shadow-md shadow-cyber-purple/30'
-                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-            }`}
-            title={`Lowpass Filter: ${audioFilters.lowpassFreq >= 1000 ? `${(audioFilters.lowpassFreq / 1000).toFixed(0)}kHz` : `${audioFilters.lowpassFreq}Hz`} - Elimina agudos`}
-          >
-            <Music2 className="w-4 h-4 mb-0.5" />
-            <span>LPF</span>
-          </button>
-
+        <div className="grid grid-cols-4 gap-2">
           {/* Loudness */}
           <button
             type="button"

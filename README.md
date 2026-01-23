@@ -2,6 +2,10 @@
 
 **NEURO-OS** is a modular AI ecosystem that combines a memory graph (GraphRAG), intelligent agents with tool capabilities, and automatic model selection based on available VRAM.
 
+Available as:
+- 🌐 **Web Application** (React/Vite)
+- 🖥️ **Desktop Application** (Windows, Linux, macOS via Tauri)
+
 ## Architecture
 
 ```
@@ -103,10 +107,13 @@ Ollama runs independently in the [neuro-ollama](https://github.com/madkoding/neu
 
 ### 💻 User Interfaces
 - **User UI**: React + TypeScript + Tailwind chat interface
+  - 🌐 **Web**: Runs in browser (localhost:5173)
+  - 🖥️ **Desktop**: Native app for Windows/Linux/macOS via Tauri
   - Dark/Light mode
   - i18n support (English/Spanish)
   - Conversation history with grouping
   - Typing indicators and markdown rendering
+  - **Desktop build**: See [NEURO_DESKTOP_SETUP.md](NEURO_DESKTOP_SETUP.md)
 
 - **Admin UI**: Memory graph management dashboard
   - Force-directed graph visualization (react-force-graph)
@@ -189,11 +196,23 @@ cargo run --release
 
 ### 5. Run User Interface
 
+**Web version:**
 ```bash
 cd neuro-ui
 npm install
 npm run dev
 ```
+
+**Desktop version:**
+```bash
+cd neuro-ui
+npm install
+npm run tauri:dev  # Development with hot-reload
+# Or for production build:
+npm run tauri:build  # Generates native executable
+```
+
+See [NEURO_DESKTOP_SETUP.md](NEURO_DESKTOP_SETUP.md) for complete desktop build guide.
 
 ### 6. Run Admin Interface (Optional)
 

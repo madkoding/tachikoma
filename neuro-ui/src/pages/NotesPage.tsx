@@ -172,7 +172,7 @@ function FolderSidebar({ folders, selectedFolderId, showPinned, showArchived, on
 
 export default function NotesPage() {
   const { t } = useTranslation();
-  const { notes, folders, selectedNote, selectedFolderId, isLoading, error, searchQuery, loadNotes, loadFolders, selectNote, selectFolder, setSearchQuery, createNote, updateNote, deleteNote, togglePin, toggleArchive, createFolder, deleteFolder, clearError } = useNotesStore();
+  const { notes, folders, selectedFolderId, isLoading, error, searchQuery, loadNotes, loadFolders, selectFolder, setSearchQuery, createNote, updateNote, deleteNote, createFolder, deleteFolder, clearError } = useNotesStore();
 
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
@@ -297,7 +297,7 @@ export default function NotesPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-              {filteredNotes.map((note) => <NoteCard key={note.id} note={note} onClick={() => handleEditNote(note)} onTogglePin={() => togglePin(note.id)} />)}
+              {filteredNotes.map((note) => <NoteCard key={note.id} note={note} onClick={() => handleEditNote(note)} onTogglePin={() => console.log('Pin:', note.id)} />)}
             </div>
           )}
         </div>

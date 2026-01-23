@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { useMusicStore } from '../../stores/musicStore';
+import { usePerformanceStore } from '../../stores/performanceStore';
 
 interface SpectrumAnalyzerProps {
   barCount?: number;
@@ -13,17 +14,32 @@ interface SpectrumAnalyzerProps {
  * Canvas-based Spectrum Analyzer
  * Uses requestAnimationFrame to draw directly on canvas without React re-renders.
  * This eliminates ~1150 DOM elements (32 bars × 36 LEDs) that were causing performance issues.
+ * 
+ * Performance-aware: Respects settings from performanceStore for FPS throttling,
+ * glow effects, reflections, and scanlines.
  */
 export const SpectrumAnalyzer: React.FC<SpectrumAnalyzerProps> = ({ 
-  barCount = 32, 
+  barCount: propBarCount = 32, 
   className = '',
-  showReflection = true,
-  ledStyle = true,
+  showReflection: propShowReflection = true,
   compact = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
   const lastDrawTimeRef = useRef<number>(0);
+  const fpsCounterRef = useRef<{ frames: number; lastTime: number }>({ frames: 0, lastTime: 0 });
+  
+  // Get performance settings
+  const perfSettings = usePerformanceStore((state) => state.settings);
+  const updateFPS = usePerformanceStore((state) => state.updateFPS);
+  
+  // Apply performance settings
+  const barCount = Math.min(propBarCount, perfSettings.spectrumBarCount);
+  const showReflection = propShowReflection && perfSettings.enableReflections;
+  const enableGlow = perfSettings.enableGlowEffects;
+  const enableScanlines = perfSettings.enableScanlines;
+  const targetFPS = perfSettings.spectrumFPS;
+  const frameInterval = 1000 / targetFPS;
   
   // LED count per bar
   const ledCount = compact ? 16 : 36;
@@ -36,12 +52,23 @@ export const SpectrumAnalyzer: React.FC<SpectrumAnalyzerProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Throttle to ~24fps for performance (every 42ms)
     const now = performance.now();
-    if (now - lastDrawTimeRef.current < 42) {
+    
+    // Throttle based on performance settings
+    if (now - lastDrawTimeRef.current < frameInterval) {
       animationRef.current = requestAnimationFrame(draw);
       return;
     }
+    
+    // FPS counter for auto-adjustment
+    fpsCounterRef.current.frames++;
+    if (now - fpsCounterRef.current.lastTime >= 1000) {
+      const fps = fpsCounterRef.current.frames;
+      updateFPS(fps);
+      fpsCounterRef.current.frames = 0;
+      fpsCounterRef.current.lastTime = now;
+    }
+    
     lastDrawTimeRef.current = now;
     
     // Get current state directly (no React subscription)
@@ -90,14 +117,16 @@ export const SpectrumAnalyzer: React.FC<SpectrumAnalyzerProps> = ({
             ctx.fillStyle = `hsla(${hue}, 100%, ${40 + value * 25}%, ${0.8 + value * 0.2})`;
           }
           
-          // Add glow effect for lit LEDs
-          if (ledIndex === litLeds - 1) {
+          // Add glow effect for lit LEDs (only if enabled)
+          if (enableGlow && ledIndex === litLeds - 1) {
             ctx.shadowColor = levelRatio > 0.8 ? 'rgba(255, 0, 128, 0.6)' : 
                               levelRatio > 0.6 ? 'rgba(180, 0, 255, 0.5)' : 
                               'rgba(0, 255, 255, 0.4)';
             ctx.shadowBlur = 6;
-          } else {
+          } else if (enableGlow) {
             ctx.shadowBlur = 2;
+          } else {
+            ctx.shadowBlur = 0;
           }
         } else {
           // Unlit LED
@@ -152,7 +181,7 @@ export const SpectrumAnalyzer: React.FC<SpectrumAnalyzerProps> = ({
     
     // Continue animation loop
     animationRef.current = requestAnimationFrame(draw);
-  }, [barCount, ledCount, compact, showReflection]);
+  }, [barCount, ledCount, compact, showReflection, enableGlow, frameInterval, updateFPS]);
   
   // Setup canvas and start animation
   useEffect(() => {
@@ -198,8 +227,8 @@ export const SpectrumAnalyzer: React.FC<SpectrumAnalyzerProps> = ({
         style={{ display: 'block' }}
       />
       
-      {/* Scanline effect overlay */}
-      {!compact && (
+      {/* Scanline effect overlay - only if enabled */}
+      {!compact && enableScanlines && (
         <div 
           className="absolute inset-0 pointer-events-none opacity-5"
           style={{

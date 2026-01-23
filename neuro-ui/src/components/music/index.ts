@@ -3,6 +3,8 @@ export { MusicPlayer } from './MusicPlayer';
 export { MiniPlayer } from './MiniPlayer';
 export { SpectrumAnalyzer } from './SpectrumAnalyzer';
 export { Equalizer } from './Equalizer';
+export { EqualizerModal } from './EqualizerModal';
+export { PerformanceSettings } from './PerformanceSettings';
 export { PlaylistList } from './PlaylistList';
 export { SongList } from './SongList';
 export { YouTubeSearch } from './YouTubeSearch';

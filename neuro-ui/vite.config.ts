@@ -77,6 +77,8 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     allowedHosts: ['tachikoma', 'localhost'],
+    // Tauri espera que el servidor esté en localhost:5173
+    strictPort: true,
     proxy: {
       // Chat streaming endpoint needs special handling for SSE
       '/api/chat/stream': {
@@ -135,4 +137,6 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
   },
+  // Prevenir limpieza del outDir por Tauri
+  clearScreen: false,
 })

@@ -171,7 +171,7 @@ impl OllamaConfig {
                 .parse()
                 .unwrap_or(120),
             default_model: std::env::var("OLLAMA_DEFAULT_MODEL")
-                .unwrap_or_else(|_| "ministral-3:8b".to_string()),
+                .unwrap_or_else(|_| "qwen3:0.6b".to_string()),
             embedding_model: std::env::var("OLLAMA_EMBEDDING_MODEL")
                 .unwrap_or_else(|_| "nomic-embed-text".to_string()),
         })
@@ -216,6 +216,8 @@ impl SearxngConfig {
 /// =============================================================================
 #[derive(Debug, Clone, Deserialize)]
 pub struct MicroservicesConfig {
+    /// Voice service URL
+    pub voice_url: String,
     /// Checklists service URL
     pub checklists_url: String,
     /// Music service URL
@@ -244,6 +246,8 @@ impl MicroservicesConfig {
     /// Load microservices configuration from environment
     pub fn from_env() -> Self {
         Self {
+            voice_url: std::env::var("VOICE_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:8100".to_string()),
             checklists_url: std::env::var("CHECKLISTS_SERVICE_URL")
                 .unwrap_or_else(|_| "http://localhost:3001".to_string()),
             music_url: std::env::var("MUSIC_SERVICE_URL")

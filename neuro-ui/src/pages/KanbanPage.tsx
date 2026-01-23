@@ -142,7 +142,7 @@ function ColumnComponent({
           <CardItem key={card.id} card={card} columnId={column.id} onEdit={onEditCard} onDelete={(cardId) => onDeleteCard(column.id, cardId)} />
         ))}
       </div>
-      <button onClick={() => onAddCard(column.id)} disabled={isOverLimit ?? false} className="mt-3 w-full py-2 text-sm font-mono text-cyber-cyan/50 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-dashed border-cyber-cyan/30 hover:border-cyber-cyan/50">
+      <button onClick={() => onAddCard(column.id)} disabled={Boolean(isOverLimit)} className="mt-3 w-full py-2 text-sm font-mono text-cyber-cyan/50 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-dashed border-cyber-cyan/30 hover:border-cyber-cyan/50">
         + {t('kanban.addCard', 'Add Card')}
       </button>
     </div>

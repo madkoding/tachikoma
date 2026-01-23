@@ -296,3 +296,23 @@ pub async fn proxy_image(
         false, // No streaming for images
     ).await
 }
+
+/// Proxy requests to the voice microservice
+/// Handles: /api/voice/*
+pub async fn proxy_voice(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Response, StatusCode> {
+    let path = request.uri().path();
+    debug!("🔊 Proxying voice request: {}", path);
+    
+    // Enable streaming for audio synthesis endpoints
+    let is_stream = path.contains("/stream") || path.contains("/synthesize");
+    
+    proxy_to_service(
+        &state.microservices_config.voice_url,
+        "voice",
+        request,
+        is_stream,
+    ).await
+}

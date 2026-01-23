@@ -1,8 +1,27 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useImagesStore, GeneratedImage, ImageAlbum, ImageGenerationRequest } from '../stores/imagesStore';
+import { useImagesStore } from '../stores/imagesStore';
+import type { ImageGenerationRequest } from '../types/image';
 import TypewriterText from '../components/common/TypewriterText';
+// Local types matching the API
+type GeneratedImage = {
+  id: string;
+  url: string;
+  prompt: string;
+  negativePrompt?: string;
+  width: number;
+  height: number;
+  steps: number;
+  guidanceScale: number;
+  isFavorite: boolean;
+  createdAt: Date;
+};
 
+type ImageAlbum = {
+  id: string;
+  name: string;
+  imageCount: number;
+};
 // =============================================================================
 // Generate Image Modal
 // =============================================================================
@@ -26,7 +45,7 @@ function GenerateModal({ onClose, onGenerate, isGenerating }: { onClose: () => v
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim() || isGenerating) return;
-    onGenerate({ prompt: prompt.trim(), negative_prompt: negativePrompt.trim() || undefined, width, height, steps, guidance_scale: guidanceScale });
+    onGenerate({ prompt: prompt.trim(), negativePrompt: negativePrompt.trim() || undefined, width, height, steps, guidanceScale });
   };
 
   return (
@@ -282,7 +301,7 @@ export default function ImagesPage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
               {filteredImages.map((img) => (
-                <button key={img.id} onClick={() => setSelectedImage(img)} className="group relative aspect-square rounded-xl overflow-hidden border border-cyber-cyan/20 hover:border-cyber-cyan/50 transition-all hover:shadow-lg hover:shadow-cyber-cyan/20">
+                <button key={img.id} onClick={() => setSelectedImage(img as any)} className="group relative aspect-square rounded-xl overflow-hidden border border-cyber-cyan/20 hover:border-cyber-cyan/50 transition-all hover:shadow-lg hover:shadow-cyber-cyan/20">
                   <img src={img.thumbnailUrl || img.url} alt={img.prompt} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="absolute bottom-0 left-0 right-0 p-2">

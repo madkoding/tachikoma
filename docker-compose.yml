@@ -44,6 +44,8 @@ services:
       - SEARXNG_SECRET=${SEARXNG_SECRET:-neuroos_searx_secret}
     volumes:
       - ./config/searxng:/etc/searxng:rw
+      - ./local-themes:/usr/local/searxng/searx/templates:rw
+      - ./local-themes/modern/static:/usr/local/searxng/searx/static/themes/modern:rw
     ports:
       - "8080:8080"
     networks:

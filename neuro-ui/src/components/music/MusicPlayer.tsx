@@ -10,11 +10,13 @@ import {
   Repeat, 
   Repeat1,
   Music,
-  Heart
+  Heart,
+  SlidersHorizontal
 } from 'lucide-react';
 import { useMusicStore, usePlayerState, usePlayerActions, formatDuration, RepeatMode } from '../../stores/musicStore';
-import { musicApi } from '../../api/client';
+import { usePerformanceSettings } from '../../stores/performanceStore';
 import { SpectrumAnalyzer } from './SpectrumAnalyzer';
+import { EqualizerModal } from './EqualizerModal';
 import { AnimatedLedDigits } from '../common';
 
 interface MusicPlayerProps {
@@ -42,28 +44,12 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
 
   // State for like button loading
   const [isLiking, setIsLiking] = useState(false);
-
-  // Progress bar click - updates store, AudioPlayer will handle the actual seek
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!progressRef.current) return;
-    
-    const rect = progressRef.current.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
-    const newTime = percent * player.duration;
-    
-    seek(newTime);
-  };
-
-  // Mobile progress bar click
-  const handleMobileProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!mobileProgressRef.current) return;
-    
-    const rect = mobileProgressRef.current.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
-    const newTime = percent * player.duration;
-    
-    seek(newTime);
-  };
+  
+  // State for equalizer modal
+  const [isEqualizerOpen, setIsEqualizerOpen] = useState(false);
+  
+  // Performance settings
+  const perfSettings = usePerformanceSettings();
 
   // Repeat mode cycle
   const cycleRepeatMode = () => {
@@ -92,17 +78,24 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
       ${compact ? 'p-2' : 'p-2 sm:p-4 pt-3 sm:pt-4'}
       w-full relative overflow-hidden
     `}>
-      {/* Spectrum Background - Blurred */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute inset-0 blur-2xl scale-[1.5]">
-          <SpectrumAnalyzer 
-            barCount={32} 
-            compact 
-            showReflection={false}
-            className="h-full w-full"
-          />
+      {/* Spectrum Background - Blurred (only if blur effects enabled) */}
+      {perfSettings.enableSpectrumAnalyzer && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {perfSettings.enableBlurEffects ? (
+            <div className="absolute inset-0 blur-2xl scale-[1.5]">
+              <SpectrumAnalyzer 
+                barCount={perfSettings.spectrumBarCount} 
+                compact 
+                showReflection={false}
+                className="h-full w-full"
+              />
+            </div>
+          ) : (
+            // Simple gradient fallback when blur is disabled
+            <div className="absolute inset-0 bg-gradient-to-t from-cyan-500/10 via-purple-500/5 to-transparent" />
+          )}
         </div>
-      </div>
+      )}
       
       {/* Audio element is now in AudioPlayer component (global) */}
 
@@ -140,42 +133,51 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
               </div>
             )}
           </div>
-
-          {/* Like Button */}
-          <button
-            onClick={async () => {
-              if (!player.currentSong || isLiking) return;
-              console.log('👆 MusicPlayer like button clicked for song:', player.currentSong.id, player.currentSong.title);
-              setIsLiking(true);
-              try {
-                await toggleSongLike(player.currentSong.id);
-              } catch (err) {
-                console.error('Failed to toggle like:', err);
-              } finally {
-                setIsLiking(false);
-              }
-            }}
-            disabled={isLiking || !player.currentSong}
-            className={`p-1.5 sm:p-2 transition-all flex-shrink-0 ${
-              isLiking
-                ? 'text-gray-400 cursor-wait'
-                : player.currentSong?.is_liked
-                  ? 'text-red-500 hover:text-red-400'
-                  : 'text-gray-400 hover:text-red-500'
-            }`}
-            title={player.currentSong?.is_liked ? 'Quitar de Me gusta' : 'Añadir a Me gusta'}
-          >
-            <Heart 
-              className={`w-4 h-4 sm:w-5 sm:h-5 ${isLiking ? 'animate-pulse' : ''}`}
-              fill={player.currentSong?.is_liked ? 'currentColor' : 'none'} 
-            />
-          </button>
         </div>
 
-        {/* Center Controls */}
+        {/* Center Controls with Like and EQ buttons */}
         <div className="flex flex-col items-center gap-1 sm:gap-2 flex-shrink-0">
           {/* Playback Controls */}
           <div className="flex items-center gap-0.5 sm:gap-2">
+            {/* Like Button */}
+            <button
+              onClick={async () => {
+                if (!player.currentSong || isLiking) return;
+                console.log('👆 MusicPlayer like button clicked for song:', player.currentSong.id, player.currentSong.title);
+                setIsLiking(true);
+                try {
+                  await toggleSongLike(player.currentSong.id);
+                } catch (err) {
+                  console.error('Failed to toggle like:', err);
+                } finally {
+                  setIsLiking(false);
+                }
+              }}
+              disabled={isLiking || !player.currentSong}
+              className={`p-1.5 sm:p-2 transition-all flex-shrink-0 hover:bg-gray-800 ${
+                isLiking
+                  ? 'text-gray-400 cursor-wait'
+                  : player.currentSong?.is_liked
+                    ? 'text-red-500 hover:text-red-400'
+                    : 'text-gray-400 hover:text-red-500'
+              }`}
+              title={player.currentSong?.is_liked ? 'Quitar de Me gusta' : 'Añadir a Me gusta'}
+            >
+              <Heart 
+                className={`w-4 h-4 sm:w-5 sm:h-5 ${isLiking ? 'animate-pulse' : ''}`}
+                fill={player.currentSong?.is_liked ? 'currentColor' : 'none'} 
+              />
+            </button>
+            
+            {/* Equalizer Button */}
+            <button
+              onClick={() => setIsEqualizerOpen(true)}
+              className="p-1.5 sm:p-2 text-gray-400 hover:text-cyan-400 hover:bg-gray-800 transition-all"
+              title="Ecualizador"
+            >
+              <SlidersHorizontal className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+            
             {/* Shuffle - hidden on mobile */}
             <button
               onClick={toggleShuffle}
@@ -354,6 +356,12 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ compact = false }) => 
           </div>
         </div>
       </div>
+      
+      {/* Equalizer Modal */}
+      <EqualizerModal 
+        isOpen={isEqualizerOpen} 
+        onClose={() => setIsEqualizerOpen(false)} 
+      />
     </div>
   );
 };

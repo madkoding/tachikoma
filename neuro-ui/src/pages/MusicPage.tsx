@@ -6,7 +6,6 @@ import {
   Shuffle, 
   Repeat, 
   Plus,
-  Activity,
   RefreshCw
 } from 'lucide-react';
 import TypewriterText from '../components/common/TypewriterText';
@@ -16,14 +15,11 @@ import { PlaylistDto } from '../api/client';
 import {
   MusicPlayer,
   SpectrumAnalyzer,
-  Equalizer,
   PlaylistList,
   SongList,
   CreatePlaylistModal,
   AddSongsModal,
 } from '../components/music';
-
-type TabType = 'songs' | 'equalizer';
 
 export default function MusicPage() {
   // Use optimized selectors
@@ -40,7 +36,6 @@ export default function MusicPage() {
   } = useMusicStore();
 
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('songs');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddSongsModal, setShowAddSongsModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -68,12 +63,10 @@ export default function MusicPage() {
 
   const handleSelectPlaylist = (playlist: PlaylistDto) => {
     setSelectedPlaylistId(playlist.id);
-    setActiveTab('songs');
   };
 
   const handlePlaylistCreated = (playlistId: string) => {
     setSelectedPlaylistId(playlistId);
-    setActiveTab('songs');
   };
 
   return (
@@ -189,26 +182,8 @@ export default function MusicPage() {
                   </button>
                 </div>
 
-                {/* Tabs */}
+                {/* Action buttons */}
                 <div className="flex flex-wrap gap-1 mt-3 sm:mt-6">
-                  {[
-                    { id: 'songs' as TabType, label: 'Canciones', icon: Music },
-                    { id: 'equalizer' as TabType, label: 'Ecualizador', icon: Activity },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all font-mono ${
-                        activeTab === tab.id
-                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50'
-                          : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                      }`}
-                    >
-                      <tab.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      <span className="hidden sm:inline">{tab.label}</span>
-                    </button>
-                  ))}
-                  
                   {/* Add Songs button or Refresh Suggestions button */}
                   {currentPlaylistDetail.is_suggestions ? (
                     <button
@@ -221,7 +196,7 @@ export default function MusicPage() {
                         }
                       }}
                       disabled={isRefreshingSuggestions}
-                      className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ml-auto bg-purple-500 text-white hover:bg-purple-400 font-mono disabled:opacity-50 disabled:cursor-wait"
+                      className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all bg-purple-500 text-white hover:bg-purple-400 font-mono disabled:opacity-50 disabled:cursor-wait"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isRefreshingSuggestions ? 'animate-spin' : ''}`} />
                       <span className="hidden sm:inline">{isRefreshingSuggestions ? 'Actualizando...' : 'Actualizar Sugerencias'}</span>
@@ -230,7 +205,7 @@ export default function MusicPage() {
                   ) : (
                     <button
                       onClick={() => setShowAddSongsModal(true)}
-                      className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ml-auto bg-cyan-500 text-black hover:bg-cyan-400 font-mono"
+                      className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all bg-cyan-500 text-black hover:bg-cyan-400 font-mono"
                     >
                       <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       <span className="hidden sm:inline">Agregar Canciones</span>
@@ -240,17 +215,9 @@ export default function MusicPage() {
                 </div>
               </header>
 
-              {/* Tab content */}
+              {/* Songs content */}
               <div className="flex-1 overflow-y-auto">
-                {activeTab === 'songs' && (
-                  <SongList playlist={currentPlaylistDetail} />
-                )}
-                
-                {activeTab === 'equalizer' && (
-                  <div className="p-2 sm:p-4">
-                    <Equalizer />
-                  </div>
-                )}
+                <SongList playlist={currentPlaylistDetail} />
               </div>
             </>
           ) : (
