@@ -64,7 +64,7 @@ lazy_static! {
 }
 
 /// Clean text for speech synthesis
-/// 
+///
 /// Removes:
 /// - Emojis
 /// - Code blocks (```...```)
@@ -72,15 +72,15 @@ lazy_static! {
 /// - URLs
 /// - Markdown formatting (bold, italic, headers, lists)
 /// - Extra whitespace
-/// 
+///
 /// # Arguments
 /// * `text` - Input text to clean
-/// 
+///
 /// # Returns
 /// Cleaned text suitable for TTS
 pub fn clean_text_for_speech(text: &str) -> String {
     use std::borrow::Cow;
-    
+
     // Usar Cow para evitar allocaciones cuando no hay cambios
     // Solo convierte a String owned cuando hay un reemplazo real
     let result: Cow<str> = CODE_BLOCK_PATTERN.replace_all(text, " código omitido ");
@@ -101,10 +101,10 @@ pub fn clean_text_for_speech(text: &str) -> String {
 }
 
 /// Split text into sentences for streaming synthesis
-/// 
+///
 /// # Arguments
 /// * `text` - Input text to split
-/// 
+///
 /// # Returns
 /// Vector of sentences
 pub fn split_into_sentences(text: &str) -> Vec<String> {
@@ -112,7 +112,7 @@ pub fn split_into_sentences(text: &str) -> Vec<String> {
     // Optimizado: usar una sola pasada con chars() en lugar de múltiples replace()
     let mut result = String::with_capacity(text.len() + text.len() / 20); // Pequeño overhead para marcadores
     let mut chars = text.chars().peekable();
-    
+
     while let Some(c) = chars.next() {
         result.push(c);
         // Si es puntuación final y el siguiente es espacio o newline, insertar marcador
@@ -125,7 +125,7 @@ pub fn split_into_sentences(text: &str) -> Vec<String> {
             }
         }
     }
-    
+
     let sentences: Vec<String> = result
         .split("|SPLIT|")
         .map(|s| s.trim())
@@ -144,7 +144,21 @@ pub fn split_into_sentences(text: &str) -> Vec<String> {
         let t = s.trim();
         matches!(
             t,
-            "Dr." | "Dra." | "Sr." | "Sra." | "Srta." | "Prof." | "Mr." | "Mrs." | "Ms." | "St." | "etc." | "e.g." | "i.e." | "p.ej." | "ej."
+            "Dr."
+                | "Dra."
+                | "Sr."
+                | "Sra."
+                | "Srta."
+                | "Prof."
+                | "Mr."
+                | "Mrs."
+                | "Ms."
+                | "St."
+                | "etc."
+                | "e.g."
+                | "i.e."
+                | "p.ej."
+                | "ej."
         )
     }
 
@@ -217,5 +231,102 @@ mod tests {
         let text = "Hello    world\n\ntest";
         let cleaned = clean_text_for_speech(text);
         assert_eq!(cleaned, "Hello world test");
+    }
+
+    #[test]
+    fn test_clean_emojis() {
+        let text = "Hello 👋 world 🌍!";
+        let cleaned = clean_text_for_speech(text);
+        assert!(!cleaned.contains("👋"));
+        assert!(!cleaned.contains("🌍"));
+        assert!(cleaned.contains("Hello"));
+        assert!(cleaned.contains("world"));
+    }
+
+    #[test]
+    fn test_clean_multiple_markdown_elements() {
+        let text = "# Header\n\nThis is **bold** and *italic* with `code`";
+        let cleaned = clean_text_for_speech(text);
+        assert!(!cleaned.contains("#"));
+        assert!(!cleaned.contains("**"));
+        assert!(!cleaned.contains("*"));
+        assert!(!cleaned.contains("`"));
+    }
+
+    #[test]
+    fn test_clean_lists() {
+        let text = "- Item 1\n- Item 2\n1. Numbered";
+        let cleaned = clean_text_for_speech(text);
+        assert!(!cleaned.contains("- Item"));
+        assert!(!cleaned.contains("1."));
+        assert!(cleaned.contains("Item 1"));
+        assert!(cleaned.contains("Item 2"));
+        assert!(cleaned.contains("Numbered"));
+    }
+
+    #[test]
+    fn test_clean_empty_input() {
+        let text = "";
+        let cleaned = clean_text_for_speech(text);
+        assert_eq!(cleaned, "");
+    }
+
+    #[test]
+    fn test_clean_only_whitespace() {
+        let text = "   \n\n   ";
+        let cleaned = clean_text_for_speech(text);
+        assert_eq!(cleaned, "");
+    }
+
+    #[test]
+    fn test_clean_complex_text() {
+        let text = "Hello 👋! Visit https://example.com for **info**.\n\n```code``` Done.";
+        let cleaned = clean_text_for_speech(text);
+        assert!(!cleaned.contains("👋"));
+        assert!(!cleaned.contains("https"));
+        assert!(!cleaned.contains("**"));
+        assert!(cleaned.contains("código omitido"));
+        assert!(cleaned.contains("Hello"));
+    }
+
+    #[test]
+    fn test_split_single_sentence() {
+        let text = "Hello world";
+        let sentences = split_into_sentences(text);
+        assert_eq!(sentences.len(), 1);
+        assert_eq!(sentences[0], "Hello world");
+    }
+
+    #[test]
+    fn test_split_with_abbreviations() {
+        let text = "Dr. Smith went to the store. He bought milk.";
+        let sentences = split_into_sentences(text);
+        // Should handle abbreviations properly
+        assert!(!sentences.is_empty());
+    }
+
+    #[test]
+    fn test_split_empty_input() {
+        let text = "";
+        let sentences = split_into_sentences(text);
+        assert_eq!(sentences.len(), 1);
+        assert_eq!(sentences[0], "");
+    }
+
+    #[test]
+    fn test_clean_preserves_numbers() {
+        let text = "I have 42 apples and 3.14 pies";
+        let cleaned = clean_text_for_speech(text);
+        assert!(cleaned.contains("42"));
+        assert!(cleaned.contains("3.14"));
+    }
+
+    #[test]
+    fn test_clean_nested_markdown() {
+        let text = "***bold and italic***";
+        let cleaned = clean_text_for_speech(text);
+        assert!(!cleaned.contains("***"));
+        assert!(cleaned.contains("bold"));
+        assert!(cleaned.contains("italic"));
     }
 }

@@ -34,9 +34,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=builder /app/target/release/neuro-docs /app/neuro-docs
+COPY --from=builder /app/target/release/tachikoma-docs /app/tachikoma-docs
 
 ENV PORT=3008
 EXPOSE 3008
 
-CMD ["/app/neuro-docs"]
+CMD ["/app/tachikoma-docs"]

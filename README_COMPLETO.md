@@ -1,6 +1,6 @@
-# 🧠 NEURO-OS - Sistema de IA con Memoria GraphRAG
+# 🧠 TACHIKOMA-OS - Sistema de IA con Memoria GraphRAG
 
-**NEURO-OS** es un ecosistema completo de inteligencia artificial que combina memoria a largo plazo basada en grafos (GraphRAG), agentes inteligentes con herramientas, y selección automática de modelos LLM según la complejidad de la tarea.
+**TACHIKOMA-OS** es un ecosistema completo de inteligencia artificial que combina memoria a largo plazo basada en grafos (GraphRAG), agentes inteligentes con herramientas, y selección automática de modelos LLM según la complejidad de la tarea.
 
 ## 📋 Tabla de Contenidos
 
@@ -16,7 +16,7 @@
 
 ## 🎯 Descripción General
 
-NEURO-OS implementa un patrón **GraphRAG (Graph Retrieval-Augmented Generation)** donde cada conversación y dato importante se almacena como un nodo en un grafo de conocimiento con embeddings vectoriales. Esto permite:
+TACHIKOMA-OS implementa un patrón **GraphRAG (Graph Retrieval-Augmented Generation)** donde cada conversación y dato importante se almacena como un nodo en un grafo de conocimiento con embeddings vectoriales. Esto permite:
 
 - **Memoria Semántica**: Búsqueda por significado, no solo por palabras clave
 - **Contexto Relacional**: Conectar información relacionada mediante 11 tipos de relaciones
@@ -144,7 +144,7 @@ NEURO-OS implementa un patrón **GraphRAG (Graph Retrieval-Augmented Generation)
 ## 🔧 Componentes Principales
 
 ### 1. Backend (Rust + Axum)
-**Ubicación**: `neuro-backend/`
+**Ubicación**: `tachikoma-backend/`
 
 El núcleo del sistema, implementado siguiendo arquitectura hexagonal (Ports & Adapters):
 
@@ -159,7 +159,7 @@ El núcleo del sistema, implementado siguiendo arquitectura hexagonal (Ports & A
 - `3000`: API HTTP
 
 ### 2. SurrealDB (Graph + Vector Database)
-**Contenedor**: `neuro-surrealdb`
+**Contenedor**: `tachikoma-surrealdb`
 
 Base de datos híbrida que combina:
 - **Grafo de relaciones**: Conexiones semánticas entre memorias
@@ -172,7 +172,7 @@ Base de datos híbrida que combina:
 - Almacenamiento persistente en `/data`
 
 ### 3. Ollama (LLM Local)
-**Contenedor**: `neuro-ollama`
+**Contenedor**: `tachikoma-ollama`
 
 Servidor de inferencia de modelos de lenguaje:
 
@@ -188,7 +188,7 @@ Servidor de inferencia de modelos de lenguaje:
 - GPU support: NVIDIA (opcional)
 
 ### 4. Voice Service (Rust + Piper TTS)
-**Ubicación**: `neuro-voice/`
+**Ubicación**: `tachikoma-voice/`
 
 Servicio de síntesis de voz de alta velocidad:
 
@@ -203,7 +203,7 @@ Servicio de síntesis de voz de alta velocidad:
 - `/synthesize/opus`: Streaming Opus
 
 ### 5. User UI (React + Vite)
-**Ubicación**: `neuro-ui/`
+**Ubicación**: `tachikoma-ui/`
 
 Interfaz de chat para usuarios finales:
 
@@ -217,7 +217,7 @@ Interfaz de chat para usuarios finales:
 **Puerto**: `5173`
 
 ### 6. Admin UI (React + Three.js)
-**Ubicación**: `neuro-admin/`
+**Ubicación**: `tachikoma-admin/`
 
 Panel de administración del grafo de memoria:
 
@@ -251,7 +251,7 @@ zbrain "¿Cuál es la capital de Francia?"
 ```
 
 ### 8. Searxng (Metabuscador)
-**Contenedor**: `neuro-searxng`
+**Contenedor**: `tachikoma-searxng`
 
 Motor de búsqueda privado para el agente:
 
@@ -643,15 +643,15 @@ cd kibo
 
 # En terminales separadas:
 # Terminal 1: Backend
-cd neuro-backend
+cd tachikoma-backend
 cargo watch -x run
 
 # Terminal 2: User UI
-cd neuro-ui
+cd tachikoma-ui
 npm run dev
 
 # Terminal 3: Admin UI
-cd neuro-admin
+cd tachikoma-admin
 npm run dev
 
 # Terminal 4: CLI
@@ -664,12 +664,12 @@ cargo run
 ```env
 # SurrealDB
 SURREAL_USER=root
-SURREAL_PASS=neuroos_secret_2024
+SURREAL_PASS=tachikomaos_secret_2024
 
 # Backend
 DATABASE_URL=ws://127.0.0.1:8000
 DATABASE_USER=root
-DATABASE_PASS=neuroos_secret_2024
+DATABASE_PASS=tachikomaos_secret_2024
 OLLAMA_URL=http://127.0.0.1:11434
 SEARXNG_URL=http://127.0.0.1:8080
 VOICE_SERVICE_URL=http://127.0.0.1:8100
@@ -829,7 +829,7 @@ MIT License - Ver `LICENSE` para detalles.
 
 ## 👨‍💻 Autor
 
-**madKoding** - Sistema NEURO-OS
+**madKoding** - Sistema TACHIKOMA-OS
 
 ---
 

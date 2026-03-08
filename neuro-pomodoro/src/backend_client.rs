@@ -7,7 +7,7 @@ use tracing::{debug, error};
 use crate::config::Config;
 use crate::models::*;
 
-/// Client for communicating with neuro-backend data layer
+/// Client for communicating with tachikoma-backend data layer
 pub struct BackendClient {
     client: Client,
     base_url: String,

@@ -1,9 +1,9 @@
-# 🖥️ Quick Start - NEURO-OS Desktop
+# 🖥️ Quick Start - TACHIKOMA-OS Desktop
 
 ## Desarrollo Local (Hot-Reload)
 
 ```bash
-cd neuro-ui
+cd tachikoma-ui
 npm run tauri:dev
 ```
 
@@ -13,7 +13,7 @@ Esto abrirá la aplicación de escritorio con recarga automática.
 
 ### Linux (actual sistema)
 ```bash
-cd neuro-ui
+cd tachikoma-ui
 npm run tauri:build
 ```
 
@@ -35,8 +35,8 @@ npm run tauri:build:mac
 
 ## 📖 Documentación Completa
 
-- [NEURO_DESKTOP_SETUP.md](NEURO_DESKTOP_SETUP.md) - Resumen completo
-- [neuro-ui/DESKTOP_BUILD.md](neuro-ui/DESKTOP_BUILD.md) - Guía detallada
+- [TACHIKOMA_DESKTOP_SETUP.md](TACHIKOMA_DESKTOP_SETUP.md) - Resumen completo
+- [tachikoma-ui/DESKTOP_BUILD.md](tachikoma-ui/DESKTOP_BUILD.md) - Guía detallada
 
 ## ⚠️ Importante
 

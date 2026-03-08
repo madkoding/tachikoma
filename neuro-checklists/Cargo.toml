@@ -1,9 +1,9 @@
 [package]
-name = "neuro-checklists"
+name = "tachikoma-checklists"
 version = "0.1.0"
 edition = "2021"
-description = "Checklist microservice for Neuro-OS"
-authors = ["Neuro-OS Team"]
+description = "Checklist microservice for Tachikoma-OS"
+authors = ["Tachikoma-OS Team"]
 
 [dependencies]
 # Web framework

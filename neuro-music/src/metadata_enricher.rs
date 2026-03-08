@@ -42,7 +42,7 @@ pub struct MetadataEnricher {
 impl MetadataEnricher {
     pub fn new(config: &Config) -> Self {
         let client = Client::builder()
-            .user_agent("NeuroOS-Music/1.0 (https://github.com/neuro-os)")
+            .user_agent("TachikomaOS-Music/1.0 (https://github.com/tachikoma-os)")
             .build()
             .unwrap_or_default();
 

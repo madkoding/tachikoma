@@ -1,8 +1,8 @@
 //! =============================================================================
-//! Neuro-Music Microservice
+//! Tachikoma-Music Microservice
 //! =============================================================================
 //! Music streaming service with YouTube integration, equalizer, and playlists.
-//! Uses neuro-backend as data layer via HTTP client.
+//! Uses tachikoma-backend as data layer via HTTP client.
 //! =============================================================================
 
 mod audio_dsp;
@@ -43,13 +43,13 @@ pub struct AppState {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Debug: print to stderr immediately
-    eprintln!("🎵 neuro-music starting...");
+    eprintln!("🎵 tachikoma-music starting...");
     
     // Initialize tracing
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "neuro_music=info,tower_http=debug".into()),
+                .unwrap_or_else(|_| "tachikoma_music=info,tower_http=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::from_env();
     eprintln!("📦 Config loaded: port={}", config.port);
     
-    info!("🎵 Neuro-Music Microservice");
+    info!("🎵 Tachikoma-Music Microservice");
     info!("============================");
     info!("Port: {}", config.port);
     info!("Backend URL: {}", config.backend_url);

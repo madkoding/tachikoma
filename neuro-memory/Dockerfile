@@ -1,5 +1,5 @@
 # =============================================================================
-# Dockerfile for neuro-memory (Production)
+# Dockerfile for tachikoma-memory (Production)
 # =============================================================================
 
 # Stage 1: Chef planner
@@ -28,6 +28,6 @@ RUN cargo build --release
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=builder /app/target/release/neuro-memory /app/neuro-memory
+COPY --from=builder /app/target/release/tachikoma-memory /app/tachikoma-memory
 EXPOSE 3004
-CMD ["/app/neuro-memory"]
+CMD ["/app/tachikoma-memory"]

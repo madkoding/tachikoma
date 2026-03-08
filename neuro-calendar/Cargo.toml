@@ -1,5 +1,5 @@
 [package]
-name = "neuro-calendar"
+name = "tachikoma-calendar"
 version = "0.1.0"
 edition = "2021"
 

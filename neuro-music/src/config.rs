@@ -1,4 +1,4 @@
-//! Configuration module for neuro-music
+//! Configuration module for tachikoma-music
 
 use std::env;
 

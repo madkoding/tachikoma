@@ -54,4 +54,4 @@ ENV DEFAULT_VOICE=es_MX-claude-high
 
 EXPOSE 8100
 
-CMD ["./target/debug/neuro-voice"]
+CMD ["./target/debug/tachikoma-voice"]

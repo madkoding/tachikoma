@@ -1,54 +1,54 @@
-# NEURO-OS Copilot Instructions
+# TACHIKOMA-OS Copilot Instructions
 
 ## Arquitectura del Proyecto
 
-NEURO-OS es un ecosistema de IA modular que consiste en:
+TACHIKOMA-OS es un ecosistema de IA modular que consiste en:
 
 ## ⚠️ CONVENCIÓN DE NOMBRES ESTANDARIZADA
 
-**Todos los nombres deben seguir el patrón `neuro-{servicio}`** para mantener consistencia:
+**Todos los nombres deben seguir el patrón `tachikoma-{servicio}`** para mantener consistencia:
 
 | Elemento | Patrón | Ejemplo |
 |----------|--------|---------|
-| Carpeta | `neuro-{servicio}` | `neuro-voice/` |
-| Cargo.toml `name` | `neuro-{servicio}` | `name = "neuro-voice"` |
-| Servicio docker-compose | `neuro-{servicio}` | `neuro-voice:` |
-| `container_name` | `neuro-{servicio}` | `container_name: neuro-voice` |
+| Carpeta | `tachikoma-{servicio}` | `tachikoma-voice/` |
+| Cargo.toml `name` | `tachikoma-{servicio}` | `name = "tachikoma-voice"` |
+| Servicio docker-compose | `tachikoma-{servicio}` | `tachikoma-voice:` |
+| `container_name` | `tachikoma-{servicio}` | `container_name: tachikoma-voice` |
 | Variables de entorno | `{SERVICIO}_SERVICE_URL` | `VOICE_SERVICE_URL` |
 
 **Ejemplo correcto de servicio en docker-compose.yml:**
 ```yaml
-neuro-voice:                    # ✅ Nombre del servicio = neuro-voice
+tachikoma-voice:                    # ✅ Nombre del servicio = tachikoma-voice
   build:
-    context: ./neuro-voice      # ✅ Carpeta = neuro-voice
+    context: ./tachikoma-voice      # ✅ Carpeta = tachikoma-voice
     dockerfile: Dockerfile
-  container_name: neuro-voice   # ✅ container_name = neuro-voice
+  container_name: tachikoma-voice   # ✅ container_name = tachikoma-voice
 ```
 
 ### Servicios Core
-- **neuro-backend**: API Gateway central + LLM Gateway en Rust/Axum (puerto 3000)
-- **neuro-ui**: Interfaz de usuario en React/Vite (puerto 5173)
-- **neuro-admin**: Panel de administración en React/Vite (puerto 5174)
+- **tachikoma-backend**: API Gateway central + LLM Gateway en Rust/Axum (puerto 3000)
+- **tachikoma-ui**: Interfaz de usuario en React/Vite (puerto 5173)
+- **tachikoma-admin**: Panel de administración en React/Vite (puerto 5174)
 
 ### Microservicios Existentes
 | Servicio | Puerto | Descripción |
 |----------|--------|-------------|
-| neuro-voice | 8100 | Síntesis de voz con Piper TTS |
-| neuro-checklists | 3001 | Gestión de checklists |
-| neuro-music | 3002 | Streaming de música YouTube |
-| neuro-chat | 3003 | Conversaciones con LLM (via backend) |
-| neuro-memory | 3004 | Memoria semántica GraphRAG (embeddings via backend) |
-| neuro-agent | 3005 | Herramientas de agente IA |
+| tachikoma-voice | 8100 | Síntesis de voz con Piper TTS |
+| tachikoma-checklists | 3001 | Gestión de checklists |
+| tachikoma-music | 3002 | Streaming de música YouTube |
+| tachikoma-chat | 3003 | Conversaciones con LLM (via backend) |
+| tachikoma-memory | 3004 | Memoria semántica GraphRAG (embeddings via backend) |
+| tachikoma-agent | 3005 | Herramientas de agente IA |
 
 ### Microservicios Planeados
 | Servicio | Puerto | Descripción |
 |----------|--------|-------------|
-| neuro-kanban | 3006 | Tableros Kanban |
-| neuro-note | 3007 | Notas + transcripción de voz con IA |
-| neuro-docs | 3008 | Documentos con IA (DOCX, XLSX, PPTX, embeddings via backend) |
-| neuro-calendar | 3009 | Calendario + recordatorios |
-| neuro-pomodoro | 3010 | Timer Pomodoro |
-| neuro-image | 3011 | Galería de imágenes generadas por IA (via backend) |
+| tachikoma-kanban | 3006 | Tableros Kanban |
+| tachikoma-note | 3007 | Notas + transcripción de voz con IA |
+| tachikoma-docs | 3008 | Documentos con IA (DOCX, XLSX, PPTX, embeddings via backend) |
+| tachikoma-calendar | 3009 | Calendario + recordatorios |
+| tachikoma-pomodoro | 3010 | Timer Pomodoro |
+| tachikoma-image | 3011 | Galería de imágenes generadas por IA (via backend) |
 
 ### Servicios de Infraestructura (Docker)
 | Servicio | Puerto | Descripción |
@@ -56,14 +56,14 @@ neuro-voice:                    # ✅ Nombre del servicio = neuro-voice
 | SurrealDB | 8000 | Base de datos Graph + Vector |
 | Searxng | 8080 | Motor de búsqueda privado |
 
-### Servicios Externos (neuro-ollama)
+### Servicios Externos (tachikoma-ollama)
 | Servicio | Puerto | Descripción |
 |----------|--------|-------------|
 | Ollama | 11434 | Inferencia LLM local (proyecto independiente) |
 
 ## ⚠️ IMPORTANTE: LLM Gateway Pattern
 
-**Todas las operaciones LLM deben pasar por neuro-backend.** Los microservicios NO deben conectarse directamente a Ollama.
+**Todas las operaciones LLM deben pasar por tachikoma-backend.** Los microservicios NO deben conectarse directamente a Ollama.
 
 ### Endpoints LLM en backend (`/api/llm/*`)
 | Endpoint | Método | Descripción |
@@ -87,7 +87,7 @@ neuro-voice:                    # ✅ Nombre del servicio = neuro-voice
 ### Ejemplo: Microservicio usando backend como LLM gateway
 
 ```rust
-// En el microservicio (ej: neuro-chat)
+// En el microservicio (ej: tachikoma-chat)
 pub struct BackendLlmClient {
     client: reqwest::Client,
     base_url: String,  // BACKEND_URL, no OLLAMA_URL
@@ -135,7 +135,7 @@ let target_url = format!("{}/api{}{}", service_url, path, query);
 
 1. **Crear estructura del microservicio:**
    ```
-   neuro-newservice/
+   tachikoma-newservice/
    ├── Cargo.toml
    ├── Dockerfile
    ├── Dockerfile.dev
@@ -193,10 +193,10 @@ let target_url = format!("{}/api{}{}", service_url, path, query);
 
 ```bash
 # Ver fecha del binario
-ls -la neuro-backend/target/debug/neuro-backend
+ls -la tachikoma-backend/target/debug/tachikoma-backend
 
 # Ver proceso y hora de inicio
-ps aux | grep neuro-backend
+ps aux | grep tachikoma-backend
 
 # Verificar build info via health endpoint
 curl http://localhost:3000/api/health | jq '.build_info'
@@ -213,7 +213,7 @@ Esto ayuda a identificar si el binario en ejecución corresponde al código actu
 
 ```bash
 # Limpiar fingerprint y recompilar
-rm -rf target/debug/.fingerprint/neuro-backend*
+rm -rf target/debug/.fingerprint/tachikoma-backend*
 cargo build
 
 # O usar la tarea de VS Code
@@ -223,9 +223,9 @@ cargo build
 ## Estructura de Tareas de VS Code
 
 - **🐳 Docker Services**: Levanta SurrealDB, Ollama, Searxng, Voice, Music
-- **🦀 Backend (Rust)**: Ejecuta neuro-backend con cargo watch
-- **⚛️ User UI (Vite)**: Inicia neuro-ui
-- **🔧 Admin UI (Vite)**: Inicia neuro-admin
+- **🦀 Backend (Rust)**: Ejecuta tachikoma-backend con cargo watch
+- **⚛️ User UI (Vite)**: Inicia tachikoma-ui
+- **🔧 Admin UI (Vite)**: Inicia tachikoma-admin
 - **🔨 Rebuild Backend (Clean)**: Limpia cache y recompila desde cero
 - **🎵 Rebuild Music Service**: Reconstruye el contenedor de música
 
@@ -235,7 +235,7 @@ cargo build
 ```bash
 # ❌ INCORRECTO - Esto interfiere con los tasks de VS Code
 cargo run
-./target/debug/neuro-backend
+./target/debug/tachikoma-backend
 cargo watch -x run
 ```
 
@@ -306,7 +306,7 @@ const response = await fetch('/api/music/playlists');
 
 ## Variables de Entorno Requeridas
 
-### neuro-backend:
+### tachikoma-backend:
 - `DATABASE_URL`: WebSocket URL de SurrealDB
 - `DATABASE_USER`: Usuario de SurrealDB
 - `DATABASE_PASS`: Contraseña de SurrealDB
@@ -382,14 +382,14 @@ El proyecto usa **SurrealDB v1.5.6** tanto en el servidor como en los clientes R
 |------------|---------|-------|
 | SurrealDB Server (Docker) | `surrealdb/surrealdb:v1.5.6` | En docker-compose.yml |
 | Cliente Rust | `surrealdb = "1.5"` | En Cargo.toml |
-| Storage Engine | `file:/data/neuro.db` | NO usar `surrealkv` |
+| Storage Engine | `file:/data/tachikoma.db` | NO usar `surrealkv` |
 
 ### Configuración en docker-compose.yml:
 
 ```yaml
 surrealdb:
   image: surrealdb/surrealdb:v1.5.6  # ⚠️ Fijar versión, NO usar :latest
-  command: start --user root --pass secret --log info file:/data/neuro.db
+  command: start --user root --pass secret --log info file:/data/tachikoma.db
 ```
 
 ### Configuración en Cargo.toml:

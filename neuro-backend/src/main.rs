@@ -1,7 +1,7 @@
 //! =============================================================================
-//! NEURO-OS Backend - Main Entry Point
+//! TACHIKOMA-OS Backend - Main Entry Point
 //! =============================================================================
-//! This is the main entry point for the NEURO-OS backend server.
+//! This is the main entry point for the TACHIKOMA-OS backend server.
 //! It initializes all infrastructure components and starts the Axum HTTP server.
 //! 
 //! # Architecture
@@ -169,7 +169,7 @@ pub struct AppState {
 /// =============================================================================
 /// Main Entry Point
 /// =============================================================================
-/// Initializes the NEURO-OS backend server with all required services.
+/// Initializes the TACHIKOMA-OS backend server with all required services.
 /// 
 /// # Initialization Order
 /// 1. Load configuration from environment
@@ -204,7 +204,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "warn,neuro_backend=info".into()),
+                .unwrap_or_else(|_| "warn,tachikoma_backend=info".into()),
         )
         .with_target(false)
         .with_thread_ids(false)
@@ -217,7 +217,7 @@ async fn main() -> Result<()> {
     // Pretty startup banner
     // -------------------------------------------------------------------------
     println!("\n{CYAN}{BOLD}╔═══════════════════════════════════════════════════════════╗{RESET}");
-    println!("{CYAN}{BOLD}║{RESET}            {MAGENTA}🧠 NEURO-OS Backend v0.1.0{RESET}                   {CYAN}{BOLD}║{RESET}");
+    println!("{CYAN}{BOLD}║{RESET}            {MAGENTA}🧠 TACHIKOMA-OS Backend v0.1.0{RESET}                   {CYAN}{BOLD}║{RESET}");
     println!("{CYAN}{BOLD}╚═══════════════════════════════════════════════════════════╝{RESET}\n");
 
     const TOTAL_STEPS: u8 = 8;
@@ -354,7 +354,7 @@ async fn main() -> Result<()> {
     let bind_addr = format!("{}:{}", config.server.host, config.server.port);
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
     
-    println!("\n{GREEN}{BOLD}✓ NEURO-OS Backend ready!{RESET}");
+    println!("\n{GREEN}{BOLD}✓ TACHIKOMA-OS Backend ready!{RESET}");
     println!("{DIM}─────────────────────────────────────────────────────────{RESET}");
     println!("  {CYAN}▸{RESET} Server:   {YELLOW}http://{bind_addr}{RESET}");
     println!("  {CYAN}▸{RESET} Health:   {DIM}GET  /api/health{RESET}");

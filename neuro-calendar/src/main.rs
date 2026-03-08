@@ -23,7 +23,7 @@ async fn main() {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "neuro_calendar=debug,info".into()),
+                .unwrap_or_else(|_| "tachikoma_calendar=debug,info".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -42,7 +42,7 @@ async fn main() {
         .await
         .unwrap();
 
-    info!("🗓️ Neuro Calendar Service running on port {}", port);
+    info!("🗓️ Tachikoma Calendar Service running on port {}", port);
     info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     info!("  ▸ Events:    GET/POST /api/calendar/events");
     info!("  ▸ Reminders: GET/POST /api/calendar/reminders");

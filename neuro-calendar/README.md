@@ -1,6 +1,6 @@
-# Neuro Calendar Service
+# Tachikoma Calendar Service
 
-Microservicio de calendario con eventos y recordatorios para NEURO-OS.
+Microservicio de calendario con eventos y recordatorios para TACHIKOMA-OS.
 
 ## Puerto
 
@@ -99,11 +99,11 @@ cargo build --release
 
 ```bash
 # Build de desarrollo (rápido)
-docker build -f Dockerfile.dev -t neuro-calendar:dev .
+docker build -f Dockerfile.dev -t tachikoma-calendar:dev .
 
 # Build de producción
-docker build -t neuro-calendar .
+docker build -t tachikoma-calendar .
 
 # Ejecutar
-docker run -p 3009:3009 neuro-calendar
+docker run -p 3009:3009 tachikoma-calendar
 ```

@@ -1,6 +1,6 @@
-# NEURO-OS 🧠
+# TACHIKOMA-OS 🧠
 
-**NEURO-OS** is a modular AI ecosystem that combines a memory graph (GraphRAG), intelligent agents with tool capabilities, and automatic model selection based on available VRAM.
+**TACHIKOMA-OS** is a modular AI ecosystem that combines a memory graph (GraphRAG), intelligent agents with tool capabilities, and automatic model selection based on available VRAM.
 
 Available as:
 - 🌐 **Web Application** (React/Vite)
@@ -10,7 +10,7 @@ Available as:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                           NEURO-OS                                   │
+│                           TACHIKOMA-OS                                   │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                  │
@@ -53,34 +53,34 @@ Available as:
 
 | Service | Port | Description |
 |---------|------|-------------|
-| neuro-backend | 3000 | Central API Gateway + LLM Gateway |
-| neuro-checklists | 3001 | Checklist management |
-| neuro-music | 3002 | YouTube music streaming |
-| neuro-chat | 3003 | LLM conversations |
-| neuro-memory | 3004 | GraphRAG semantic memory |
-| neuro-agent | 3005 | AI agent tools |
-| neuro-voice | 8100 | Piper TTS synthesis |
+| tachikoma-backend | 3000 | Central API Gateway + LLM Gateway |
+| tachikoma-checklists | 3001 | Checklist management |
+| tachikoma-music | 3002 | YouTube music streaming |
+| tachikoma-chat | 3003 | LLM conversations |
+| tachikoma-memory | 3004 | GraphRAG semantic memory |
+| tachikoma-agent | 3005 | AI agent tools |
+| tachikoma-voice | 8100 | Piper TTS synthesis |
 
-### External Services (neuro-ollama)
+### External Services (tachikoma-ollama)
 
-Ollama runs independently in the [neuro-ollama](https://github.com/madkoding/neuro-ollama) project:
+Ollama runs independently in the [tachikoma-ollama](https://github.com/madkoding/tachikoma-ollama) project:
 
 | Service | Port | Description |
 |---------|------|-------------|
 | Ollama | 11434 | LLM inference server |
 
-**Important**: All LLM operations (chat, embeddings, speculative decoding) go through neuro-backend's `/api/llm/*` endpoints. Microservices should NOT connect directly to Ollama.
+**Important**: All LLM operations (chat, embeddings, speculative decoding) go through tachikoma-backend's `/api/llm/*` endpoints. Microservices should NOT connect directly to Ollama.
 
 ### Planned Microservices
 
 | Service | Port | Description |
 |---------|------|-------------|
-| neuro-kanban | 3006 | Kanban boards |
-| neuro-note | 3007 | Notes + voice transcription |
-| neuro-docs | 3008 | AI document generation (DOCX, XLSX, PPTX) |
-| neuro-calendar | 3009 | Calendar + reminders |
-| neuro-pomodoro | 3010 | Pomodoro timer |
-| neuro-image | 3011 | AI image gallery |
+| tachikoma-kanban | 3006 | Kanban boards |
+| tachikoma-note | 3007 | Notes + voice transcription |
+| tachikoma-docs | 3008 | AI document generation (DOCX, XLSX, PPTX) |
+| tachikoma-calendar | 3009 | Calendar + reminders |
+| tachikoma-pomodoro | 3010 | Pomodoro timer |
+| tachikoma-image | 3011 | AI image gallery |
 
 ## Features
 
@@ -113,7 +113,7 @@ Ollama runs independently in the [neuro-ollama](https://github.com/madkoding/neu
   - i18n support (English/Spanish)
   - Conversation history with grouping
   - Typing indicators and markdown rendering
-  - **Desktop build**: See [NEURO_DESKTOP_SETUP.md](NEURO_DESKTOP_SETUP.md)
+  - **Desktop build**: See [TACHIKOMA_DESKTOP_SETUP.md](TACHIKOMA_DESKTOP_SETUP.md)
 
 - **Admin UI**: Memory graph management dashboard
   - Force-directed graph visualization (react-force-graph)
@@ -137,19 +137,19 @@ kibo/
 ├── config/
 │   └── searxng/
 │       └── settings.yml        # Searxng configuration
-├── neuro-backend/              # API Gateway (Rust/Axum)
+├── tachikoma-backend/              # API Gateway (Rust/Axum)
 │   └── src/
 │       ├── domain/             # Entities, Value Objects
 │       ├── application/        # Business logic
 │       └── infrastructure/     # API, DB, Adapters
-├── neuro-checklists/           # Checklist microservice
-├── neuro-music/                # Music streaming microservice
-├── neuro-chat/                 # LLM chat microservice
-├── neuro-memory/               # GraphRAG memory microservice
-├── neuro-agent/                # Agent tools microservice
-├── neuro-voice/                # TTS microservice
-├── neuro-ui/                   # User interface (React)
-├── neuro-admin/                # Admin dashboard (React)
+├── tachikoma-checklists/           # Checklist microservice
+├── tachikoma-music/                # Music streaming microservice
+├── tachikoma-chat/                 # LLM chat microservice
+├── tachikoma-memory/               # GraphRAG memory microservice
+├── tachikoma-agent/                # Agent tools microservice
+├── tachikoma-voice/                # TTS microservice
+├── tachikoma-ui/                   # User interface (React)
+├── tachikoma-admin/                # Admin dashboard (React)
 └── zbrain/                     # CLI shell
 ```
 
@@ -171,12 +171,12 @@ cp .env.example .env
 
 ### 2. Start Ollama (External)
 
-First, clone and start neuro-ollama in a separate directory:
+First, clone and start tachikoma-ollama in a separate directory:
 
 ```bash
 # In a separate project directory (not in kibo)
-git clone https://github.com/madkoding/neuro-ollama.git
-cd neuro-ollama
+git clone https://github.com/madkoding/tachikoma-ollama.git
+cd tachikoma-ollama
 ./setup.sh  # Downloads models and starts Ollama
 ```
 
@@ -190,7 +190,7 @@ docker-compose up -d surrealdb searxng
 ### 4. Run Backend
 
 ```bash
-cd neuro-backend
+cd tachikoma-backend
 cargo run --release
 ```
 
@@ -198,26 +198,26 @@ cargo run --release
 
 **Web version:**
 ```bash
-cd neuro-ui
+cd tachikoma-ui
 npm install
 npm run dev
 ```
 
 **Desktop version:**
 ```bash
-cd neuro-ui
+cd tachikoma-ui
 npm install
 npm run tauri:dev  # Development with hot-reload
 # Or for production build:
 npm run tauri:build  # Generates native executable
 ```
 
-See [NEURO_DESKTOP_SETUP.md](NEURO_DESKTOP_SETUP.md) for complete desktop build guide.
+See [TACHIKOMA_DESKTOP_SETUP.md](TACHIKOMA_DESKTOP_SETUP.md) for complete desktop build guide.
 
 ### 6. Run Admin Interface (Optional)
 
 ```bash
-cd neuro-admin
+cd tachikoma-admin
 npm install
 npm run dev
 ```
@@ -259,7 +259,7 @@ cargo build --release
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `NEURO_API_PORT` | Backend port | 3000 |
+| `TACHIKOMA_API_PORT` | Backend port | 3000 |
 | `SURREALDB_URL` | SurrealDB connection | ws://localhost:8000 |
 | `SURREALDB_USER` | Database user | root |
 | `SURREALDB_PASS` | Database password | root |
@@ -274,20 +274,20 @@ cargo build --release
 
 ### Backend Development
 ```bash
-cd neuro-backend
+cd tachikoma-backend
 cargo watch -x run  # Auto-reload on changes
 ```
 
 ### Frontend Development
 ```bash
-cd neuro-ui
+cd tachikoma-ui
 npm run dev  # Vite dev server with HMR
 ```
 
 ### Running Tests
 ```bash
 # Backend tests
-cd neuro-backend
+cd tachikoma-backend
 cargo test
 
 # Z-Brain tests

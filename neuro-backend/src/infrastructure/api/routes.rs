@@ -5,18 +5,43 @@
 //! =============================================================================
 
 use axum::{
+    http::header,
     middleware,
     routing::{any, delete, get, patch, post, put},
     Router,
-    http::header,
 };
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::infrastructure::api::handlers;
 use crate::infrastructure::api::middleware::{logging_middleware, request_id_middleware};
 use crate::AppState;
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "TACHIKOMA-OS Backend API",
+        description = "Central orchestrator API for the TACHIKOMA-OS AI ecosystem. Provides LLM gateway, GraphRAG memory, chat, agent tools, and data layer for microservices.",
+        version = "0.1.0",
+        contact(
+            name = "TACHIKOMA-OS Team",
+        ),
+    ),
+    tags(
+        (name = "Health", description = "Health check endpoints"),
+        (name = "Chat", description = "LLM chat and conversation management"),
+        (name = "Voice", description = "Voice synthesis (TTS)"),
+        (name = "Memory", description = "GraphRAG memory management"),
+        (name = "Graph", description = "Graph administration"),
+        (name = "Agent", description = "Agent tools (web search, command execution)"),
+        (name = "LLM Gateway", description = "LLM inference gateway to Ollama"),
+        (name = "Data Layer", description = "Direct database access for microservices"),
+    ),
+)]
+pub struct ApiDoc;
 
 /// =============================================================================
 /// Create the API router
@@ -44,19 +69,19 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/live", get(handlers::liveness_check))
         .route("/models", get(handlers::list_models))
         .route("/system/info", get(handlers::system_info))
-        
         // Chat
         .route("/chat", post(handlers::send_message))
         .route("/chat/stream", post(handlers::stream_message))
         .route("/chat/conversations", get(handlers::list_conversations))
         .route("/chat/conversations/:id", get(handlers::get_conversation))
-        .route("/chat/conversations/:id", delete(handlers::delete_conversation))
-        
+        .route(
+            "/chat/conversations/:id",
+            delete(handlers::delete_conversation),
+        )
         // Voice Synthesis
         .route("/voice/status", get(handlers::voice_status))
         .route("/voice/synthesize", post(handlers::synthesize_voice))
         .route("/voice/stream", post(handlers::stream_voice))
-        
         // Memories
         .route("/memories", get(handlers::list_memories))
         .route("/memories", post(handlers::create_memory))
@@ -64,26 +89,32 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/memories/:id", get(handlers::get_memory))
         .route("/memories/:id", patch(handlers::update_memory))
         .route("/memories/:id", delete(handlers::delete_memory))
-        .route("/memories/:id/relations", get(handlers::get_memory_relations))
+        .route(
+            "/memories/:id/relations",
+            get(handlers::get_memory_relations),
+        )
         .route("/memories/:id/related", get(handlers::get_related_memories))
         .route("/memories/relations", post(handlers::create_relation))
-        .route("/memories/:from_id/relations/:to_id", delete(handlers::delete_relation))
-        
+        .route(
+            "/memories/:from_id/relations/:to_id",
+            delete(handlers::delete_relation),
+        )
         // Graph Admin
         .route("/admin/graph/stats", get(handlers::get_graph_stats))
         .route("/admin/graph/export", get(handlers::export_graph))
         .route("/admin/graph/events", get(handlers::subscribe_graph_events))
-        
         // Agent Tools
         .route("/agent/search", post(handlers::web_search))
-        .route("/agent/search/categories", get(handlers::get_search_categories))
+        .route(
+            "/agent/search/categories",
+            get(handlers::get_search_categories),
+        )
         .route("/agent/execute", post(handlers::execute_command))
         .route("/agent/commands", get(handlers::get_allowed_commands))
-        
         // =====================================================================
         // LLM Gateway - ONLY interface to Ollama
         // =====================================================================
-        // All microservices (neuro-chat, neuro-memory, etc.) must use these
+        // All microservices (tachikoma-chat, tachikoma-memory, etc.) must use these
         // endpoints instead of connecting directly to Ollama.
         // =====================================================================
         .route("/llm/health", get(handlers::llm_health))
@@ -91,9 +122,11 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/llm/embed/batch", post(handlers::llm_embed_batch))
         .route("/llm/chat", post(handlers::llm_chat))
         .route("/llm/chat/stream", post(handlers::llm_chat_stream))
-        .route("/llm/chat/speculative/stream", post(handlers::llm_speculative_stream))
+        .route(
+            "/llm/chat/speculative/stream",
+            post(handlers::llm_speculative_stream),
+        )
         .route("/llm/generate", post(handlers::llm_generate))
-        
         // =====================================================================
         // Data Layer - Direct Database Access for Microservices
         // =====================================================================
@@ -103,38 +136,70 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/data/checklists/:id", get(handlers::get_checklist))
         .route("/data/checklists/:id", patch(handlers::update_checklist))
         .route("/data/checklists/:id", delete(handlers::delete_checklist))
-        .route("/data/checklists/:id/items", get(handlers::list_checklist_items))
-        .route("/data/checklists/:id/items", post(handlers::create_checklist_item))
-        .route("/data/checklists/items/:id", patch(handlers::update_checklist_item))
-        .route("/data/checklists/items/:id/toggle", post(handlers::toggle_checklist_item))
-        .route("/data/checklists/items/:id", delete(handlers::delete_checklist_item))
-        
+        .route(
+            "/data/checklists/:id/items",
+            get(handlers::list_checklist_items),
+        )
+        .route(
+            "/data/checklists/:id/items",
+            post(handlers::create_checklist_item),
+        )
+        .route(
+            "/data/checklists/items/:id",
+            patch(handlers::update_checklist_item),
+        )
+        .route(
+            "/data/checklists/items/:id/toggle",
+            post(handlers::toggle_checklist_item),
+        )
+        .route(
+            "/data/checklists/items/:id",
+            delete(handlers::delete_checklist_item),
+        )
         // Music data layer - Playlists
         .route("/data/playlists", get(handlers::list_playlists))
         .route("/data/playlists", post(handlers::create_playlist))
         .route("/data/playlists/:id", get(handlers::get_playlist))
         .route("/data/playlists/:id", patch(handlers::update_playlist))
         .route("/data/playlists/:id", delete(handlers::delete_playlist))
-        .route("/data/playlists/:id/songs", get(handlers::list_playlist_songs))
+        .route(
+            "/data/playlists/:id/songs",
+            get(handlers::list_playlist_songs),
+        )
         .route("/data/playlists/:id/songs", post(handlers::create_song))
         .route("/data/playlists/:id/reorder", post(handlers::reorder_songs))
-        .route("/data/playlists/:id/suggestions-timestamp", post(handlers::update_suggestions_timestamp))
-        
+        .route(
+            "/data/playlists/:id/suggestions-timestamp",
+            post(handlers::update_suggestions_timestamp),
+        )
         // Music data layer - Songs
         .route("/data/songs/liked", get(handlers::get_liked_songs))
-        .route("/data/songs/by-youtube-id", get(handlers::get_song_by_youtube_id))
+        .route(
+            "/data/songs/by-youtube-id",
+            get(handlers::get_song_by_youtube_id),
+        )
         .route("/data/songs/:id", get(handlers::get_song))
         .route("/data/songs/:id", patch(handlers::update_song))
         .route("/data/songs/:id", delete(handlers::delete_song))
-        .route("/data/songs/:id/play", post(handlers::increment_song_play_count))
-        
+        .route(
+            "/data/songs/:id/play",
+            post(handlers::increment_song_play_count),
+        )
         // Music data layer - History & Stats
         .route("/data/music/history", get(handlers::get_listening_history))
         .route("/data/music/history", post(handlers::add_listening_entry))
-        .route("/data/music/top-songs", get(handlers::get_most_played_songs))
-        .route("/data/music/equalizer", get(handlers::get_equalizer_settings))
-        .route("/data/music/equalizer", put(handlers::save_equalizer_settings))
-        
+        .route(
+            "/data/music/top-songs",
+            get(handlers::get_most_played_songs),
+        )
+        .route(
+            "/data/music/equalizer",
+            get(handlers::get_equalizer_settings),
+        )
+        .route(
+            "/data/music/equalizer",
+            put(handlers::save_equalizer_settings),
+        )
         // Kanban data layer - Boards
         .route("/data/kanban/boards", get(handlers::list_boards))
         .route("/data/kanban/boards", post(handlers::create_board))
@@ -142,16 +207,33 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/data/kanban/boards/:id", patch(handlers::update_board))
         .route("/data/kanban/boards/:id", delete(handlers::delete_board))
         // Kanban data layer - Columns
-        .route("/data/kanban/boards/:board_id/columns", post(handlers::create_column))
-        .route("/data/kanban/columns/:column_id", patch(handlers::update_column))
-        .route("/data/kanban/columns/:column_id/reorder", post(handlers::reorder_column))
-        .route("/data/kanban/columns/:column_id", delete(handlers::delete_column))
+        .route(
+            "/data/kanban/boards/:board_id/columns",
+            post(handlers::create_column),
+        )
+        .route(
+            "/data/kanban/columns/:column_id",
+            patch(handlers::update_column),
+        )
+        .route(
+            "/data/kanban/columns/:column_id/reorder",
+            post(handlers::reorder_column),
+        )
+        .route(
+            "/data/kanban/columns/:column_id",
+            delete(handlers::delete_column),
+        )
         // Kanban data layer - Cards
-        .route("/data/kanban/columns/:column_id/cards", post(handlers::create_card))
+        .route(
+            "/data/kanban/columns/:column_id/cards",
+            post(handlers::create_card),
+        )
         .route("/data/kanban/cards/:card_id", patch(handlers::update_card))
-        .route("/data/kanban/cards/:card_id/move", post(handlers::move_card))
+        .route(
+            "/data/kanban/cards/:card_id/move",
+            post(handlers::move_card),
+        )
         .route("/data/kanban/cards/:card_id", delete(handlers::delete_card))
-        
         // =====================================================================
         // API Gateway - Proxy to Microservices
         // =====================================================================
@@ -183,7 +265,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/voice/proxy", any(handlers::proxy_voice))
         .route("/voice/proxy/*path", any(handlers::proxy_voice));
 
-    // Compose final router
+    // Compose final router with Swagger UI
     Router::new()
         .nest("/api", api_routes)
         .layer(middleware::from_fn(request_id_middleware))
@@ -191,4 +273,5 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state)
+        .merge(SwaggerUi::new("/api/docs").url("/api/docs/openapi.json", ApiDoc::openapi()))
 }

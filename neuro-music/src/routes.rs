@@ -1,4 +1,4 @@
-//! API Routes for neuro-music
+//! API Routes for tachikoma-music
 
 use axum::{
     routing::{delete, get, patch, post, put},

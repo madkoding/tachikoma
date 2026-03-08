@@ -1,7 +1,7 @@
 //! =============================================================================
 //! Backend Client - LLM Gateway
 //! =============================================================================
-//! Client for communicating with neuro-backend's LLM endpoints.
+//! Client for communicating with tachikoma-backend's LLM endpoints.
 //! All LLM operations go through the backend, which is the only gateway to Ollama.
 //! =============================================================================
 

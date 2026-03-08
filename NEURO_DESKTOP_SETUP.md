@@ -1,8 +1,8 @@
-# 🎉 NEURO-OS Desktop - Setup Completado
+# 🎉 TACHIKOMA-OS Desktop - Setup Completado
 
 ## ¿Qué se ha configurado?
 
-Se ha integrado **Tauri** en `neuro-ui` para compilar la aplicación como ejecutable nativo de escritorio para:
+Se ha integrado **Tauri** en `tachikoma-ui` para compilar la aplicación como ejecutable nativo de escritorio para:
 
 - 🐧 **Linux** (.deb, .AppImage)
 - 🪟 **Windows** (.msi, .exe)
@@ -11,7 +11,7 @@ Se ha integrado **Tauri** en `neuro-ui` para compilar la aplicación como ejecut
 ## 🚀 Comandos Disponibles
 
 ```bash
-cd neuro-ui
+cd tachikoma-ui
 
 # Desarrollo con hot-reload
 npm run tauri:dev
@@ -28,7 +28,7 @@ npm run tauri:build:mac
 ## 📦 Archivos Creados
 
 ```
-neuro-ui/
+tachikoma-ui/
 ├── package.json                    # ✅ Scripts y dependencias Tauri
 ├── vite.config.ts                  # ✅ Configurado para Tauri
 ├── DESKTOP_BUILD.md                # 📖 Guía completa de build
@@ -70,10 +70,10 @@ neuro-ui/
 
 | Archivo | Descripción |
 |---------|-------------|
-| [DESKTOP_BUILD.md](neuro-ui/DESKTOP_BUILD.md) | Guía completa: prerrequisitos, compilación, distribución |
-| [QUICKSTART_DESKTOP.md](neuro-ui/QUICKSTART_DESKTOP.md) | Comandos rápidos para empezar |
+| [DESKTOP_BUILD.md](tachikoma-ui/DESKTOP_BUILD.md) | Guía completa: prerrequisitos, compilación, distribución |
+| [QUICKSTART_DESKTOP.md](tachikoma-ui/QUICKSTART_DESKTOP.md) | Comandos rápidos para empezar |
 | [DESKTOP_CHECKLIST.md](DESKTOP_CHECKLIST.md) | Checklist de verificación y tests |
-| [NEURO_DESKTOP_SETUP.md](NEURO_DESKTOP_SETUP.md) | Este archivo - resumen ejecutivo |
+| [TACHIKOMA_DESKTOP_SETUP.md](TACHIKOMA_DESKTOP_SETUP.md) | Este archivo - resumen ejecutivo |
 
 ## 🎯 Estado del Proyecto
 
@@ -88,14 +88,14 @@ neuro-ui/
 
 - **Tauri version**: 1.8
 - **Rust edition**: 2021
-- **Bundle ID**: com.neuroos.ui
+- **Bundle ID**: com.tachikomaos.ui
 - **Ventana default**: 1200x800 (min: 800x600)
 - **Build output**: `src-tauri/target/release/bundle/`
 
 ## 🔧 Troubleshooting
 
 Si tienes problemas:
-1. Ver [DESKTOP_BUILD.md](neuro-ui/DESKTOP_BUILD.md) sección "Solución de Problemas"
+1. Ver [DESKTOP_BUILD.md](tachikoma-ui/DESKTOP_BUILD.md) sección "Solución de Problemas"
 2. Verificar prerrequisitos del sistema
 3. Revisar logs de compilación
 4. Consultar [Tauri Docs](https://tauri.app/)
@@ -104,4 +104,4 @@ Si tienes problemas:
 
 **¡La configuración está completa y lista para usar!** 🎉
 
-Para comenzar: `cd neuro-ui && npm run tauri:dev`
+Para comenzar: `cd tachikoma-ui && npm run tauri:dev`

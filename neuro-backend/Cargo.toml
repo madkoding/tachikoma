@@ -1,16 +1,16 @@
 # =============================================================================
-# NEURO-OS Backend - Rust Axum REST API
+# TACHIKOMA-OS Backend - Rust Axum REST API
 # =============================================================================
-# Central orchestrator for the NEURO-OS AI ecosystem.
+# Central orchestrator for the TACHIKOMA-OS AI ecosystem.
 # Built with Axum, following Hexagonal/Clean Architecture principles.
 # =============================================================================
 
 [package]
-name = "neuro-backend"
+name = "tachikoma-backend"
 version = "0.1.0"
 edition = "2021"
-authors = ["NEURO-OS Team"]
-description = "Central orchestrator for the NEURO-OS AI ecosystem"
+authors = ["TACHIKOMA-OS Team"]
+description = "Central orchestrator for the TACHIKOMA-OS AI ecosystem"
 license = "MIT"
 readme = "README.md"
 
@@ -19,6 +19,8 @@ readme = "README.md"
 # Web Framework & HTTP
 # =============================================================================
 axum = { version = "0.7", features = ["macros", "json"] }
+utoipa = { version = "4", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "6", features = ["axum"] }
 tokio = { version = "1.40", features = ["full", "tracing"] }
 tower = { version = "0.5", features = ["util", "timeout"] }
 tower-http = { version = "0.5", features = ["cors", "trace", "compression-gzip"] }

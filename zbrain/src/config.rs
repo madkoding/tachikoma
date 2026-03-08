@@ -10,7 +10,7 @@ use std::path::PathBuf;
 /// Z-Brain configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// NEURO-OS API endpoint URL
+    /// TACHIKOMA-OS API endpoint URL
     pub api_endpoint: String,
 
     /// Enable verbose output
@@ -78,7 +78,7 @@ impl Config {
 
     /// Get the configuration file path
     pub fn config_path() -> Result<PathBuf> {
-        let dirs = directories::ProjectDirs::from("com", "neuro-os", "zbrain")
+        let dirs = directories::ProjectDirs::from("com", "tachikoma-os", "zbrain")
             .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
 
         Ok(dirs.config_dir().join("config.toml"))
@@ -86,7 +86,7 @@ impl Config {
 
     /// Get the history file path
     pub fn history_path(&self) -> Result<PathBuf> {
-        let dirs = directories::ProjectDirs::from("com", "neuro-os", "zbrain")
+        let dirs = directories::ProjectDirs::from("com", "tachikoma-os", "zbrain")
             .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
 
         Ok(dirs.data_dir().join(&self.history_file))

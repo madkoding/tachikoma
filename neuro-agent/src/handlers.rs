@@ -32,7 +32,7 @@ pub async fn health_check(
 ) -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "healthy".to_string(),
-        service: "neuro-agent".to_string(),
+        service: "tachikoma-agent".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         searxng_url: state.config.searxng_url.clone(),
     })

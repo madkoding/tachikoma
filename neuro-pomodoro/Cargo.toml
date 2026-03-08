@@ -1,9 +1,9 @@
 [package]
-name = "neuro-pomodoro"
+name = "tachikoma-pomodoro"
 version = "0.1.0"
 edition = "2021"
-description = "Pomodoro timer microservice for Neuro-OS"
-authors = ["Neuro-OS Team"]
+description = "Pomodoro timer microservice for Tachikoma-OS"
+authors = ["Tachikoma-OS Team"]
 
 [dependencies]
 # Web framework

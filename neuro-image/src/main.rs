@@ -24,7 +24,7 @@ async fn main() {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "neuro_image=debug,info".into()),
+                .unwrap_or_else(|_| "tachikoma_image=debug,info".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -44,7 +44,7 @@ async fn main() {
         .await
         .unwrap();
 
-    info!("🖼️ Neuro Image Service running on port {}", port);
+    info!("🖼️ Tachikoma Image Service running on port {}", port);
     info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     info!("  ▸ Gallery:   GET /api/images");
     info!("  ▸ Generate:  POST /api/images/generate");

@@ -1,8 +1,8 @@
 [package]
-name = "neuro-kanban"
+name = "tachikoma-kanban"
 version = "0.1.0"
 edition = "2021"
-description = "Kanban board microservice for NEURO-OS"
+description = "Kanban board microservice for TACHIKOMA-OS"
 
 [dependencies]
 # Web framework

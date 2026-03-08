@@ -34,9 +34,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=builder /app/target/release/neuro-image /app/neuro-image
+COPY --from=builder /app/target/release/tachikoma-image /app/tachikoma-image
 
 ENV PORT=3011
 EXPOSE 3011
 
-CMD ["/app/neuro-image"]
+CMD ["/app/tachikoma-image"]

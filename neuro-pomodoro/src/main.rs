@@ -1,5 +1,5 @@
 //! =============================================================================
-//! Neuro-Pomodoro Microservice
+//! Tachikoma-Pomodoro Microservice
 //! =============================================================================
 //! Pomodoro timer service for productivity tracking.
 //! Uses in-memory storage for sessions and settings.
@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "neuro_pomodoro=info,tower_http=debug".into()),
+                .unwrap_or_else(|_| "tachikoma_pomodoro=info,tower_http=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration
     let config = Config::from_env();
     
-    info!("🍅 Neuro-Pomodoro Microservice");
+    info!("🍅 Tachikoma-Pomodoro Microservice");
     info!("================================");
     info!("Port: {}", config.port);
 

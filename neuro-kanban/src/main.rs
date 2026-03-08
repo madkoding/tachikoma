@@ -1,8 +1,8 @@
 //! =============================================================================
-//! Neuro-Kanban Microservice
+//! Tachikoma-Kanban Microservice
 //! =============================================================================
 //! Independent microservice for managing Kanban boards.
-//! Uses neuro-backend as data layer via HTTP client.
+//! Uses tachikoma-backend as data layer via HTTP client.
 //! =============================================================================
 
 mod config;
@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "neuro_kanban=info,tower_http=debug".into()),
+                .unwrap_or_else(|_| "tachikoma_kanban=info,tower_http=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::from_env();
     let port = config.port;
 
-    info!("🗂️  Neuro-Kanban Microservice");
+    info!("🗂️  Tachikoma-Kanban Microservice");
     info!("================================");
     info!("Port: {}", config.port);
     info!("Backend URL: {}", config.backend_url);

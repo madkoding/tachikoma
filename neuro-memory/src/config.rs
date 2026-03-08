@@ -2,8 +2,8 @@
 //! Configuration
 //! =============================================================================
 //! 
-//! NEURO-OS Memory Service configuration.
-//! All LLM/embedding operations go through neuro-backend's /api/llm/* endpoints.
+//! TACHIKOMA-OS Memory Service configuration.
+//! All LLM/embedding operations go through tachikoma-backend's /api/llm/* endpoints.
 //! =============================================================================
 
 #[derive(Debug, Clone)]
@@ -34,7 +34,7 @@ impl Config {
             database_pass: std::env::var("DATABASE_PASS")
                 .unwrap_or_else(|_| "root".to_string()),
             database_ns: std::env::var("DATABASE_NS")
-                .unwrap_or_else(|_| "neuro".to_string()),
+                .unwrap_or_else(|_| "tachikoma".to_string()),
             database_db: std::env::var("DATABASE_DB")
                 .unwrap_or_else(|_| "memories".to_string()),
             backend_url: std::env::var("BACKEND_URL")

@@ -116,7 +116,7 @@ pub struct LlmHealthStatus {
 /// LlmProvider - Abstract interface for LLM operations
 /// =============================================================================
 /// This is the ONLY interface to communicate with Ollama.
-/// All microservices (neuro-chat, neuro-memory, etc.) MUST use this provider
+/// All microservices (tachikoma-chat, tachikoma-memory, etc.) MUST use this provider
 /// through the backend API endpoints.
 #[async_trait]
 pub trait LlmProvider: Send + Sync {

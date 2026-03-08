@@ -1,7 +1,7 @@
 //! =============================================================================
 //! Kanban Handlers
 //! =============================================================================
-//! HTTP handlers that proxy requests to neuro-backend data layer.
+//! HTTP handlers that proxy requests to tachikoma-backend data layer.
 //! =============================================================================
 
 use axum::{
@@ -24,7 +24,7 @@ use crate::AppState;
 pub async fn health_check() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "ok",
-        "service": "neuro-kanban",
+        "service": "tachikoma-kanban",
         "version": env!("CARGO_PKG_VERSION")
     }))
 }

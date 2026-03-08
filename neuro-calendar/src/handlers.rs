@@ -270,7 +270,7 @@ pub async fn get_today_events(
 pub async fn health_check() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "healthy",
-        "service": "neuro-calendar",
+        "service": "tachikoma-calendar",
         "version": env!("CARGO_PKG_VERSION")
     }))
 }

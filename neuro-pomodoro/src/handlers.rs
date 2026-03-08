@@ -17,7 +17,7 @@ use crate::AppState;
 pub async fn health_check() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "healthy",
-        "service": "neuro-pomodoro",
+        "service": "tachikoma-pomodoro",
         "version": env!("CARGO_PKG_VERSION")
     }))
 }

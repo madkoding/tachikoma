@@ -1,10 +1,10 @@
 //! =============================================================================
-//! NEURO-OS Chat Service - Main Entry Point
+//! TACHIKOMA-OS Chat Service - Main Entry Point
 //! =============================================================================
 //! Microservice for chat interactions with LLM, streaming responses,
 //! and conversation management.
 //! 
-//! This service uses neuro-backend as the ONLY gateway to Ollama.
+//! This service uses tachikoma-backend as the ONLY gateway to Ollama.
 //! All LLM operations go through the backend's /api/llm/* endpoints.
 //! =============================================================================
 
@@ -42,11 +42,11 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,neuro_chat=debug".into()),
+                .unwrap_or_else(|_| "info,tachikoma_chat=debug".into()),
         )
         .init();
 
-    info!("💬 Starting NEURO-OS Chat Service...");
+    info!("💬 Starting TACHIKOMA-OS Chat Service...");
 
     // Load configuration
     let config = Config::from_env();

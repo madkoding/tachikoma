@@ -1,6 +1,6 @@
-# Neuro Image Service
+# Tachikoma Image Service
 
-Microservicio de galería y generación de imágenes con IA para NEURO-OS.
+Microservicio de galería y generación de imágenes con IA para TACHIKOMA-OS.
 
 ## Puerto
 
@@ -138,11 +138,11 @@ cargo build --release
 
 ```bash
 # Build de desarrollo (rápido)
-docker build -f Dockerfile.dev -t neuro-image:dev .
+docker build -f Dockerfile.dev -t tachikoma-image:dev .
 
 # Build de producción
-docker build -t neuro-image .
+docker build -t tachikoma-image .
 
 # Ejecutar
-docker run -p 3011:3011 neuro-image
+docker run -p 3011:3011 tachikoma-image
 ```

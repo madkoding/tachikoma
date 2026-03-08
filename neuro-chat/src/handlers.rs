@@ -2,7 +2,7 @@
 //! API Handlers
 //! =============================================================================
 //! 
-//! All LLM operations go through neuro-backend's /api/llm/* endpoints.
+//! All LLM operations go through tachikoma-backend's /api/llm/* endpoints.
 //! This service no longer connects directly to Ollama.
 //! =============================================================================
 
@@ -40,7 +40,7 @@ pub async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoRespon
 
     Json(json!({
         "status": status,
-        "service": "neuro-chat",
+        "service": "tachikoma-chat",
         "version": env!("CARGO_PKG_VERSION"),
         "services": {
             "database": if db_healthy { "healthy" } else { "unhealthy" },
@@ -371,7 +371,7 @@ pub async fn delete_conversation(
 // ============================================================================
 
 fn get_system_prompt() -> String {
-    r#"Eres un asistente de IA amigable y útil llamado NEURO. 
+    r#"Eres un asistente de IA amigable y útil llamado TACHIKOMA. 
 Respondes en español de forma concisa y clara.
 Tienes acceso a memorias del usuario que te ayudan a personalizar las respuestas.
 Siempre intentas ser útil y proporcionar información precisa."#.to_string()

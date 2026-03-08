@@ -11,7 +11,7 @@ pub struct Config {
     pub database_pass: String,
     pub database_ns: String,
     pub database_db: String,
-    /// URL to neuro-backend - the only gateway to Ollama
+    /// URL to tachikoma-backend - the only gateway to Ollama
     pub backend_url: String,
     pub memory_service_url: String,
     // Speculative decoding configuration (optional overrides, backend uses defaults)
@@ -36,7 +36,7 @@ impl Config {
             database_pass: std::env::var("DATABASE_PASS")
                 .unwrap_or_else(|_| "root".to_string()),
             database_ns: std::env::var("DATABASE_NS")
-                .unwrap_or_else(|_| "neuro".to_string()),
+                .unwrap_or_else(|_| "tachikoma".to_string()),
             database_db: std::env::var("DATABASE_DB")
                 .unwrap_or_else(|_| "chat".to_string()),
             // Backend URL - the ONLY gateway to Ollama

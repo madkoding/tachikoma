@@ -47,7 +47,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/target/release/neuro-kanban /app/neuro-kanban
+COPY --from=builder /app/target/release/tachikoma-kanban /app/tachikoma-kanban
 
 # Create non-root user
 RUN useradd -r -s /bin/false appuser && \
@@ -62,4 +62,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3006/api/health || exit 1
 
 # Run
-CMD ["./neuro-kanban"]
+CMD ["./tachikoma-kanban"]

@@ -7,7 +7,7 @@
     {
       "label": "🛑 Stop All",
       "type": "shell",
-      "command": "docker compose down --remove-orphans 2>/dev/null; docker rm -f neuro-voice neuro-music neuro-checklists neuro-chat neuro-memory neuro-agent neuro-pomodoro neuro-kanban neuro-note neuro-docs neuro-calendar neuro-image neuro-surrealdb neuro-searxng 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; pkill -f 'neuro-backend' 2>/dev/null; fuser -k 3000/tcp 5173/tcp 5174/tcp 2>/dev/null; echo '✓ All services stopped'",
+      "command": "docker compose down --remove-orphans 2>/dev/null; docker rm -f tachikoma-voice tachikoma-music tachikoma-checklists tachikoma-chat tachikoma-memory tachikoma-agent tachikoma-pomodoro tachikoma-kanban tachikoma-note tachikoma-docs tachikoma-calendar tachikoma-image tachikoma-surrealdb tachikoma-searxng 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; pkill -f 'tachikoma-backend' 2>/dev/null; fuser -k 3000/tcp 5173/tcp 5174/tcp 2>/dev/null; echo '✓ All services stopped'",
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared" }
     },
@@ -27,7 +27,7 @@
     },
     {
       "label": "👁️ Docker (Watch Mode)",
-      "detail": "Auto-rebuild cuando cambias código en neuro-*/src",
+      "detail": "Auto-rebuild cuando cambias código en tachikoma-*/src",
       "type": "shell",
       "command": "./dev.sh watch",
       "isBackground": true,
@@ -45,15 +45,15 @@
     // =========================================================================
     {
       "label": "🦀 Backend",
-      "detail": "neuro-backend con cargo watch (hot-reload)",
+      "detail": "tachikoma-backend con cargo watch (hot-reload)",
       "type": "shell",
-      "command": "fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd neuro-backend && cargo watch -x run",
+      "command": "fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd tachikoma-backend && cargo watch -x run",
       "isBackground": true,
       "options": {
         "env": {
           "DATABASE_URL": "ws://127.0.0.1:8000",
           "DATABASE_USER": "root",
-          "DATABASE_PASS": "neuroos_secret_2024",
+          "DATABASE_PASS": "tachikomaos_secret_2024",
           "OLLAMA_URL": "http://127.0.0.1:11434",
           "SEARXNG_URL": "http://127.0.0.1:8080",
           "VOICE_SERVICE_URL": "http://127.0.0.1:8100",
@@ -73,9 +73,9 @@
       },
       "problemMatcher": {
         "owner": "rust",
-        "fileLocation": ["relative", "${workspaceFolder}/neuro-backend"],
+        "fileLocation": ["relative", "${workspaceFolder}/tachikoma-backend"],
         "pattern": { "regexp": "^error\\[E\\d+\\]: (.+)$", "message": 1 },
-        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Restarting", "endsPattern": "NEURO-OS Backend ready|Server:" }
+        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Restarting", "endsPattern": "TACHIKOMA-OS Backend ready|Server:" }
       },
       "presentation": { "reveal": "always", "panel": "dedicated", "group": "dev" }
     },
@@ -85,9 +85,9 @@
     // =========================================================================
     {
       "label": "⚛️ User UI",
-      "detail": "neuro-ui en puerto 5173",
+      "detail": "tachikoma-ui en puerto 5173",
       "type": "shell",
-      "command": "fuser -k 5173/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh 2>/dev/null; cd neuro-ui && npm run dev",
+      "command": "fuser -k 5173/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh 2>/dev/null; cd tachikoma-ui && npm run dev",
       "isBackground": true,
       "problemMatcher": {
         "owner": "vite",
@@ -98,9 +98,9 @@
     },
     {
       "label": "🔧 Admin UI",
-      "detail": "neuro-admin en puerto 5174",
+      "detail": "tachikoma-admin en puerto 5174",
       "type": "shell",
-      "command": "fuser -k 5174/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh 2>/dev/null; cd neuro-admin && npm run dev",
+      "command": "fuser -k 5174/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh 2>/dev/null; cd tachikoma-admin && npm run dev",
       "isBackground": true,
       "problemMatcher": {
         "owner": "vite-admin",
@@ -116,13 +116,13 @@
     {
       "label": "🦀 Backend (wait for Docker)",
       "type": "shell",
-      "command": "echo '⏳ Waiting for Docker...' && sleep 5 && fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd neuro-backend && cargo watch -x run",
+      "command": "echo '⏳ Waiting for Docker...' && sleep 5 && fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd tachikoma-backend && cargo watch -x run",
       "isBackground": true,
       "options": {
         "env": {
           "DATABASE_URL": "ws://127.0.0.1:8000",
           "DATABASE_USER": "root",
-          "DATABASE_PASS": "neuroos_secret_2024",
+          "DATABASE_PASS": "tachikomaos_secret_2024",
           "OLLAMA_URL": "http://127.0.0.1:11434",
           "SEARXNG_URL": "http://127.0.0.1:8080",
           "VOICE_SERVICE_URL": "http://127.0.0.1:8100",
@@ -142,9 +142,9 @@
       },
       "problemMatcher": {
         "owner": "rust",
-        "fileLocation": ["relative", "${workspaceFolder}/neuro-backend"],
+        "fileLocation": ["relative", "${workspaceFolder}/tachikoma-backend"],
         "pattern": { "regexp": "^error\\[E\\d+\\]: (.+)$", "message": 1 },
-        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Restarting|Waiting", "endsPattern": "NEURO-OS Backend ready|Server:" }
+        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Restarting|Waiting", "endsPattern": "TACHIKOMA-OS Backend ready|Server:" }
       },
       "presentation": { "reveal": "always", "panel": "dedicated", "group": "dev" },
       "dependsOn": ["🐳 Docker (Dev Mode)"]
@@ -152,7 +152,7 @@
     {
       "label": "⚛️ User UI (wait for Backend)",
       "type": "shell",
-      "command": "echo '⏳ Waiting for Backend...' && until curl -s http://localhost:3000/api/health > /dev/null 2>&1; do sleep 2; done && echo '✓ Backend ready!' && fuser -k 5173/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh 2>/dev/null; cd neuro-ui && npm run dev",
+      "command": "echo '⏳ Waiting for Backend...' && until curl -s http://localhost:3000/api/health > /dev/null 2>&1; do sleep 2; done && echo '✓ Backend ready!' && fuser -k 5173/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh 2>/dev/null; cd tachikoma-ui && npm run dev",
       "isBackground": true,
       "problemMatcher": {
         "owner": "vite",
@@ -165,7 +165,7 @@
     {
       "label": "🔧 Admin UI (wait for Backend)",
       "type": "shell",
-      "command": "echo '⏳ Waiting for Backend...' && until curl -s http://localhost:3000/api/health > /dev/null 2>&1; do sleep 2; done && echo '✓ Backend ready!' && fuser -k 5174/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh 2>/dev/null; cd neuro-admin && npm run dev",
+      "command": "echo '⏳ Waiting for Backend...' && until curl -s http://localhost:3000/api/health > /dev/null 2>&1; do sleep 2; done && echo '✓ Backend ready!' && fuser -k 5174/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh 2>/dev/null; cd tachikoma-admin && npm run dev",
       "isBackground": true,
       "problemMatcher": {
         "owner": "vite-admin",
@@ -190,13 +190,13 @@
       "label": "🔨 Rebuild Backend (Clean)",
       "detail": "cargo clean + rebuild desde cero",
       "type": "shell",
-      "command": "fuser -k 3000/tcp 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; sleep 0.5; cd neuro-backend && cargo clean && cargo watch -x run",
+      "command": "fuser -k 3000/tcp 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; sleep 0.5; cd tachikoma-backend && cargo clean && cargo watch -x run",
       "isBackground": true,
       "options": {
         "env": {
           "DATABASE_URL": "ws://127.0.0.1:8000",
           "DATABASE_USER": "root",
-          "DATABASE_PASS": "neuroos_secret_2024",
+          "DATABASE_PASS": "tachikomaos_secret_2024",
           "OLLAMA_URL": "http://127.0.0.1:11434",
           "SEARXNG_URL": "http://127.0.0.1:8080",
           "VOICE_SERVICE_URL": "http://127.0.0.1:8100",
@@ -216,9 +216,9 @@
       },
       "problemMatcher": {
         "owner": "rust",
-        "fileLocation": ["relative", "${workspaceFolder}/neuro-backend"],
+        "fileLocation": ["relative", "${workspaceFolder}/tachikoma-backend"],
         "pattern": { "regexp": "^error\\[E\\d+\\]: (.+)$", "message": 1 },
-        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Cleaning", "endsPattern": "NEURO-OS Backend ready|Server:" }
+        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Cleaning", "endsPattern": "TACHIKOMA-OS Backend ready|Server:" }
       },
       "presentation": { "reveal": "always", "panel": "dedicated" }
     },

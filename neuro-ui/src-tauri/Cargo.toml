@@ -1,8 +1,8 @@
 [package]
-name = "neuro-ui"
+name = "tachikoma-ui"
 version = "0.1.0"
-description = "NEURO-OS User Interface - AI Assistant"
-authors = ["NEURO-OS Team"]
+description = "TACHIKOMA-OS User Interface - AI Assistant"
+authors = ["TACHIKOMA-OS Team"]
 license = ""
 repository = ""
 edition = "2021"

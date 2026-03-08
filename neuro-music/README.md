@@ -1,4 +1,4 @@
-# Neuro-Music Microservice
+# Tachikoma-Music Microservice
 
 Servicio de streaming de música con integración de YouTube, ecualizador de 16 bandas y gestión de playlists.
 
@@ -29,7 +29,7 @@ PORT=3002
 DATABASE_URL=ws://127.0.0.1:8000
 DATABASE_USER=root
 DATABASE_PASS=root
-DATABASE_NAMESPACE=neuro
+DATABASE_NAMESPACE=tachikoma
 DATABASE_NAME=music
 YTDLP_PATH=yt-dlp
 FFMPEG_PATH=ffmpeg
@@ -83,6 +83,6 @@ FFMPEG_PATH=ffmpeg
 ## Desarrollo
 
 ```bash
-cd neuro-music
+cd tachikoma-music
 cargo watch -x run
 ```

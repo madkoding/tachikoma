@@ -1,4 +1,4 @@
-//! Backend client - HTTP client to neuro-backend data layer
+//! Backend client - HTTP client to tachikoma-backend data layer
 
 use reqwest::Client;
 use uuid::Uuid;

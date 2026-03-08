@@ -1,6 +1,6 @@
-# Neuro-Pomodoro 🍅
+# Tachikoma-Pomodoro 🍅
 
-Microservicio de timer Pomodoro para productividad en NEURO-OS.
+Microservicio de timer Pomodoro para productividad en TACHIKOMA-OS.
 
 ## Características
 
@@ -8,7 +8,7 @@ Microservicio de timer Pomodoro para productividad en NEURO-OS.
 - 📊 Estadísticas diarias y históricas
 - ⚙️ Configuración personalizable
 - 🔔 Notificaciones de finalización
-- 💾 Persistencia vía neuro-backend
+- 💾 Persistencia vía tachikoma-backend
 
 ## API Endpoints
 
@@ -68,8 +68,8 @@ cargo build --release
 
 ```bash
 # Build
-docker build -t neuro-pomodoro .
+docker build -t tachikoma-pomodoro .
 
 # Run
-docker run -p 3010:3010 -e BACKEND_URL=http://host.docker.internal:3000 neuro-pomodoro
+docker run -p 3010:3010 -e BACKEND_URL=http://host.docker.internal:3000 tachikoma-pomodoro
 ```

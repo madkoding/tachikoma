@@ -1,6 +1,6 @@
-# neuro-kanban
+# tachikoma-kanban
 
-Microservicio de tableros Kanban para NEURO-OS.
+Microservicio de tableros Kanban para TACHIKOMA-OS.
 
 ## Descripción
 
@@ -96,7 +96,7 @@ Servicio que proporciona funcionalidad completa de tableros Kanban con:
 
 ```bash
 # Ejecutar localmente
-cd neuro-kanban
+cd tachikoma-kanban
 cargo run
 
 # Con hot-reload
@@ -110,13 +110,13 @@ cargo build --release
 
 ```bash
 # Build producción
-docker build -t neuro-kanban .
+docker build -t tachikoma-kanban .
 
 # Build desarrollo (más rápido)
-docker build -f Dockerfile.dev -t neuro-kanban:dev .
+docker build -f Dockerfile.dev -t tachikoma-kanban:dev .
 
 # Ejecutar
-docker run -p 3006:3006 -e BACKEND_URL=http://host.docker.internal:3000 neuro-kanban
+docker run -p 3006:3006 -e BACKEND_URL=http://host.docker.internal:3000 tachikoma-kanban
 ```
 
 ## Características

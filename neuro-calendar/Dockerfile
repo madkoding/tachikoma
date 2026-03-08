@@ -34,9 +34,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=builder /app/target/release/neuro-calendar /app/neuro-calendar
+COPY --from=builder /app/target/release/tachikoma-calendar /app/tachikoma-calendar
 
 ENV PORT=3009
 EXPOSE 3009
 
-CMD ["/app/neuro-calendar"]
+CMD ["/app/tachikoma-calendar"]

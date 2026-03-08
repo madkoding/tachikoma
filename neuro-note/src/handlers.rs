@@ -325,7 +325,7 @@ pub async fn search_notes(
 pub async fn health_check() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "healthy",
-        "service": "neuro-note",
+        "service": "tachikoma-note",
         "version": env!("CARGO_PKG_VERSION")
     }))
 }

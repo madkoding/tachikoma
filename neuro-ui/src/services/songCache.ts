@@ -3,7 +3,7 @@
  * Uses IndexedDB to store downloaded songs locally in the browser
  */
 
-const DB_NAME = 'neuro-music-cache';
+const DB_NAME = 'tachikoma-music-cache';
 const DB_VERSION = 1;
 const STORE_NAME = 'songs';
 

@@ -1,8 +1,8 @@
 //! =============================================================================
-//! NEURO-OS Memory Service - Main Entry Point
+//! TACHIKOMA-OS Memory Service - Main Entry Point
 //! =============================================================================
 //! Microservice for memory management and knowledge graph operations.
-//! All LLM operations (embeddings) go through neuro-backend gateway.
+//! All LLM operations (embeddings) go through tachikoma-backend gateway.
 //! =============================================================================
 
 use std::sync::Arc;
@@ -34,11 +34,11 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,neuro_memory=debug".into()),
+                .unwrap_or_else(|_| "info,tachikoma_memory=debug".into()),
         )
         .init();
 
-    info!("🧠 Starting NEURO-OS Memory Service...");
+    info!("🧠 Starting TACHIKOMA-OS Memory Service...");
 
     // Load configuration
     let config = Config::from_env();

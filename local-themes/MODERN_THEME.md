@@ -232,12 +232,12 @@ Si el tema no carga correctamente:
 
 1. **Verifica que el tema esté en el container**:
    ```bash
-   docker exec neuro-searxng ls -la /usr/local/searxng/searx/templates/modern/
+   docker exec tachikoma-searxng ls -la /usr/local/searxng/searx/templates/modern/
    ```
 
 2. **Revisa los logs del container**:
    ```bash
-   docker logs neuro-searxng | tail -50
+   docker logs tachikoma-searxng | tail -50
    ```
 
 3. **Limpia la caché del navegador**: Ctrl+Shift+Del

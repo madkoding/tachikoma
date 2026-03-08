@@ -47,7 +47,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
 # Copy binary
-COPY --from=builder /app/target/release/neuro-pomodoro /app/neuro-pomodoro
+COPY --from=builder /app/target/release/tachikoma-pomodoro /app/tachikoma-pomodoro
 
 # Set environment
 ENV RUST_LOG=info
@@ -55,4 +55,4 @@ ENV PORT=3010
 
 EXPOSE 3010
 
-CMD ["/app/neuro-pomodoro"]
+CMD ["/app/tachikoma-pomodoro"]

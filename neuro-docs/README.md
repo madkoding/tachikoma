@@ -1,6 +1,6 @@
-# Neuro Docs Service
+# Tachikoma Docs Service
 
-Microservicio de gestión de documentos para NEURO-OS.
+Microservicio de gestión de documentos para TACHIKOMA-OS.
 
 ## Puerto
 
@@ -130,11 +130,11 @@ cargo build --release
 
 ```bash
 # Build de desarrollo (rápido)
-docker build -f Dockerfile.dev -t neuro-docs:dev .
+docker build -f Dockerfile.dev -t tachikoma-docs:dev .
 
 # Build de producción
-docker build -t neuro-docs .
+docker build -t tachikoma-docs .
 
 # Ejecutar
-docker run -p 3008:3008 neuro-docs
+docker run -p 3008:3008 tachikoma-docs
 ```

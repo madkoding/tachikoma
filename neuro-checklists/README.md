@@ -1,11 +1,11 @@
-# Neuro-Checklists
+# Tachikoma-Checklists
 
 Microservicio independiente para gestión de checklists.
 
 ## Arquitectura
 
 - **Puerto**: 3001
-- **Base de datos**: SurrealDB (namespace: `neuro`, database: `checklists`)
+- **Base de datos**: SurrealDB (namespace: `tachikoma`, database: `checklists`)
 - **Framework**: Axum (Rust)
 
 ## Endpoints
@@ -34,7 +34,7 @@ PORT=3001
 DATABASE_URL=ws://127.0.0.1:8000
 DATABASE_USER=root
 DATABASE_PASS=root
-DATABASE_NAMESPACE=neuro
+DATABASE_NAMESPACE=tachikoma
 DATABASE_NAME=checklists
 ```
 
@@ -47,6 +47,6 @@ cargo run
 ## Docker
 
 ```bash
-docker build -t neuro-checklists .
-docker run -p 3001:3001 neuro-checklists
+docker build -t tachikoma-checklists .
+docker run -p 3001:3001 tachikoma-checklists
 ```

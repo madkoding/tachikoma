@@ -41,7 +41,7 @@ impl ErrorResponse {
 pub async fn health_check() -> impl IntoResponse {
     Json(serde_json::json!({
         "status": "ok",
-        "service": "neuro-music",
+        "service": "tachikoma-music",
         "version": env!("CARGO_PKG_VERSION")
     }))
 }

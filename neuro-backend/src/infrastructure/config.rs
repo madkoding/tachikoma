@@ -131,7 +131,7 @@ impl DatabaseConfig {
             url: std::env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "ws://localhost:8000".to_string()),
             namespace: std::env::var("DATABASE_NS")
-                .unwrap_or_else(|_| "neuro".to_string()),
+                .unwrap_or_else(|_| "tachikoma".to_string()),
             database: std::env::var("DATABASE_DB")
                 .unwrap_or_else(|_| "memories".to_string()),
             username: std::env::var("DATABASE_USER")

@@ -1,6 +1,6 @@
-# NEURO-OS Desktop - Build Guide
+# TACHIKOMA-OS Desktop - Build Guide
 
-Esta guía explica cómo compilar NEURO-OS UI como aplicación de escritorio para Windows, Linux y macOS usando Tauri.
+Esta guía explica cómo compilar TACHIKOMA-OS UI como aplicación de escritorio para Windows, Linux y macOS usando Tauri.
 
 ## 📋 Prerrequisitos
 
@@ -45,7 +45,7 @@ xcode-select --install
 ## 🚀 Instalación
 
 ```bash
-cd neuro-ui
+cd tachikoma-ui
 
 # Instalar dependencias de npm
 npm install
@@ -145,7 +145,7 @@ Genera:
 
 Todos los builds se generan en:
 ```
-neuro-ui/src-tauri/target/release/bundle/
+tachikoma-ui/src-tauri/target/release/bundle/
 ├── deb/          # Linux .deb
 ├── appimage/     # Linux .AppImage
 ├── msi/          # Windows .msi
@@ -162,8 +162,8 @@ Los iconos de la aplicación están en `src-tauri/icons/`. Ver [src-tauri/icons/
 La configuración de Tauri está en [src-tauri/tauri.conf.json](src-tauri/tauri.conf.json):
 
 - **Tamaño de ventana**: 1200x800 (mínimo 800x600)
-- **Identificador**: `com.neuroos.ui`
-- **Nombre**: NEURO-OS
+- **Identificador**: `com.tachikomaos.ui`
+- **Nombre**: TACHIKOMA-OS
 
 ## 🔧 Solución de Problemas
 

@@ -394,7 +394,7 @@ pub async fn list_styles() -> Json<Vec<serde_json::Value>> {
 pub async fn health_check() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "healthy",
-        "service": "neuro-image",
+        "service": "tachikoma-image",
         "version": env!("CARGO_PKG_VERSION")
     }))
 }

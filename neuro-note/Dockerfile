@@ -34,9 +34,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=builder /app/target/release/neuro-note /app/neuro-note
+COPY --from=builder /app/target/release/tachikoma-note /app/tachikoma-note
 
 ENV PORT=3007
 EXPOSE 3007
 
-CMD ["/app/neuro-note"]
+CMD ["/app/tachikoma-note"]

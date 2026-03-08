@@ -1,6 +1,6 @@
-# Neuro Note Service
+# Tachikoma Note Service
 
-Microservicio de notas para NEURO-OS con soporte para carpetas, etiquetas y búsqueda.
+Microservicio de notas para TACHIKOMA-OS con soporte para carpetas, etiquetas y búsqueda.
 
 ## Puerto
 
@@ -110,11 +110,11 @@ cargo build --release
 
 ```bash
 # Build de desarrollo (rápido)
-docker build -f Dockerfile.dev -t neuro-note:dev .
+docker build -f Dockerfile.dev -t tachikoma-note:dev .
 
 # Build de producción
-docker build -t neuro-note .
+docker build -t tachikoma-note .
 
 # Ejecutar
-docker run -p 3007:3007 neuro-note
+docker run -p 3007:3007 tachikoma-note
 ```

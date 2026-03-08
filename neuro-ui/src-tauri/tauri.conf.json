@@ -7,7 +7,7 @@
 		"withGlobalTauri": true
 	},
 	"package": {
-		"productName": "NEURO-OS",
+		"productName": "TACHIKOMA-OS",
 		"version": "0.1.0"
 	},
 	"tauri": {
@@ -44,8 +44,8 @@
 				"icons/icon.icns",
 				"icons/icon.ico"
 			],
-			"identifier": "com.neuroos.ui",
-			"longDescription": "NEURO-OS is an AI-powered personal assistant with advanced memory capabilities",
+			"identifier": "com.tachikomaos.ui",
+			"longDescription": "TACHIKOMA-OS is an AI-powered personal assistant with advanced memory capabilities",
 			"macOS": {
 				"entitlements": null,
 				"exceptionDomain": "",
@@ -73,7 +73,7 @@
 				"fullscreen": false,
 				"height": 800,
 				"resizable": true,
-				"title": "NEURO-OS",
+				"title": "TACHIKOMA-OS",
 				"width": 1200,
 				"minWidth": 800,
 				"minHeight": 600,

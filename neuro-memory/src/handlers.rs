@@ -30,12 +30,12 @@ pub async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoRespon
     match state.db.health_check().await {
         Ok(true) => Json(json!({
             "status": "healthy",
-            "service": "neuro-memory",
+            "service": "tachikoma-memory",
             "version": env!("CARGO_PKG_VERSION"),
         })),
         _ => Json(json!({
             "status": "unhealthy",
-            "service": "neuro-memory",
+            "service": "tachikoma-memory",
         })),
     }
 }
@@ -517,7 +517,7 @@ pub async fn subscribe_graph_events(
 // Helper Functions
 // ============================================================================
 
-/// Generate embedding using neuro-backend LLM gateway
+/// Generate embedding using tachikoma-backend LLM gateway
 /// The backend routes to Ollama and handles model selection
 async fn generate_embedding(backend_url: &str, text: &str) -> Result<Vec<f32>, String> {
     let client = reqwest::Client::new();

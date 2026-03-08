@@ -145,7 +145,7 @@ export const usePerformanceStore = create<PerformanceState>()(
       getSettings: () => get().settings,
     }),
     {
-      name: 'neuro-performance',
+      name: 'tachikoma-performance',
       version: 2, // Increment to reset stored settings to new defaults
       partialize: (state) => ({
         level: state.level,

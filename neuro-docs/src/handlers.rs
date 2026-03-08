@@ -376,7 +376,7 @@ pub async fn get_storage_stats(
 pub async fn health_check() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "healthy",
-        "service": "neuro-docs",
+        "service": "tachikoma-docs",
         "version": env!("CARGO_PKG_VERSION")
     }))
 }

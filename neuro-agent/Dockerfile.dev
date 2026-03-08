@@ -1,5 +1,5 @@
 # ==============================================================================
-# NEURO-AGENT Development Dockerfile (Fast builds with cargo-chef + mold)
+# TACHIKOMA-AGENT Development Dockerfile (Fast builds with cargo-chef + mold)
 # ==============================================================================
 
 # ==============================================================================
@@ -57,13 +57,13 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy DEBUG binary (faster to build)
-COPY --from=builder /app/target/debug/neuro-agent /app/neuro-agent
+COPY --from=builder /app/target/debug/tachikoma-agent /app/tachikoma-agent
 
 ENV HOST=0.0.0.0
 ENV PORT=3005
 ENV SEARXNG_URL=http://searxng:8080
-ENV RUST_LOG=debug,neuro_agent=debug
+ENV RUST_LOG=debug,tachikoma_agent=debug
 
 EXPOSE 3005
 
-CMD ["./neuro-agent"]
+CMD ["./tachikoma-agent"]
