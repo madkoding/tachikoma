@@ -66,7 +66,7 @@ fn default_per_page() -> usize { 50 }
 pub async fn health_check() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "healthy",
-        "service": "neuro-checklists",
+        "service": "tachikoma-checklists",
         "version": env!("CARGO_PKG_VERSION")
     }))
 }

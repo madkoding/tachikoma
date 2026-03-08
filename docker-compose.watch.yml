@@ -1,0 +1,169 @@
+# =============================================================================
+# NEURO-OS Docker Compose - Watch Mode (Auto-Rebuild)
+# =============================================================================
+# Use with: docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.watch.yml watch
+#
+# ⚡ CADA SERVICIO SE RECONSTRUYE INDEPENDIENTEMENTE
+# - Solo el contenedor con cambios se reconstruye
+# - Usa Dockerfile.dev con cargo-chef + mold para rebuild rápido (~30s)
+# - Los demás servicios continúan corriendo sin interrupción
+#
+# Requires Docker Compose v2.22.0+ with watch support.
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # Voice Service - Watch for changes
+  # ===========================================================================
+  neuro-voice:
+    develop:
+      watch:
+        - action: rebuild
+          path: ./neuro-voice/src
+          target: /app/src
+        - action: rebuild
+          path: ./neuro-voice/Cargo.toml
+          target: /app/Cargo.toml
+
+  # ===========================================================================
+  # Checklists Service - Watch for changes
+  # ===========================================================================
+  neuro-checklists:
+    develop:
+      watch:
+        - action: rebuild
+          path: ./neuro-checklists/src
+          target: /app/src
+        - action: rebuild
+          path: ./neuro-checklists/Cargo.toml
+          target: /app/Cargo.toml
+
+  # ===========================================================================
+  # Music Service - Watch for changes
+  # ===========================================================================
+  neuro-music:
+    develop:
+      watch:
+        - action: rebuild
+          path: ./neuro-music/src
+          target: /app/src
+        - action: rebuild
+          path: ./neuro-music/Cargo.toml
+          target: /app/Cargo.toml
+
+  # ===========================================================================
+  # Chat Service - Watch for changes
+  # ===========================================================================
+  neuro-chat:
+    develop:
+      watch:
+        - action: rebuild
+          path: ./neuro-chat/src
+          target: /app/src
+        - action: rebuild
+          path: ./neuro-chat/Cargo.toml
+          target: /app/Cargo.toml
+
+  # ===========================================================================
+  # Memory Service - Watch for changes
+  # ===========================================================================
+  neuro-memory:
+    develop:
+      watch:
+        - action: rebuild
+          path: ./neuro-memory/src
+          target: /app/src
+        - action: rebuild
+          path: ./neuro-memory/Cargo.toml
+          target: /app/Cargo.toml
+
+  # ===========================================================================
+  # Agent Service - Watch for changes
+  # ===========================================================================
+  neuro-agent:
+    develop:
+      watch:
+        - action: rebuild
+          path: ./neuro-agent/src
+          target: /app/src
+        - action: rebuild
+          path: ./neuro-agent/Cargo.toml
+          target: /app/Cargo.toml
+
+  # ===========================================================================
+  # Pomodoro Service - Watch for changes
+  # ===========================================================================
+  neuro-pomodoro:
+    develop:
+      watch:
+        - action: rebuild
+          path: ./neuro-pomodoro/src
+          target: /app/src
+        - action: rebuild
+          path: ./neuro-pomodoro/Cargo.toml
+          target: /app/Cargo.toml
+
+  # ===========================================================================
+  # Kanban Service - Watch for changes
+  # ===========================================================================
+  neuro-kanban:
+    develop:
+      watch:
+        - action: rebuild
+          path: ./neuro-kanban/src
+          target: /app/src
+        - action: rebuild
+          path: ./neuro-kanban/Cargo.toml
+          target: /app/Cargo.toml
+
+  # ===========================================================================
+  # Note Service - Watch for changes
+  # ===========================================================================
+  neuro-note:
+    develop:
+      watch:
+        - action: rebuild
+          path: ./neuro-note/src
+          target: /app/src
+        - action: rebuild
+          path: ./neuro-note/Cargo.toml
+          target: /app/Cargo.toml
+
+  # ===========================================================================
+  # Docs Service - Watch for changes
+  # ===========================================================================
+  neuro-docs:
+    develop:
+      watch:
+        - action: rebuild
+          path: ./neuro-docs/src
+          target: /app/src
+        - action: rebuild
+          path: ./neuro-docs/Cargo.toml
+          target: /app/Cargo.toml
+
+  # ===========================================================================
+  # Calendar Service - Watch for changes
+  # ===========================================================================
+  neuro-calendar:
+    develop:
+      watch:
+        - action: rebuild
+          path: ./neuro-calendar/src
+          target: /app/src
+        - action: rebuild
+          path: ./neuro-calendar/Cargo.toml
+          target: /app/Cargo.toml
+
+  # ===========================================================================
+  # Image Service - Watch for changes
+  # ===========================================================================
+  neuro-image:
+    develop:
+      watch:
+        - action: rebuild
+          path: ./neuro-image/src
+          target: /app/src
+        - action: rebuild
+          path: ./neuro-image/Cargo.toml
+          target: /app/Cargo.toml

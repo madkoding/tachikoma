@@ -1,9 +1,9 @@
 [package]
-name = "neuro-chat"
+name = "tachikoma-chat"
 version = "0.1.0"
 edition = "2021"
-description = "Chat and LLM interaction microservice for NEURO-OS"
-authors = ["NEURO-OS Team"]
+description = "Chat and LLM interaction microservice for TACHIKOMA-OS"
+authors = ["TACHIKOMA-OS Team"]
 
 [dependencies]
 # Web framework

@@ -5,6 +5,7 @@
 # - Uses debug mode (no --release)
 # - Persistent cargo cache via volume mount
 # - mold linker for faster linking
+# - Recompiles on start if source changed
 # =============================================================================
 
 FROM rust:1.86-slim
@@ -31,19 +32,31 @@ RUN mkdir -p /root/.cargo && \
     echo 'linker = "clang"' >> /root/.cargo/config.toml && \
     echo 'rustflags = ["-C", "link-arg=-fuse-ld=mold"]' >> /root/.cargo/config.toml
 
+# Create downloads directory
+RUN mkdir -p /data/downloads
+
 WORKDIR /app
 
-# Copy source (will be overwritten by volume mount in dev)
+# Copy source files
 COPY Cargo.toml Cargo.lock* ./
 COPY src ./src
 
-# Build in DEBUG mode (much faster than release!)
-RUN cargo build
+# Pre-build dependencies only (will be cached)
+# This creates a dummy main.rs to compile deps, then removes it
+RUN mkdir -p src && \
+    echo 'fn main() {}' > src/main.rs && \
+    cargo build && \
+    rm -rf src
+
+# Copy real source (this layer changes when code changes)
+COPY src ./src
 
 ENV RUST_LOG=info
-ENV MUSIC_PORT=3002
+ENV PORT=3002
+ENV DOWNLOADS_PATH=/data/downloads
 
 EXPOSE 3002
 
-# Run the debug binary
-CMD ["./target/debug/neuro-music"]
+# Compile and run - always recompiles if source changed
+# The volume-mounted src will be used, triggering recompilation
+CMD ["sh", "-c", "cargo build && exec ./target/debug/tachikoma-music"]

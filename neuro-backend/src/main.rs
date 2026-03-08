@@ -1,7 +1,7 @@
 //! =============================================================================
-//! NEURO-OS Backend - Main Entry Point
+//! TACHIKOMA-OS Backend - Main Entry Point
 //! =============================================================================
-//! This is the main entry point for the NEURO-OS backend server.
+//! This is the main entry point for the TACHIKOMA-OS backend server.
 //! It initializes all infrastructure components and starts the Axum HTTP server.
 //! 
 //! # Architecture
@@ -51,12 +51,13 @@ use crate::domain::ports::{
     memory_repository::MemoryRepository,
     search_provider::SearchProvider,
     checklist_repository::ChecklistRepository,
+    kanban_repository::KanbanRepository,
     music_repository::MusicRepository,
 };
 use crate::infrastructure::{
     api::{create_router, handlers::system::init_start_time},
     config::Config,
-    database::{DatabasePool, SurrealDbRepository, SurrealChecklistRepository, SurrealMusicRepository},
+    database::{DatabasePool, SurrealDbRepository, SurrealChecklistRepository, SurrealKanbanRepository, SurrealMusicRepository},
     services::{OllamaClient, SafeCommandExecutor, SearxngClient, VoiceEngine, VoiceConfig},
 };
 
@@ -94,7 +95,7 @@ async fn warm_up_model(llm_provider: &Arc<dyn crate::domain::ports::llm_provider
     // Spawn warmup task
     let llm = llm_provider.clone();
     let warmup_handle = tokio::spawn(async move {
-        llm.generate("hi", Some("ministral-3:3b")).await
+        llm.generate("hi", Some("qwen3:0.6b")).await
     });
     
     // Animate spinner while waiting
@@ -159,6 +160,8 @@ pub struct AppState {
     pub microservices_config: crate::infrastructure::config::MicroservicesConfig,
     /// Checklist repository for data layer
     pub checklist_repository: Arc<dyn ChecklistRepository + Send + Sync>,
+    /// Kanban repository for data layer
+    pub kanban_repository: Arc<dyn KanbanRepository + Send + Sync>,
     /// Music repository for data layer
     pub music_repository: Arc<dyn MusicRepository + Send + Sync>,
 }
@@ -166,7 +169,7 @@ pub struct AppState {
 /// =============================================================================
 /// Main Entry Point
 /// =============================================================================
-/// Initializes the NEURO-OS backend server with all required services.
+/// Initializes the TACHIKOMA-OS backend server with all required services.
 /// 
 /// # Initialization Order
 /// 1. Load configuration from environment
@@ -201,7 +204,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "warn,neuro_backend=info".into()),
+                .unwrap_or_else(|_| "warn,tachikoma_backend=info".into()),
         )
         .with_target(false)
         .with_thread_ids(false)
@@ -214,7 +217,7 @@ async fn main() -> Result<()> {
     // Pretty startup banner
     // -------------------------------------------------------------------------
     println!("\n{CYAN}{BOLD}╔═══════════════════════════════════════════════════════════╗{RESET}");
-    println!("{CYAN}{BOLD}║{RESET}            {MAGENTA}🧠 NEURO-OS Backend v0.1.0{RESET}                   {CYAN}{BOLD}║{RESET}");
+    println!("{CYAN}{BOLD}║{RESET}            {MAGENTA}🧠 TACHIKOMA-OS Backend v0.1.0{RESET}                   {CYAN}{BOLD}║{RESET}");
     println!("{CYAN}{BOLD}╚═══════════════════════════════════════════════════════════╝{RESET}\n");
 
     const TOTAL_STEPS: u8 = 8;
@@ -263,6 +266,8 @@ async fn main() -> Result<()> {
     // Create checklist and music repositories
     let checklist_repository: Arc<dyn ChecklistRepository + Send + Sync> = 
         Arc::new(SurrealChecklistRepository::new(database_pool.clone()));
+    let kanban_repository: Arc<dyn KanbanRepository + Send + Sync> = 
+        Arc::new(SurrealKanbanRepository::new(database_pool.clone()));
     let music_repository: Arc<dyn MusicRepository + Send + Sync> = 
         Arc::new(SurrealMusicRepository::new(database_pool.clone()));
     print_done(6, TOTAL_STEPS, "All repositories ready");
@@ -334,6 +339,7 @@ async fn main() -> Result<()> {
         event_broadcaster,
         microservices_config: config.microservices.clone(),
         checklist_repository,
+        kanban_repository,
         music_repository,
     });
 
@@ -348,7 +354,7 @@ async fn main() -> Result<()> {
     let bind_addr = format!("{}:{}", config.server.host, config.server.port);
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
     
-    println!("\n{GREEN}{BOLD}✓ NEURO-OS Backend ready!{RESET}");
+    println!("\n{GREEN}{BOLD}✓ TACHIKOMA-OS Backend ready!{RESET}");
     println!("{DIM}─────────────────────────────────────────────────────────{RESET}");
     println!("  {CYAN}▸{RESET} Server:   {YELLOW}http://{bind_addr}{RESET}");
     println!("  {CYAN}▸{RESET} Health:   {DIM}GET  /api/health{RESET}");

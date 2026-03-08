@@ -1,0 +1,43 @@
+# ============================================
+# FAST DEV BUILD - Debug mode with mold linker
+# ============================================
+FROM rust:1.83-slim AS chef
+RUN cargo install cargo-chef --locked
+RUN apt-get update && apt-get install -y mold clang pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+
+# ============================================
+# Stage 2: Prepare recipe
+# ============================================
+FROM chef AS planner
+COPY Cargo.toml Cargo.lock* ./
+COPY src ./src
+RUN cargo chef prepare --recipe-path recipe.json
+
+# ============================================
+# Stage 3: Build (DEBUG - faster compile)
+# ============================================
+FROM chef AS builder
+ENV RUSTFLAGS="-C link-arg=-fuse-ld=mold"
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --recipe-path recipe.json
+
+COPY Cargo.toml Cargo.lock* ./
+COPY src ./src
+RUN cargo build
+
+# ============================================
+# Stage 4: Runtime
+# ============================================
+FROM debian:bookworm-slim AS runtime
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=builder /app/target/debug/tachikoma-calendar /app/tachikoma-calendar
+
+ENV PORT=3009
+EXPOSE 3009
+
+CMD ["/app/tachikoma-calendar"]

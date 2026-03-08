@@ -3,7 +3,10 @@
 # =============================================================================
 # This file orchestrates all services required for the NEURO-OS AI ecosystem.
 # Services include: SurrealDB (Graph + Vector DB), Searxng (Web Search),
-# Rust Backend API, User UI, and Admin UI.
+# and various microservices (Voice, Chat, Memory, Agent, etc.)
+#
+# NOTE: Ollama is now external - run via neuro-ollama project independently.
+# All LLM operations go through neuro-backend gateway which connects to Ollama.
 # =============================================================================
 
 services:
@@ -41,6 +44,8 @@ services:
       - SEARXNG_SECRET=${SEARXNG_SECRET:-neuroos_searx_secret}
     volumes:
       - ./config/searxng:/etc/searxng:rw
+      - ./local-themes:/usr/local/searxng/searx/templates:rw
+      - ./local-themes/modern/static:/usr/local/searxng/searx/static/themes/modern:rw
     ports:
       - "8080:8080"
     networks:
@@ -53,46 +58,13 @@ services:
       - SETUID
 
   # ===========================================================================
-  # Ollama - Local LLM Inference Server
-  # ===========================================================================
-  # Provides local AI inference capabilities. The ModelManager selects
-  # appropriate models (3B, 7B, 14B) based on available VRAM.
-  # NOTE: GPU support requires nvidia-container-toolkit. Comment out the
-  # deploy section if running on CPU only.
-  # ===========================================================================
-  ollama:
-    image: ollama/ollama:latest
-    container_name: neuro-ollama
-    restart: unless-stopped
-    environment:
-      # Keep model loaded indefinitely to avoid 30+ second reload times
-      - OLLAMA_KEEP_ALIVE=-1
-      # Context length for conversations
-      - OLLAMA_CONTEXT_LENGTH=4096
-    volumes:
-      - ollama_data:/root/.ollama
-    ports:
-      - "11434:11434"
-    networks:
-      - neuro-network
-    # GPU support (requires nvidia-container-toolkit)
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-
-  # ===========================================================================
   # Voice Service - Piper TTS API (Rust)
   # ===========================================================================
   # Ultra-fast text-to-speech synthesis using Piper TTS with robotic effects.
   # Runs in Docker because it requires Piper binary and voice models.
   # GPU support for accelerated ONNX inference.
   # ===========================================================================
-  voice-service:
+  neuro-voice:
     build:
       context: ./neuro-voice
       dockerfile: Dockerfile
@@ -130,7 +102,7 @@ services:
   # Independent microservice for managing checklists.
   # Uses neuro-backend as data layer via HTTP client.
   # ===========================================================================
-  checklists-service:
+  neuro-checklists:
     build:
       context: ./neuro-checklists
       dockerfile: Dockerfile
@@ -166,7 +138,7 @@ services:
   # Uses yt-dlp for extraction and ffmpeg for transcoding.
   # Uses neuro-backend as data layer via HTTP client.
   # ===========================================================================
-  music-service:
+  neuro-music:
     build:
       context: ./neuro-music
       dockerfile: Dockerfile
@@ -178,6 +150,9 @@ services:
       - RUST_LOG=info
       - PORT=3002
       - BACKEND_URL=http://host.docker.internal:3000
+      - DOWNLOADS_PATH=/data/downloads
+    volumes:
+      - music-downloads:/data/downloads
     ports:
       - "3002:3002"
     networks:
@@ -196,13 +171,16 @@ services:
   # ===========================================================================
   # Handles chat conversations with LLM, streaming responses, and 
   # integration with memory service for context-aware responses.
+  # All LLM operations go through neuro-backend gateway.
   # ===========================================================================
-  chat-service:
+  neuro-chat:
     build:
       context: ./neuro-chat
       dockerfile: Dockerfile
     container_name: neuro-chat
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - RUST_LOG=info
       - PORT=3003
@@ -211,16 +189,16 @@ services:
       - DATABASE_PASS=${SURREAL_PASS:-neuroos_secret_2024}
       - DATABASE_NAMESPACE=neuro
       - DATABASE_NAME=chat
-      - OLLAMA_URL=http://ollama:11434
-      - MEMORY_SERVICE_URL=http://memory-service:3004
+      # Backend is the gateway to all LLM operations (no direct Ollama)
+      - BACKEND_URL=http://host.docker.internal:3000
+      - MEMORY_SERVICE_URL=http://neuro-memory:3004
     ports:
       - "3003:3003"
     networks:
       - neuro-network
     depends_on:
       - surrealdb
-      - ollama
-      - memory-service
+      - neuro-memory
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3003/api/health"]
       interval: 30s
@@ -233,13 +211,16 @@ services:
   # ===========================================================================
   # Manages memories as graph nodes with vector embeddings for semantic
   # search. Implements the GraphRAG pattern for memory relationships.
+  # All LLM operations (embeddings) go through neuro-backend gateway.
   # ===========================================================================
-  memory-service:
+  neuro-memory:
     build:
       context: ./neuro-memory
       dockerfile: Dockerfile
     container_name: neuro-memory
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - RUST_LOG=info
       - PORT=3004
@@ -248,14 +229,14 @@ services:
       - DATABASE_PASS=${SURREAL_PASS:-neuroos_secret_2024}
       - DATABASE_NAMESPACE=neuro
       - DATABASE_NAME=memories
-      - OLLAMA_URL=http://ollama:11434
+      # Backend is the gateway to all LLM operations (embeddings)
+      - BACKEND_URL=http://host.docker.internal:3000
     ports:
       - "3004:3004"
     networks:
       - neuro-network
     depends_on:
       - surrealdb
-      - ollama
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3004/api/health"]
       interval: 30s
@@ -269,7 +250,7 @@ services:
   # Provides agent capabilities: web search via Searxng and safe
   # command execution with security restrictions.
   # ===========================================================================
-  agent-service:
+  neuro-agent:
     build:
       context: ./neuro-agent
       dockerfile: Dockerfile
@@ -292,6 +273,190 @@ services:
       retries: 3
       start_period: 30s
 
+  # ===========================================================================
+  # Pomodoro Service - Pomodoro Timer Microservice (Rust)
+  # ===========================================================================
+  # Manages pomodoro timer sessions, statistics, and user settings
+  # for productivity tracking.
+  # ===========================================================================
+  neuro-pomodoro:
+    build:
+      context: ./neuro-pomodoro
+      dockerfile: Dockerfile
+    container_name: neuro-pomodoro
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3010
+      - BACKEND_URL=http://host.docker.internal:3000
+    ports:
+      - "3010:3010"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # Kanban Service - Kanban Board Microservice (Rust)
+  # ===========================================================================
+  # Manages kanban boards with columns and cards for project/task
+  # organization with drag-and-drop support.
+  # ===========================================================================
+  neuro-kanban:
+    build:
+      context: ./neuro-kanban
+      dockerfile: Dockerfile
+    container_name: neuro-kanban
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3006
+      - BACKEND_URL=http://host.docker.internal:3000
+    ports:
+      - "3006:3006"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3006/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # Note Service - Notes Microservice (Rust)
+  # ===========================================================================
+  # Manages notes with folders, tags, and search functionality.
+  # ===========================================================================
+  neuro-note:
+    build:
+      context: ./neuro-note
+      dockerfile: Dockerfile
+    container_name: neuro-note
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3007
+      - BACKEND_URL=http://host.docker.internal:3000
+    ports:
+      - "3007:3007"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # Docs Service - Documents Microservice (Rust)
+  # ===========================================================================
+  # Manages documents with folders, types, and search functionality.
+  # All LLM operations go through neuro-backend gateway.
+  # ===========================================================================
+  neuro-docs:
+    build:
+      context: ./neuro-docs
+      dockerfile: Dockerfile
+    container_name: neuro-docs
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3008
+      - BACKEND_URL=http://host.docker.internal:3000
+    ports:
+      - "3008:3008"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # Calendar Service - Calendar Microservice (Rust)
+  # ===========================================================================
+  # Manages calendar events, reminders, and recurring events.
+  # ===========================================================================
+  neuro-calendar:
+    build:
+      context: ./neuro-calendar
+      dockerfile: Dockerfile
+    container_name: neuro-calendar
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3009
+      - BACKEND_URL=http://host.docker.internal:3000
+    ports:
+      - "3009:3009"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # Image Service - Image Gallery Microservice (Rust)
+  # ===========================================================================
+  # Manages AI-generated images gallery with albums and generation.
+  # All LLM operations go through neuro-backend gateway.
+  # ===========================================================================
+  neuro-image:
+    build:
+      context: ./neuro-image
+      dockerfile: Dockerfile
+    container_name: neuro-image
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - RUST_LOG=info
+      - PORT=3011
+      - BACKEND_URL=http://host.docker.internal:3000
+    ports:
+      - "3011:3011"
+    networks:
+      - neuro-network
+    depends_on:
+      - surrealdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3011/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
 # =============================================================================
 # Networks Configuration
 # =============================================================================
@@ -303,8 +468,10 @@ networks:
 # =============================================================================
 # Volumes Configuration
 # =============================================================================
+# NOTE: Ollama is now external - run via neuro-ollama project independently.
+# =============================================================================
 volumes:
   surrealdb_data:
     name: neuro-surrealdb-data
-  ollama_data:
-    name: neuro-ollama-data
+  music-downloads:
+    name: neuro-music-downloads

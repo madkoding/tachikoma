@@ -20,11 +20,8 @@ function TypewriterText({
   const [hasStarted, setHasStarted] = useState(false);
   const containerRef = useRef<HTMLSpanElement>(null);
   
-  // Refs to track state without causing re-renders
-  const charIndexRef = useRef(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const delayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const charsArrayRef = useRef<string[]>([]);
+  // Single ref to track if component is mounted (prevents state updates after unmount)
+  const isMountedRef = useRef(true);
   const onCompleteRef = useRef(onComplete);
   
   // Keep onComplete ref updated
@@ -32,72 +29,69 @@ function TypewriterText({
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
-  // Reset and start effect
+  // Single effect that handles the entire typewriter lifecycle
   useEffect(() => {
-    // Clear any existing timers
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (delayTimeoutRef.current) {
-      clearTimeout(delayTimeoutRef.current);
-      delayTimeoutRef.current = null;
-    }
+    // Mark as mounted
+    isMountedRef.current = true;
     
-    // Reset state
+    // Reset state for new text
     setDisplayedText('');
     setIsComplete(false);
     setHasStarted(false);
-    charIndexRef.current = 0;
-    charsArrayRef.current = Array.from(text);
-
-    // Start after delay
-    delayTimeoutRef.current = setTimeout(() => {
-      setHasStarted(true);
-    }, delay);
-
-    return () => {
-      if (delayTimeoutRef.current) {
-        clearTimeout(delayTimeoutRef.current);
-      }
-    };
-  }, [text, delay]);
-
-  // Typing effect using interval (more efficient than recursive setTimeout)
-  useEffect(() => {
-    if (!hasStarted) return;
-
-    const charsArray = charsArrayRef.current;
     
-    // If text is empty or already complete, finish immediately
-    if (charsArray.length === 0) {
+    let charIndex = 0;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    let delayTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    
+    // If text is empty, complete immediately
+    if (text.length === 0) {
       setIsComplete(true);
       onCompleteRef.current?.();
       return;
     }
 
-    intervalRef.current = setInterval(() => {
-      if (charIndexRef.current < charsArray.length) {
-        charIndexRef.current += 1;
-        setDisplayedText(charsArray.slice(0, charIndexRef.current).join(''));
-      } else {
-        // Done typing
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
+    // Start typing after delay
+    delayTimeoutId = setTimeout(() => {
+      if (!isMountedRef.current) return;
+      
+      setHasStarted(true);
+      
+      // Start the typing interval
+      intervalId = setInterval(() => {
+        if (!isMountedRef.current) {
+          if (intervalId) clearInterval(intervalId);
+          return;
         }
-        setIsComplete(true);
-        onCompleteRef.current?.();
-      }
-    }, speed);
+        
+        if (charIndex < text.length) {
+          charIndex += 1;
+          setDisplayedText(text.substring(0, charIndex));
+        } else {
+          // Done typing
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+          setIsComplete(true);
+          onCompleteRef.current?.();
+        }
+      }, speed);
+    }, delay);
 
+    // Cleanup function - called on unmount or when dependencies change
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      isMountedRef.current = false;
+      
+      if (delayTimeoutId) {
+        clearTimeout(delayTimeoutId);
+        delayTimeoutId = null;
+      }
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
       }
     };
-  }, [hasStarted, speed]);
+  }, [text, delay, speed]); // All dependencies in one effect
 
   return (
     <span 

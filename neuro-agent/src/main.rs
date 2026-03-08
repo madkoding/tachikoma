@@ -1,5 +1,5 @@
 //! =============================================================================
-//! NEURO-OS Agent Service - Main Entry Point
+//! TACHIKOMA-OS Agent Service - Main Entry Point
 //! =============================================================================
 //! Microservice for agent tools: web search and safe command execution.
 //! =============================================================================
@@ -34,11 +34,11 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,neuro_agent=debug".into()),
+                .unwrap_or_else(|_| "info,tachikoma_agent=debug".into()),
         )
         .init();
 
-    info!("🤖 Starting NEURO-OS Agent Service...");
+    info!("🤖 Starting TACHIKOMA-OS Agent Service...");
 
     // Load configuration
     let config = Config::from_env();

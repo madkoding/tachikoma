@@ -173,7 +173,8 @@ start_docker_dev() {
     echo -e "  • ${GREEN}Persistent cache${NC} (dependencies compile once)"
     echo -e ""
     
-    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+    # Always rebuild to catch source changes
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
     
     echo -e "\n${GREEN}✓ Dev services started!${NC}"
     echo -e "  Voice:      ${YELLOW}http://localhost:8100${NC}"
@@ -182,6 +183,42 @@ start_docker_dev() {
     echo -e "  Chat:       ${YELLOW}http://localhost:3003${NC}"
     echo -e "  Memory:     ${YELLOW}http://localhost:3004${NC}"
     echo -e "  Agent:      ${YELLOW}http://localhost:3005${NC}"
+    echo -e "  Kanban:     ${YELLOW}http://localhost:3006${NC}"
+    echo -e "  Note:       ${YELLOW}http://localhost:3007${NC}"
+    echo -e "  Docs:       ${YELLOW}http://localhost:3008${NC}"
+    echo -e "  Calendar:   ${YELLOW}http://localhost:3009${NC}"
+    echo -e "  Pomodoro:   ${YELLOW}http://localhost:3010${NC}"
+    echo -e "  Image:      ${YELLOW}http://localhost:3011${NC}"
+    echo -e ""
+    echo -e "${CYAN}Tip:${NC} Use ${YELLOW}./dev.sh watch${NC} for auto-rebuild on changes"
+}
+
+# Start Docker services in watch mode (auto-rebuild on changes)
+start_docker_watch() {
+    print_header "Starting Docker services in WATCH mode (auto-rebuild)"
+    
+    echo -e "${CYAN}Watch mode features:${NC}"
+    echo -e "  • ${GREEN}Auto-rebuild${NC} when source files change"
+    echo -e "  • ${GREEN}Solo reconstruye el servicio modificado${NC} (los demás siguen corriendo)"
+    echo -e "  • ${GREEN}Debug builds${NC} (no --release, ~30% faster)"
+    echo -e "  • ${GREEN}mold linker${NC} (2-3x faster linking)"
+    echo -e "  • ${GREEN}Persistent cache${NC} (dependencies compile once)"
+    echo -e "  • ${GREEN}Rebuild típico: ~30s${NC} (vs 3-5min en release)"
+    echo -e ""
+    echo -e "${YELLOW}Watching for changes in:${NC}"
+    echo -e "  • neuro-voice/src/**/*.rs       → Reconstruye solo neuro-voice"
+    echo -e "  • neuro-music/src/**/*.rs       → Reconstruye solo neuro-music"
+    echo -e "  • neuro-checklists/src/**/*.rs  → Reconstruye solo neuro-checklists"
+    echo -e "  • neuro-chat/src/**/*.rs        → Reconstruye solo neuro-chat"
+    echo -e "  • neuro-memory/src/**/*.rs      → Reconstruye solo neuro-memory"
+    echo -e "  • neuro-agent/src/**/*.rs       → Reconstruye solo neuro-agent"
+    echo -e "  • neuro-*/Cargo.toml"
+    echo -e ""
+    echo -e "${CYAN}Press Ctrl+C to stop${NC}"
+    echo -e ""
+    
+    # Use docker compose watch for auto-rebuild
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.watch.yml watch
 }
 
 # Rebuild a specific service in dev mode (fast)
@@ -207,6 +244,12 @@ clean_cargo_cache() {
     docker volume rm neuro-cargo-cache-chat neuro-cargo-git-chat neuro-chat-target 2>/dev/null || true
     docker volume rm neuro-cargo-cache-memory neuro-cargo-git-memory neuro-memory-target 2>/dev/null || true
     docker volume rm neuro-cargo-cache-agent neuro-cargo-git-agent neuro-agent-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-pomodoro neuro-cargo-git-pomodoro neuro-pomodoro-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-kanban neuro-cargo-git-kanban neuro-kanban-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-note neuro-cargo-git-note neuro-note-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-docs neuro-cargo-git-docs neuro-docs-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-calendar neuro-cargo-git-calendar neuro-calendar-target 2>/dev/null || true
+    docker volume rm neuro-cargo-cache-image neuro-cargo-git-image neuro-image-target 2>/dev/null || true
     
     echo -e "  ${GREEN}Cache cleaned! Next build will be slower but fresh.${NC}"
 }
@@ -299,23 +342,44 @@ case "${1:-all}" in
     docker-dev|dd)
         start_docker_dev
         ;;
+    watch|w)
+        start_docker_watch
+        ;;
     rebuild-voice|rv)
-        rebuild_service_dev voice-service
+        rebuild_service_dev neuro-voice
         ;;
     rebuild-music|rm)
-        rebuild_service_dev music-service
+        rebuild_service_dev neuro-music
         ;;
     rebuild-checklists|rc)
-        rebuild_service_dev checklists-service
+        rebuild_service_dev neuro-checklists
         ;;
     rebuild-chat|rch)
-        rebuild_service_dev chat-service
+        rebuild_service_dev neuro-chat
         ;;
     rebuild-memory|rmem)
-        rebuild_service_dev memory-service
+        rebuild_service_dev neuro-memory
         ;;
     rebuild-agent|ra)
-        rebuild_service_dev agent-service
+        rebuild_service_dev neuro-agent
+        ;;
+    rebuild-pomodoro|rp)
+        rebuild_service_dev neuro-pomodoro
+        ;;
+    rebuild-kanban|rk)
+        rebuild_service_dev neuro-kanban
+        ;;
+    rebuild-note|rn)
+        rebuild_service_dev neuro-note
+        ;;
+    rebuild-docs|rd)
+        rebuild_service_dev neuro-docs
+        ;;
+    rebuild-calendar|rcal)
+        rebuild_service_dev neuro-calendar
+        ;;
+    rebuild-image|ri)
+        rebuild_service_dev neuro-image
         ;;
     clean-cache|cc)
         clean_cargo_cache
@@ -334,12 +398,19 @@ case "${1:-all}" in
         echo -e ""
         echo -e "${CYAN}Docker Fast Dev Mode (3-5x faster builds):${NC}"
         echo -e "  ${YELLOW}docker-dev${NC}     Start Docker services with dev optimizations"
+        echo -e "  ${YELLOW}watch${NC}          ${GREEN}Auto-rebuild on changes${NC} (solo reconstruye servicio modificado)"
         echo -e "  ${YELLOW}rebuild-voice${NC}  Rebuild voice service (fast dev mode)"
         echo -e "  ${YELLOW}rebuild-music${NC}  Rebuild music service (fast dev mode)"
         echo -e "  ${YELLOW}rebuild-checklists${NC}  Rebuild checklists service (fast dev mode)"
         echo -e "  ${YELLOW}rebuild-chat${NC}   Rebuild chat service (fast dev mode)"
         echo -e "  ${YELLOW}rebuild-memory${NC} Rebuild memory service (fast dev mode)"
         echo -e "  ${YELLOW}rebuild-agent${NC}  Rebuild agent service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-pomodoro${NC} Rebuild pomodoro service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-kanban${NC} Rebuild kanban service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-note${NC}   Rebuild note service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-docs${NC}   Rebuild docs service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-calendar${NC} Rebuild calendar service (fast dev mode)"
+        echo -e "  ${YELLOW}rebuild-image${NC}  Rebuild image service (fast dev mode)"
         echo -e "  ${YELLOW}clean-cache${NC}    Clean persistent cargo cache"
         echo -e ""
         echo -e "${CYAN}Legacy (slower):${NC}"

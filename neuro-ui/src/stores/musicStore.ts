@@ -11,8 +11,9 @@ import {
   CreateSongRequest,
   UpdatePlaylistRequest,
   UpdateSongRequest,
-  YouTubeSearchResultDto
+  EnrichedSearchResultDto
 } from '../api/client';
+import { songCache } from '../services/songCache';
 
 // =============================================================================
 // Types
@@ -50,7 +51,7 @@ export interface MusicState {
   // Data
   playlists: PlaylistDto[];
   currentPlaylistDetail: PlaylistWithSongsDto | null;
-  searchResults: YouTubeSearchResultDto[];
+  searchResults: EnrichedSearchResultDto[];
   
   // Player state
   player: PlayerState;
@@ -178,15 +179,29 @@ interface MusicActions {
   setError: (error: string | null) => void;
   clearError: () => void;
   
-  // Polling for new songs
+  // Polling for new songs (fallback for SSE)
   startPolling: (playlistId: string) => void;
   stopPolling: () => void;
   clearNewSongIds: () => void;
   markSongAsSeen: (songId: string) => void;
+  
+  // SSE-based watching (preferred)
+  startWatchingPlaylist: (playlistId: string) => void;
+  stopWatchingPlaylist: () => void;
+  
+  // Special playlists (Me gusta / Sugerencias)
+  initSpecialPlaylists: () => Promise<void>;
+  toggleSongLike: (songId: string) => Promise<void>;
+  fetchSongCover: (songId: string) => Promise<void>;
+  refreshSuggestions: () => Promise<void>;
 }
 
 // Polling interval reference (outside store)
 let pollingInterval: ReturnType<typeof setInterval> | null = null;
+
+// SSE EventSource reference (outside store)
+let sseEventSource: EventSource | null = null;
+let sseWatchingPlaylistId: string | null = null;
 
 export const useMusicStore = create<MusicState & MusicActions>()(
   persist(
@@ -214,8 +229,27 @@ export const useMusicStore = create<MusicState & MusicActions>()(
   fetchPlaylists: async () => {
     set({ isLoadingPlaylists: true, error: null });
     try {
+      // Initialize special playlists first (creates them if they don't exist)
+      try {
+        await musicApi.initSpecialPlaylists();
+      } catch (e) {
+        console.warn('Could not init special playlists:', e);
+      }
       const playlists = await musicApi.listPlaylists();
-      set({ playlists, isLoadingPlaylists: false });
+      
+      // Sort playlists: is_favorites first, is_suggestions second, then by created_at desc
+      const sortedPlaylists = [...playlists].sort((a, b) => {
+        // is_favorites always first
+        if (a.is_favorites && !b.is_favorites) return -1;
+        if (!a.is_favorites && b.is_favorites) return 1;
+        // is_suggestions second
+        if (a.is_suggestions && !b.is_suggestions) return -1;
+        if (!a.is_suggestions && b.is_suggestions) return 1;
+        // Rest by created_at descending (newest first)
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+      
+      set({ playlists: sortedPlaylists, isLoadingPlaylists: false });
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to fetch playlists',
@@ -297,7 +331,14 @@ export const useMusicStore = create<MusicState & MusicActions>()(
       });
       return song;
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to add song' });
+      // Handle API error responses with message
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { status?: number; data?: { error?: string } } };
+        const errorMessage = axiosError.response?.data?.error || 'Error al agregar canción';
+        set({ error: errorMessage });
+        throw new Error(errorMessage);
+      }
+      set({ error: error instanceof Error ? error.message : 'Error al agregar canción' });
       throw error;
     }
   },
@@ -730,7 +771,8 @@ export const useMusicStore = create<MusicState & MusicActions>()(
     
     set({ isSearching: true, error: null });
     try {
-      const results = await musicApi.searchYouTube(query);
+      // Use enriched search to get proper metadata (artist, title, album)
+      const results = await musicApi.searchYouTubeEnriched(query);
       set({ searchResults: results, isSearching: false });
     } catch (error) {
       set({ 
@@ -834,6 +876,313 @@ export const useMusicStore = create<MusicState & MusicActions>()(
       return { newSongIds: newIds };
     });
   },
+
+  // ==========================================================================
+  // SSE-based Watching (preferred over polling)
+  // ==========================================================================
+
+  startWatchingPlaylist: (playlistId: string) => {
+    console.log('🎵 Starting to watch playlist via SSE:', playlistId);
+    
+    // Stop any existing watching
+    get().stopWatchingPlaylist();
+    
+    sseWatchingPlaylistId = playlistId;
+    set({ pollingPlaylistId: playlistId });
+    
+    // Try to connect to SSE
+    try {
+      sseEventSource = new EventSource('/api/music/events');
+      
+      sseEventSource.onopen = () => {
+        console.log('🎵 SSE connected for playlist watching');
+      };
+      
+      sseEventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('🎵 SSE event received:', data.type);
+          
+          // Handle SongAdded event
+          if (data.type === 'SongAdded') {
+            const { playlist_id, song: rawSong } = data.data;
+            const song = rawSong as SongDto;
+            console.log('🎵 SSE: New song added:', song.title, 'to playlist:', playlist_id);
+            
+            // Add to newSongIds for animation
+            set(state => {
+              const newIds = new Set(state.newSongIds);
+              newIds.add(song.id);
+              return { newSongIds: newIds };
+            });
+            
+            // Immediately update the state if watching this playlist
+            if (playlist_id === sseWatchingPlaylistId) {
+              set(state => {
+                const detail = state.currentPlaylistDetail;
+                if (detail && detail.id === playlist_id) {
+                  // Check if song already exists to avoid duplicates
+                  const existingSong = detail.songs.find(s => s.id === song.id);
+                  if (existingSong) {
+                    console.log('🎵 SSE: Song already exists, skipping');
+                    return state;
+                  }
+                  
+                  console.log('🎵 SSE: Adding song to currentPlaylistDetail');
+                  return {
+                    currentPlaylistDetail: {
+                      ...detail,
+                      songs: [...detail.songs, song],
+                      song_count: detail.song_count + 1,
+                      total_duration: detail.total_duration + (song.duration || 0),
+                    }
+                  };
+                }
+                return state;
+              });
+            }
+            
+            // Also refresh playlists list (for song count in sidebar)
+            get().fetchPlaylists();
+          }
+          
+          // Handle PlaylistUpdated event
+          if (data.type === 'PlaylistUpdated') {
+            const playlist = data.data as { id: string; name: string; description?: string; cover_url?: string; song_count: number; total_duration: number };
+            console.log('🎵 SSE: Playlist updated:', playlist.id);
+            
+            // Update the playlist in the list
+            set(state => {
+              const detail = state.currentPlaylistDetail;
+              return {
+                playlists: state.playlists.map(p => 
+                  p.id === playlist.id 
+                    ? { ...p, name: playlist.name, description: playlist.description, cover_url: playlist.cover_url, song_count: playlist.song_count, total_duration: playlist.total_duration }
+                    : p
+                ),
+                // Update currentPlaylistDetail metadata if it's the same playlist
+                currentPlaylistDetail: detail && detail.id === playlist.id
+                  ? { ...detail, name: playlist.name, description: playlist.description, cover_url: playlist.cover_url, song_count: playlist.song_count, total_duration: playlist.total_duration }
+                  : detail,
+              };
+            });
+          }
+          
+          // Handle PlaylistCreated - refresh list
+          if (data.type === 'PlaylistCreated') {
+            console.log('🎵 SSE: New playlist created');
+            get().fetchPlaylists();
+          }
+          
+          // Handle SongRemoved event
+          if (data.type === 'SongRemoved') {
+            const { playlist_id, song_id } = data.data as { playlist_id: string; song_id: string };
+            console.log('🎵 SSE: Song removed:', song_id, 'from playlist:', playlist_id);
+            
+            if (playlist_id === sseWatchingPlaylistId) {
+              set(state => {
+                const detail = state.currentPlaylistDetail;
+                if (detail && detail.id === playlist_id) {
+                  const removedSong = detail.songs.find(s => s.id === song_id);
+                  return {
+                    currentPlaylistDetail: {
+                      ...detail,
+                      songs: detail.songs.filter(s => s.id !== song_id),
+                      song_count: Math.max(0, detail.song_count - 1),
+                      total_duration: Math.max(0, detail.total_duration - (removedSong?.duration || 0)),
+                    }
+                  };
+                }
+                return state;
+              });
+            }
+            get().fetchPlaylists();
+          }
+          
+          // Handle SongUpdated event
+          if (data.type === 'SongUpdated') {
+            const updatedSong = data.data as SongDto;
+            console.log('🎵 SSE: Song updated:', updatedSong.id);
+            
+            set(state => {
+              const detail = state.currentPlaylistDetail;
+              if (detail && detail.id === updatedSong.playlist_id) {
+                return {
+                  currentPlaylistDetail: {
+                    ...detail,
+                    songs: detail.songs.map(s => 
+                      s.id === updatedSong.id ? { ...s, ...updatedSong } : s
+                    ),
+                  }
+                };
+              }
+              return state;
+            });
+          }
+          
+        } catch (e) {
+          console.error('🎵 SSE: Failed to parse event:', e);
+        }
+      };
+      
+      sseEventSource.onerror = (e) => {
+        console.log('🎵 SSE error, falling back to polling:', e);
+        
+        // Close SSE connection
+        if (sseEventSource) {
+          sseEventSource.close();
+          sseEventSource = null;
+        }
+        
+        // Fall back to polling
+        if (sseWatchingPlaylistId) {
+          console.log('🎵 Starting polling fallback for:', sseWatchingPlaylistId);
+          get().startPolling(sseWatchingPlaylistId);
+        }
+      };
+      
+    } catch (e) {
+      console.error('🎵 Failed to create EventSource, using polling:', e);
+      get().startPolling(playlistId);
+    }
+  },
+
+  stopWatchingPlaylist: () => {
+    console.log('🎵 Stopping playlist watching');
+    
+    // Stop SSE
+    if (sseEventSource) {
+      sseEventSource.close();
+      sseEventSource = null;
+    }
+    sseWatchingPlaylistId = null;
+    
+    // Stop polling
+    get().stopPolling();
+  },
+
+  // ==========================================================================
+  // Special Playlists (Me gusta / Sugerencias)
+  // ==========================================================================
+
+  initSpecialPlaylists: async () => {
+    try {
+      await musicApi.initSpecialPlaylists();
+      // Refresh playlists to include the new special ones
+      await get().fetchPlaylists();
+    } catch (error) {
+      console.error('Failed to init special playlists:', error);
+    }
+  },
+
+  toggleSongLike: async (songId: string) => {
+    console.log('🎵 toggleSongLike called with songId:', songId);
+    try {
+      const updated = await musicApi.toggleSongLike(songId);
+      console.log('🎵 toggleSongLike response:', updated);
+      
+      set(state => {
+        // Update in current playlist detail
+        const updatedPlaylistDetail = state.currentPlaylistDetail 
+          ? {
+              ...state.currentPlaylistDetail,
+              songs: state.currentPlaylistDetail.songs.map(s =>
+                s.id === songId ? { ...s, is_liked: updated.is_liked } : s
+              ),
+            }
+          : null;
+        
+        // Update current song if it's the one being toggled
+        const updatedPlayer = state.player.currentSong?.id === songId
+          ? {
+              ...state.player,
+              currentSong: { ...state.player.currentSong, is_liked: updated.is_liked },
+            }
+          : state.player;
+        
+        return {
+          currentPlaylistDetail: updatedPlaylistDetail,
+          player: updatedPlayer,
+        };
+      });
+      
+      // Refresh playlists to update "Me gusta" count
+      await get().fetchPlaylists();
+      console.log('🎵 toggleSongLike completed successfully, is_liked:', updated.is_liked);
+
+      // If liked, download the song to cache in background
+      if (updated.is_liked) {
+        console.log('🎵 Starting background download for liked song:', songId);
+        musicApi.downloadSong(songId)
+          .then(async (blob) => {
+            await songCache.put(songId, updated.youtube_id || songId, blob);
+            console.log('🎵 Song cached successfully:', songId);
+          })
+          .catch(error => {
+            console.warn('🎵 Failed to cache song (will stream instead):', error);
+          });
+      } else {
+        // If unliked, remove from cache
+        songCache.remove(songId)
+          .then(() => console.log('🎵 Song removed from cache:', songId))
+          .catch(error => console.warn('🎵 Failed to remove from cache:', error));
+      }
+    } catch (error) {
+      console.error('🎵 toggleSongLike error:', error);
+      set({ error: error instanceof Error ? error.message : 'Failed to toggle like' });
+      throw error;
+    }
+  },
+
+  fetchSongCover: async (songId: string) => {
+    try {
+      const updated = await musicApi.fetchSongCover(songId);
+      set(state => {
+        // Update in current playlist detail
+        const updatedPlaylistDetail = state.currentPlaylistDetail 
+          ? {
+              ...state.currentPlaylistDetail,
+              songs: state.currentPlaylistDetail.songs.map(s =>
+                s.id === songId ? { ...s, cover_url: updated.cover_url } : s
+              ),
+            }
+          : null;
+        
+        // Update current song if it's the one being updated
+        const updatedPlayer = state.player.currentSong?.id === songId
+          ? {
+              ...state.player,
+              currentSong: { ...state.player.currentSong, cover_url: updated.cover_url },
+            }
+          : state.player;
+        
+        return {
+          currentPlaylistDetail: updatedPlaylistDetail,
+          player: updatedPlayer,
+        };
+      });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to fetch cover' });
+      throw error;
+    }
+  },
+
+  refreshSuggestions: async () => {
+    try {
+      const updated = await musicApi.refreshSuggestions();
+      set(state => ({
+        playlists: state.playlists.map(p =>
+          p.id === updated.id ? { ...p, ...updated } : p
+        ),
+        currentPlaylistDetail: state.currentPlaylistDetail?.id === updated.id
+          ? updated
+          : state.currentPlaylistDetail,
+      }));
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to refresh suggestions' });
+      throw error;
+    }
+  },
 }),
     {
       name: 'music-settings',
@@ -884,16 +1233,87 @@ export const useHasHydrated = () => {
 };
 
 // =============================================================================
+// Optimized Selectors (prevent re-renders from spectrumData updates ~60/s)
+// =============================================================================
+
+// Shallow equality check for player state
+const shallowEqualPlayer = (a: PlayerState, b: PlayerState) => 
+  a.currentSong === b.currentSong &&
+  a.currentPlaylist === b.currentPlaylist &&
+  a.isPlaying === b.isPlaying &&
+  a.currentTime === b.currentTime &&
+  a.duration === b.duration &&
+  a.volume === b.volume &&
+  a.isMuted === b.isMuted &&
+  a.shuffle === b.shuffle &&
+  a.repeatMode === b.repeatMode &&
+  a.isLoading === b.isLoading &&
+  a.seekTo === b.seekTo;
+
+// Player state only (most components need this)
+export const usePlayerState = () => useMusicStore((state) => state.player, shallowEqualPlayer);
+
+// Player actions (stable references, don't cause re-renders)
+export const usePlayerActions = () => useMusicStore((state) => ({
+  togglePlay: state.togglePlay,
+  nextSong: state.nextSong,
+  previousSong: state.previousSong,
+  seek: state.seek,
+  setVolume: state.setVolume,
+  toggleMute: state.toggleMute,
+  toggleShuffle: state.toggleShuffle,
+  setRepeatMode: state.setRepeatMode,
+  playSong: state.playSong,
+}));
+
+// Spectrum data only (for SpectrumAnalyzer - updates ~60/s)
+export const useSpectrumData = () => useMusicStore((state) => state.spectrumData);
+
+// Playlists only
+export const usePlaylists = () => useMusicStore((state) => ({
+  playlists: state.playlists,
+  isLoadingPlaylists: state.isLoadingPlaylists,
+  fetchPlaylists: state.fetchPlaylists,
+}));
+
+// Current playlist detail
+export const useCurrentPlaylistDetail = () => useMusicStore((state) => ({
+  currentPlaylistDetail: state.currentPlaylistDetail,
+  fetchPlaylistDetail: state.fetchPlaylistDetail,
+}));
+
+// Equalizer state
+export const useEqualizerState = () => useMusicStore((state) => ({
+  equalizer: state.equalizer,
+  audioFilters: state.audioFilters,
+}));
+
+// Search functionality
+export const useSearchState = () => useMusicStore((state) => ({
+  searchResults: state.searchResults,
+  isSearching: state.isSearching,
+  searchYouTube: state.searchYouTube,
+  addSong: state.addSong,
+  clearSearch: state.clearSearch,
+}));
+
+// =============================================================================
 // Utility Functions
 // =============================================================================
 
 export function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return '0:00';
+  }
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 export function formatDurationLong(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return '0 min';
+  }
   const hours = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   

@@ -14,4 +14,12 @@ export type { ConnectionStatus } from './useConnectionStatus';
 
 export { useMediaSession } from './useMediaSession';
 
-export { useMediaSession } from './useMediaSession';
+export { useMusicEvents } from './useMusicEvents';
+export type { 
+  MusicEvent, 
+  MusicEventType, 
+  PlaylistEventData, 
+  SongEventData,
+  UseMusicEventsOptions,
+  UseMusicEventsReturn 
+} from './useMusicEvents';

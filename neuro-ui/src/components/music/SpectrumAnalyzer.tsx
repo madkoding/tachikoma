@@ -1,187 +1,241 @@
-import React from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { useMusicStore } from '../../stores/musicStore';
+import { usePerformanceStore } from '../../stores/performanceStore';
 
 interface SpectrumAnalyzerProps {
   barCount?: number;
   className?: string;
   showReflection?: boolean;
-  ledStyle?: boolean; // LED cuadrados style
-  compact?: boolean;  // Versión compacta para miniplayer
+  ledStyle?: boolean;
+  compact?: boolean;
 }
 
+/**
+ * Canvas-based Spectrum Analyzer
+ * Uses requestAnimationFrame to draw directly on canvas without React re-renders.
+ * This eliminates ~1150 DOM elements (32 bars × 36 LEDs) that were causing performance issues.
+ * 
+ * Performance-aware: Respects settings from performanceStore for FPS throttling,
+ * glow effects, reflections, and scanlines.
+ */
 export const SpectrumAnalyzer: React.FC<SpectrumAnalyzerProps> = ({ 
-  barCount = 32, 
+  barCount: propBarCount = 32, 
   className = '',
-  showReflection = true,
-  ledStyle = true,
+  showReflection: propShowReflection = true,
   compact = false,
 }) => {
-  const { spectrumData, player } = useMusicStore();
-
-  // Use only the number of bars we need
-  const bars = spectrumData.slice(0, barCount);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationRef = useRef<number | null>(null);
+  const lastDrawTimeRef = useRef<number>(0);
+  const fpsCounterRef = useRef<{ frames: number; lastTime: number }>({ frames: 0, lastTime: 0 });
   
-  // Number of LED segments per bar (3x más segmentos)
+  // Get performance settings
+  const perfSettings = usePerformanceStore((state) => state.settings);
+  const updateFPS = usePerformanceStore((state) => state.updateFPS);
+  
+  // Apply performance settings
+  const barCount = Math.min(propBarCount, perfSettings.spectrumBarCount);
+  const showReflection = propShowReflection && perfSettings.enableReflections;
+  const enableGlow = perfSettings.enableGlowEffects;
+  const enableScanlines = perfSettings.enableScanlines;
+  const targetFPS = perfSettings.spectrumFPS;
+  const frameInterval = 1000 / targetFPS;
+  
+  // LED count per bar
   const ledCount = compact ? 16 : 36;
-
-  // Cyberpunk color gradient based on frequency and level
-  const getLedColor = (barIndex: number, ledIndex: number, isLit: boolean, value: number) => {
-    if (!isLit) return 'rgba(30, 30, 40, 0.5)';
+  
+  // Draw function - called via requestAnimationFrame, not React state
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
     
-    const hue = 180 + (barIndex / barCount) * 60; // Cyan to purple
-    const levelRatio = ledIndex / ledCount;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     
-    // Higher LEDs get more intense colors
-    if (levelRatio > 0.8) {
-      // Top LEDs - magenta/red for peaks
-      return `hsla(320, 100%, ${50 + value * 20}%, ${0.8 + value * 0.2})`;
-    } else if (levelRatio > 0.6) {
-      // Upper mid - purple
-      return `hsla(280, 90%, ${45 + value * 20}%, ${0.8 + value * 0.2})`;
-    } else {
-      // Lower LEDs - cyan
-      return `hsla(${hue}, 100%, ${40 + value * 25}%, ${0.8 + value * 0.2})`;
+    const now = performance.now();
+    
+    // Throttle based on performance settings
+    if (now - lastDrawTimeRef.current < frameInterval) {
+      animationRef.current = requestAnimationFrame(draw);
+      return;
     }
-  };
-
-  const getGlowColor = (_barIndex: number, ledIndex: number) => {
-    const levelRatio = ledIndex / ledCount;
-    if (levelRatio > 0.8) {
-      return 'rgba(255, 0, 128, 0.6)';
-    } else if (levelRatio > 0.6) {
-      return 'rgba(180, 0, 255, 0.5)';
+    
+    // FPS counter for auto-adjustment
+    fpsCounterRef.current.frames++;
+    if (now - fpsCounterRef.current.lastTime >= 1000) {
+      const fps = fpsCounterRef.current.frames;
+      updateFPS(fps);
+      fpsCounterRef.current.frames = 0;
+      fpsCounterRef.current.lastTime = now;
     }
-    return 'rgba(0, 255, 255, 0.4)';
-  };
-
-  if (ledStyle) {
-    return (
-      <div className={`relative ${className}`} style={{ minHeight: compact ? '60px' : '100px' }}>
-        {/* LED Grid */}
-        <div 
-          className="flex items-end justify-center gap-[4px]" 
-          style={{ height: '100%' }}
-        >
-          {bars.map((value, barIndex) => {
-            // Scale value for visual effect
-            const scaledValue = Math.pow(value, 0.6) * 1.3;
-            const litLeds = Math.floor(scaledValue * ledCount);
-            const isActive = player.isPlaying && value > 0.05;
-            
-            return (
-              <div
-                key={`bar-${barIndex}`}
-                className="flex-1 flex flex-col-reverse gap-[2px]"
-                style={{ maxWidth: compact ? '6px' : '10px', height: '100%' }}
-              >
-                {Array.from({ length: ledCount }).map((_, ledIndex) => {
-                  const isLit = ledIndex < litLeds;
-                  const isPeak = ledIndex === litLeds - 1 && isLit;
-                  
-                  return (
-                    <div
-                      key={`led-${barIndex}-${ledIndex}`}
-                      className="w-full transition-all duration-50"
-                      style={{
-                        height: `${100 / ledCount}%`,
-                        minHeight: compact ? '2px' : '2px',
-                        background: getLedColor(barIndex, ledIndex, isLit, value),
-                        boxShadow: isLit && isActive
-                          ? `0 0 ${isPeak ? '6px' : '2px'} ${getGlowColor(barIndex, ledIndex)}`
-                          : 'none',
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Reflection effect for LED style */}
-        {showReflection && !compact && (
-          <div 
-            className="absolute bottom-0 left-0 right-0 flex items-start justify-center gap-[2px] opacity-20 transform scale-y-[-1]"
-            style={{
-              height: '20%',
-              maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.3), transparent)',
-              WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.3), transparent)',
-            }}
-          >
-            {bars.map((value, barIndex) => {
-              const scaledValue = Math.pow(value, 0.6) * 1.3;
-              const litLeds = Math.min(3, Math.floor(scaledValue * ledCount));
-              
-              return (
-                <div
-                  key={`reflection-${barIndex}`}
-                  className="flex-1 flex flex-col-reverse gap-[1px]"
-                  style={{ maxWidth: '12px', height: '100%' }}
-                >
-                  {Array.from({ length: 3 }).map((_, ledIndex) => (
-                    <div
-                      key={`ref-led-${barIndex}-${ledIndex}`}
-                      className="w-full rounded-sm"
-                      style={{
-                        height: '33%',
-                        background: ledIndex < litLeds 
-                          ? getLedColor(barIndex, ledIndex, true, value * 0.5)
-                          : 'transparent',
-                      }}
-                    />
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Scanline effect */}
-        {!compact && (
-          <div 
-            className="absolute inset-0 pointer-events-none opacity-5"
-            style={{
-              background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,255,0.05) 2px, rgba(0,255,255,0.05) 4px)',
-            }}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // Original bar style (fallback)
-  return (
-    <div className={`relative ${className}`} style={{ minHeight: '100px' }}>
-      {/* Main spectrum */}
-      <div className="flex items-end justify-center gap-[2px]" style={{ height: '100%' }}>
-        {bars.map((value, index) => {
-          const scaledValue = Math.pow(value, 0.7) * 1.5;
-          const heightPercent = Math.min(100, Math.max(5, scaledValue * 100));
-          const isActive = player.isPlaying && value > 0.05;
-          const hue = 180 + (index / barCount) * 60;
+    
+    lastDrawTimeRef.current = now;
+    
+    // Get current state directly (no React subscription)
+    const state = useMusicStore.getState();
+    const spectrumData = state.spectrumData;
+    const isPlaying = state.player.isPlaying;
+    
+    // Get canvas dimensions
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+    
+    // Calculate bar dimensions
+    const gap = 2;
+    const barWidth = (width - (barCount - 1) * gap) / barCount;
+    const ledHeight = (height * (showReflection && !compact ? 0.8 : 1)) / ledCount;
+    const ledGap = 1;
+    
+    // Draw each bar
+    for (let barIndex = 0; barIndex < barCount; barIndex++) {
+      const value = spectrumData[barIndex] || 0;
+      const scaledValue = Math.pow(value, 0.6) * 1.3;
+      const litLeds = Math.floor(scaledValue * ledCount);
+      const x = barIndex * (barWidth + gap);
+      
+      // Draw LEDs from bottom to top
+      for (let ledIndex = 0; ledIndex < ledCount; ledIndex++) {
+        const isLit = ledIndex < litLeds;
+        const y = height * (showReflection && !compact ? 0.8 : 1) - (ledIndex + 1) * ledHeight;
+        
+        if (isLit && isPlaying) {
+          // Calculate color based on position
+          const levelRatio = ledIndex / ledCount;
           
-          return (
-            <div
-              key={`bar-${index}`}
-              className="flex-1 flex items-end"
-              style={{ maxWidth: '12px', height: '100%' }}
-            >
-              <div
-                className="w-full rounded-t"
-                style={{
-                  height: `${heightPercent}%`,
-                  minHeight: '4px',
-                  transition: 'height 50ms ease-out',
-                  background: `linear-gradient(to top, hsl(${hue}, 80%, 50%), hsl(${hue}, 60%, 35%))`,
-                  boxShadow: isActive 
-                    ? `0 0 10px hsla(${hue}, 100%, 60%, 0.5)`
-                    : 'none',
-                }}
-              />
-            </div>
-          );
-        })}
-      </div>
+          if (levelRatio > 0.8) {
+            // Peak - magenta
+            ctx.fillStyle = `hsla(320, 100%, ${50 + value * 20}%, ${0.8 + value * 0.2})`;
+          } else if (levelRatio > 0.6) {
+            // Upper mid - purple  
+            ctx.fillStyle = `hsla(280, 90%, ${45 + value * 20}%, ${0.8 + value * 0.2})`;
+          } else {
+            // Lower - cyan
+            const hue = 180 + (barIndex / barCount) * 60;
+            ctx.fillStyle = `hsla(${hue}, 100%, ${40 + value * 25}%, ${0.8 + value * 0.2})`;
+          }
+          
+          // Add glow effect for lit LEDs (only if enabled)
+          if (enableGlow && ledIndex === litLeds - 1) {
+            ctx.shadowColor = levelRatio > 0.8 ? 'rgba(255, 0, 128, 0.6)' : 
+                              levelRatio > 0.6 ? 'rgba(180, 0, 255, 0.5)' : 
+                              'rgba(0, 255, 255, 0.4)';
+            ctx.shadowBlur = 6;
+          } else if (enableGlow) {
+            ctx.shadowBlur = 2;
+          } else {
+            ctx.shadowBlur = 0;
+          }
+        } else {
+          // Unlit LED
+          ctx.fillStyle = 'rgba(30, 30, 40, 0.5)';
+          ctx.shadowBlur = 0;
+        }
+        
+        ctx.fillRect(x, y + ledGap, barWidth, ledHeight - ledGap * 2);
+      }
+      
+      // Reset shadow for next iteration
+      ctx.shadowBlur = 0;
+    }
+    
+    // Draw reflection if enabled
+    if (showReflection && !compact) {
+      const reflectionHeight = height * 0.2;
+      const reflectionY = height * 0.8;
+      
+      // Create gradient for fade effect
+      const gradient = ctx.createLinearGradient(0, reflectionY, 0, height);
+      gradient.addColorStop(0, 'rgba(0, 0, 0, 0.3)');
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      
+      ctx.save();
+      ctx.globalAlpha = 0.2;
+      ctx.translate(0, height);
+      ctx.scale(1, -1);
+      
+      // Draw simplified reflection (just 3 LEDs worth)
+      for (let barIndex = 0; barIndex < barCount; barIndex++) {
+        const value = spectrumData[barIndex] || 0;
+        const scaledValue = Math.pow(value, 0.6) * 1.3;
+        const litLeds = Math.min(3, Math.floor(scaledValue * ledCount));
+        const x = barIndex * (barWidth + gap);
+        
+        for (let ledIndex = 0; ledIndex < 3; ledIndex++) {
+          if (ledIndex < litLeds && isPlaying) {
+            const hue = 180 + (barIndex / barCount) * 60;
+            ctx.fillStyle = `hsla(${hue}, 100%, 50%, 0.5)`;
+          } else {
+            continue;
+          }
+          
+          const y = height - reflectionHeight + ledIndex * (reflectionHeight / 3);
+          ctx.fillRect(x, y, barWidth, reflectionHeight / 3 - 1);
+        }
+      }
+      
+      ctx.restore();
+    }
+    
+    // Continue animation loop
+    animationRef.current = requestAnimationFrame(draw);
+  }, [barCount, ledCount, compact, showReflection, enableGlow, frameInterval, updateFPS]);
+  
+  // Setup canvas and start animation
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    // Set canvas size based on container
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        // Use device pixel ratio for sharp rendering
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.scale(dpr, dpr);
+        }
+      }
+    });
+    
+    resizeObserver.observe(canvas.parentElement || canvas);
+    
+    // Start animation loop
+    animationRef.current = requestAnimationFrame(draw);
+    
+    return () => {
+      resizeObserver.disconnect();
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [draw]);
+  
+  return (
+    <div className={`relative ${className}`} style={{ minHeight: compact ? '60px' : '100px' }}>
+      <canvas 
+        ref={canvasRef}
+        className="w-full h-full"
+        style={{ display: 'block' }}
+      />
+      
+      {/* Scanline effect overlay - only if enabled */}
+      {!compact && enableScanlines && (
+        <div 
+          className="absolute inset-0 pointer-events-none opacity-5"
+          style={{
+            background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,255,0.05) 2px, rgba(0,255,255,0.05) 4px)',
+          }}
+        />
+      )}
     </div>
   );
 };

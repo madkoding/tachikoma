@@ -15,7 +15,7 @@ export const useThemeStore = create<ThemeState>()(
       setTheme: (theme) => set({ theme }),
     }),
     {
-      name: 'neuro-theme',
+      name: 'tachikoma-theme',
     }
   )
 );

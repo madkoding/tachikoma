@@ -54,29 +54,33 @@ RUN apt-get update && apt-get install -y \
     curl \
     && pip3 install --break-system-packages yt-dlp \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd -ms /bin/bash neuro
+    && useradd -ms /bin/bash tachikoma
 
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/target/release/neuro-music /app/neuro-music
+COPY --from=builder /app/target/release/tachikoma-music /app/tachikoma-music
+
+# Create downloads directory
+RUN mkdir -p /data/downloads
 
 # Set ownership
-RUN chown -R neuro:neuro /app
+RUN chown -R tachikoma:tachikoma /app /data
 
-USER neuro
+USER tachikoma
 
 # Environment variables with defaults
 ENV MUSIC_PORT=3002 \
     DATABASE_URL=ws://surrealdb:8000 \
     DATABASE_USER=root \
-    DATABASE_PASS=neuroos_secret_2024 \
+    DATABASE_PASS=tachikomaos_secret_2024 \
     DATABASE_NAMESPACE=music \
     DATABASE_NAME=music \
     YTDLP_PATH=/usr/local/bin/yt-dlp \
     FFMPEG_PATH=/usr/bin/ffmpeg \
+    DOWNLOADS_PATH=/data/downloads \
     RUST_LOG=info
 
 EXPOSE 3002
 
-CMD ["./neuro-music"]
+CMD ["./tachikoma-music"]

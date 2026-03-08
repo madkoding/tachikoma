@@ -46,6 +46,8 @@ pub struct Playlist {
     pub description: Option<String>,
     pub cover_url: Option<String>,
     pub is_suggestions: bool,
+    pub is_favorites: bool,
+    pub last_suggestions_update: Option<DateTime<Utc>>,
     pub shuffle: bool,
     pub repeat_mode: RepeatMode,
     pub song_count: i32,
@@ -69,6 +71,7 @@ pub struct Song {
     pub thumbnail_url: Option<String>,
     pub song_order: i32,
     pub play_count: i32,
+    pub is_liked: bool,
     pub last_played: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
@@ -87,6 +90,10 @@ pub struct CreatePlaylist {
     pub name: String,
     pub description: Option<String>,
     pub cover_url: Option<String>,
+    #[serde(default)]
+    pub is_favorites: bool,
+    #[serde(default)]
+    pub is_suggestions: bool,
 }
 
 /// Request to update a playlist
@@ -103,6 +110,7 @@ pub struct UpdatePlaylist {
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateSong {
     pub youtube_url: String,
+    pub cover_url: Option<String>,
 }
 
 /// YouTube metadata
@@ -124,6 +132,7 @@ pub struct UpdateSong {
     pub album: Option<String>,
     pub cover_url: Option<String>,
     pub song_order: Option<i32>,
+    pub is_liked: Option<bool>,
 }
 
 /// Listening history entry

@@ -134,8 +134,8 @@ pub async fn proxy_music(
     let path = request.uri().path();
     debug!("🎵 Proxying music request: {}", path);
     
-    // Enable streaming for audio stream endpoints
-    let is_stream = path.contains("/stream/");
+    // Enable streaming for audio stream endpoints and SSE events
+    let is_stream = path.contains("/stream/") || path.contains("/events");
     
     proxy_to_service(
         &state.microservices_config.music_url,
@@ -198,5 +198,121 @@ pub async fn proxy_agent(
         "agent",
         request,
         false, // No streaming for agent
+    ).await
+}
+
+/// Proxy requests to the pomodoro microservice
+/// Handles: /api/pomodoro/*
+pub async fn proxy_pomodoro(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Response, StatusCode> {
+    debug!("🍅 Proxying pomodoro request: {}", request.uri().path());
+    
+    proxy_to_service(
+        &state.microservices_config.pomodoro_url,
+        "pomodoro",
+        request,
+        false, // No streaming for pomodoro
+    ).await
+}
+
+/// Proxy requests to the kanban microservice
+/// Handles: /api/kanban/*
+pub async fn proxy_kanban(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Response, StatusCode> {
+    debug!("🗂️ Proxying kanban request: {}", request.uri().path());
+    
+    proxy_to_service(
+        &state.microservices_config.kanban_url,
+        "kanban",
+        request,
+        false, // No streaming for kanban
+    ).await
+}
+
+/// Proxy requests to the note microservice
+/// Handles: /api/notes/*
+pub async fn proxy_note(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Response, StatusCode> {
+    debug!("📝 Proxying note request: {}", request.uri().path());
+    
+    proxy_to_service(
+        &state.microservices_config.note_url,
+        "note",
+        request,
+        false, // No streaming for notes
+    ).await
+}
+
+/// Proxy requests to the docs microservice
+/// Handles: /api/docs/*
+pub async fn proxy_docs(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Response, StatusCode> {
+    debug!("📄 Proxying docs request: {}", request.uri().path());
+    
+    proxy_to_service(
+        &state.microservices_config.docs_url,
+        "docs",
+        request,
+        false, // No streaming for docs
+    ).await
+}
+
+/// Proxy requests to the calendar microservice
+/// Handles: /api/calendar/*
+pub async fn proxy_calendar(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Response, StatusCode> {
+    debug!("🗓️ Proxying calendar request: {}", request.uri().path());
+    
+    proxy_to_service(
+        &state.microservices_config.calendar_url,
+        "calendar",
+        request,
+        false, // No streaming for calendar
+    ).await
+}
+
+/// Proxy requests to the image microservice
+/// Handles: /api/images/*
+pub async fn proxy_image(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Response, StatusCode> {
+    debug!("🖼️ Proxying image request: {}", request.uri().path());
+    
+    proxy_to_service(
+        &state.microservices_config.image_url,
+        "image",
+        request,
+        false, // No streaming for images
+    ).await
+}
+
+/// Proxy requests to the voice microservice
+/// Handles: /api/voice/*
+pub async fn proxy_voice(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+) -> Result<Response, StatusCode> {
+    let path = request.uri().path();
+    debug!("🔊 Proxying voice request: {}", path);
+    
+    // Enable streaming for audio synthesis endpoints
+    let is_stream = path.contains("/stream") || path.contains("/synthesize");
+    
+    proxy_to_service(
+        &state.microservices_config.voice_url,
+        "voice",
+        request,
+        is_stream,
     ).await
 }

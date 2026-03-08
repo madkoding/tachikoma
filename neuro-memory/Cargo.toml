@@ -1,9 +1,9 @@
 [package]
-name = "neuro-memory"
+name = "tachikoma-memory"
 version = "0.1.0"
 edition = "2021"
-description = "Memory and knowledge graph microservice for NEURO-OS"
-authors = ["NEURO-OS Team"]
+description = "Memory and knowledge graph microservice for TACHIKOMA-OS"
+authors = ["TACHIKOMA-OS Team"]
 
 [dependencies]
 # Web framework

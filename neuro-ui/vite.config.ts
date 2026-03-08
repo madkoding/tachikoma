@@ -77,6 +77,8 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     allowedHosts: ['tachikoma', 'localhost'],
+    // Tauri espera que el servidor esté en localhost:5173
+    strictPort: true,
     proxy: {
       // Chat streaming endpoint needs special handling for SSE
       '/api/chat/stream': {
@@ -104,6 +106,19 @@ export default defineConfig({
           });
         },
       },
+      // Music SSE events endpoint needs special handling
+      '/api/music/events': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+        // Disable buffering for SSE streaming
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            proxyRes.headers['cache-control'] = 'no-cache, no-store, must-revalidate';
+            proxyRes.headers['x-accel-buffering'] = 'no';
+          });
+        },
+      },
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
@@ -122,4 +137,6 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
   },
+  // Prevenir limpieza del outDir por Tauri
+  clearScreen: false,
 })

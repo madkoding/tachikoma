@@ -1,7 +1,8 @@
 //! =============================================================================
-//! NEURO-OS Memory Service - Main Entry Point
+//! TACHIKOMA-OS Memory Service - Main Entry Point
 //! =============================================================================
 //! Microservice for memory management and knowledge graph operations.
+//! All LLM operations (embeddings) go through tachikoma-backend gateway.
 //! =============================================================================
 
 use std::sync::Arc;
@@ -23,7 +24,8 @@ pub use db::Database;
 /// Application state shared across handlers
 pub struct AppState {
     pub db: Database,
-    pub ollama_url: String,
+    /// Backend URL - the gateway to all LLM operations
+    pub backend_url: String,
 }
 
 #[tokio::main]
@@ -32,11 +34,11 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,neuro_memory=debug".into()),
+                .unwrap_or_else(|_| "info,tachikoma_memory=debug".into()),
         )
         .init();
 
-    info!("🧠 Starting NEURO-OS Memory Service...");
+    info!("🧠 Starting TACHIKOMA-OS Memory Service...");
 
     // Load configuration
     let config = Config::from_env();
@@ -53,7 +55,7 @@ async fn main() -> Result<()> {
     // Create app state
     let state = Arc::new(AppState {
         db,
-        ollama_url: config.ollama_url.clone(),
+        backend_url: config.backend_url.clone(),
     });
 
     // CORS configuration

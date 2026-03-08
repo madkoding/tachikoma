@@ -6,37 +6,40 @@ import {
   Shuffle, 
   Repeat, 
   Plus,
-  Activity
+  RefreshCw
 } from 'lucide-react';
 import TypewriterText from '../components/common/TypewriterText';
-import { useMusicStore, formatDurationLong } from '../stores/musicStore';
+import { AnimatedLedDigits } from '../components/common';
+import { useMusicStore, usePlayerState, useCurrentPlaylistDetail, formatDurationLong } from '../stores/musicStore';
 import { PlaylistDto } from '../api/client';
 import {
   MusicPlayer,
   SpectrumAnalyzer,
-  Equalizer,
   PlaylistList,
   SongList,
   CreatePlaylistModal,
   AddSongsModal,
 } from '../components/music';
 
-type TabType = 'songs' | 'equalizer';
-
 export default function MusicPage() {
+  // Use optimized selectors
+  const { currentPlaylistDetail, fetchPlaylistDetail } = useCurrentPlaylistDetail();
+  const player = usePlayerState();
+  
+  // Get other actions from store directly
   const {
-    currentPlaylistDetail,
-    player,
     fetchPlaylists,
-    fetchPlaylistDetail,
     fetchEqualizer,
+    refreshSuggestions,
+    startWatchingPlaylist,
+    stopWatchingPlaylist,
   } = useMusicStore();
 
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('songs');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddSongsModal, setShowAddSongsModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false);
 
   // Load initial data
   useEffect(() => {
@@ -44,21 +47,26 @@ export default function MusicPage() {
     fetchEqualizer();
   }, [fetchPlaylists, fetchEqualizer]);
 
-  // Load playlist detail when selected
+  // Load playlist detail and start watching for updates when selected
   useEffect(() => {
     if (selectedPlaylistId) {
       fetchPlaylistDetail(selectedPlaylistId);
+      // Start SSE watching for real-time updates
+      startWatchingPlaylist(selectedPlaylistId);
     }
-  }, [selectedPlaylistId, fetchPlaylistDetail]);
+    
+    // Cleanup: stop watching when component unmounts or playlist changes
+    return () => {
+      stopWatchingPlaylist();
+    };
+  }, [selectedPlaylistId, fetchPlaylistDetail, startWatchingPlaylist, stopWatchingPlaylist]);
 
   const handleSelectPlaylist = (playlist: PlaylistDto) => {
     setSelectedPlaylistId(playlist.id);
-    setActiveTab('songs');
   };
 
   const handlePlaylistCreated = (playlistId: string) => {
     setSelectedPlaylistId(playlistId);
-    setActiveTab('songs');
   };
 
   return (
@@ -140,11 +148,11 @@ export default function MusicPage() {
                     <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500 font-mono">
                       <span className="flex items-center gap-1">
                         <Music className="w-3 h-3 sm:w-4 sm:h-4" />
-                        <span className="text-cyber-cyan">{currentPlaylistDetail.song_count}</span> <span className="hidden sm:inline">canciones</span>
+                        <AnimatedLedDigits value={`${currentPlaylistDetail.song_count} canciones`} variant="time" />
                       </span>
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
-                        <span className="led-time">{formatDurationLong(currentPlaylistDetail.total_duration)}</span>
+                        <AnimatedLedDigits value={formatDurationLong(currentPlaylistDetail.total_duration)} variant="time" />
                       </span>
                       {currentPlaylistDetail.shuffle && (
                         <span className="hidden sm:flex items-center gap-1 text-cyan-400">
@@ -174,49 +182,42 @@ export default function MusicPage() {
                   </button>
                 </div>
 
-                {/* Tabs */}
+                {/* Action buttons */}
                 <div className="flex flex-wrap gap-1 mt-3 sm:mt-6">
-                  {[
-                    { id: 'songs' as TabType, label: 'Canciones', icon: Music },
-                    { id: 'equalizer' as TabType, label: 'Ecualizador', icon: Activity },
-                  ].map((tab) => (
+                  {/* Add Songs button or Refresh Suggestions button */}
+                  {currentPlaylistDetail.is_suggestions ? (
                     <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all font-mono ${
-                        activeTab === tab.id
-                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50'
-                          : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                      }`}
+                      onClick={async () => {
+                        setIsRefreshingSuggestions(true);
+                        try {
+                          await refreshSuggestions();
+                        } finally {
+                          setIsRefreshingSuggestions(false);
+                        }
+                      }}
+                      disabled={isRefreshingSuggestions}
+                      className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all bg-purple-500 text-white hover:bg-purple-400 font-mono disabled:opacity-50 disabled:cursor-wait"
                     >
-                      <tab.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      <span className="hidden sm:inline">{tab.label}</span>
+                      <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isRefreshingSuggestions ? 'animate-spin' : ''}`} />
+                      <span className="hidden sm:inline">{isRefreshingSuggestions ? 'Actualizando...' : 'Actualizar Sugerencias'}</span>
+                      <span className="sm:hidden">{isRefreshingSuggestions ? '...' : 'Actualizar'}</span>
                     </button>
-                  ))}
-                  
-                  {/* Add Songs button */}
-                  <button
-                    onClick={() => setShowAddSongsModal(true)}
-                    className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ml-auto bg-cyan-500 text-black hover:bg-cyan-400 font-mono"
-                  >
-                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    <span className="hidden sm:inline">Agregar Canciones</span>
-                    <span className="sm:hidden">Agregar</span>
-                  </button>
+                  ) : (
+                    <button
+                      onClick={() => setShowAddSongsModal(true)}
+                      className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all bg-cyan-500 text-black hover:bg-cyan-400 font-mono"
+                    >
+                      <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline">Agregar Canciones</span>
+                      <span className="sm:hidden">Agregar</span>
+                    </button>
+                  )}
                 </div>
               </header>
 
-              {/* Tab content */}
+              {/* Songs content */}
               <div className="flex-1 overflow-y-auto">
-                {activeTab === 'songs' && (
-                  <SongList playlist={currentPlaylistDetail} />
-                )}
-                
-                {activeTab === 'equalizer' && (
-                  <div className="p-2 sm:p-4">
-                    <Equalizer />
-                  </div>
-                )}
+                <SongList playlist={currentPlaylistDetail} />
               </div>
             </>
           ) : (

@@ -1,4 +1,4 @@
-# NEURO-OS Chat Service
+# TACHIKOMA-OS Chat Service
 
 Microservicio para chat con LLM, streaming SSE y gestión de conversaciones.
 
@@ -30,7 +30,7 @@ Microservicio para chat con LLM, streaming SSE y gestión de conversaciones.
 | DATABASE_URL | 127.0.0.1:8000 | URL de SurrealDB |
 | DATABASE_USER | root | Usuario de DB |
 | DATABASE_PASS | root | Contraseña de DB |
-| DATABASE_NS | neuro | Namespace |
+| DATABASE_NS | tachikoma | Namespace |
 | DATABASE_DB | chat | Database |
 | OLLAMA_URL | http://localhost:11434 | URL de Ollama |
 | MEMORY_SERVICE_URL | http://localhost:3004 | URL del servicio de memoria |
@@ -61,6 +61,6 @@ cargo run
 ## Docker
 
 ```bash
-docker build -t neuro-chat .
-docker build -f Dockerfile.dev -t neuro-chat:dev .
+docker build -t tachikoma-chat .
+docker build -f Dockerfile.dev -t tachikoma-chat:dev .
 ```

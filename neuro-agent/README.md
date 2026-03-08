@@ -1,6 +1,6 @@
-# NEURO-AGENT
+# TACHIKOMA-AGENT
 
-Microservicio de herramientas de agente para NEURO-OS.
+Microservicio de herramientas de agente para TACHIKOMA-OS.
 
 ## Descripción
 
@@ -124,25 +124,25 @@ Los argumentos no pueden contener:
 
 ### Ejecutar localmente
 ```bash
-cd neuro-agent
+cd tachikoma-agent
 SEARXNG_URL=http://localhost:8080 cargo run
 ```
 
 ### Build Docker (desarrollo)
 ```bash
-docker build -f Dockerfile.dev -t neuro-agent:dev .
-docker run -p 3005:3005 -e SEARXNG_URL=http://host.docker.internal:8080 neuro-agent:dev
+docker build -f Dockerfile.dev -t tachikoma-agent:dev .
+docker run -p 3005:3005 -e SEARXNG_URL=http://host.docker.internal:8080 tachikoma-agent:dev
 ```
 
 ### Build Docker (producción)
 ```bash
-docker build -t neuro-agent:latest .
+docker build -t tachikoma-agent:latest .
 ```
 
 ## Arquitectura
 
 ```
-neuro-agent/
+tachikoma-agent/
 ├── src/
 │   ├── main.rs         # Entry point
 │   ├── config.rs       # Configuración
@@ -159,5 +159,5 @@ neuro-agent/
 
 Este servicio se integra con:
 - **Searxng**: Para búsquedas web privadas
-- **neuro-backend**: Como gateway API
-- **neuro-chat**: Para proporcionar herramientas al LLM
+- **tachikoma-backend**: Como gateway API
+- **tachikoma-chat**: Para proporcionar herramientas al LLM

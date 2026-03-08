@@ -41,4 +41,4 @@ ENV PORT=3001
 
 EXPOSE 3001
 
-CMD ["./target/debug/neuro-checklists"]
+CMD ["./target/debug/tachikoma-checklists"]

@@ -370,6 +370,8 @@ export interface PlaylistDto {
   description?: string;
   cover_url?: string;
   is_suggestions: boolean;
+  is_favorites: boolean;
+  last_suggestions_update?: string;
   shuffle: boolean;
   repeat_mode: 'off' | 'one' | 'all';
   song_count: number;
@@ -391,6 +393,7 @@ export interface SongDto {
   thumbnail_url?: string;
   song_order: number;
   play_count: number;
+  is_liked: boolean;
   last_played?: string;
   created_at: string;
 }
@@ -401,6 +404,8 @@ export interface PlaylistWithSongsDto {
   description?: string;
   cover_url?: string;
   is_suggestions: boolean;
+  is_favorites: boolean;
+  last_suggestions_update?: string;
   shuffle: boolean;
   repeat_mode: 'off' | 'one' | 'all';
   song_count: number;
@@ -438,6 +443,7 @@ export interface UpdateSongRequest {
   album?: string;
   cover_url?: string;
   song_order?: number;
+  is_liked?: boolean;
 }
 
 export interface EqualizerSettingsDto {
@@ -453,6 +459,33 @@ export interface YouTubeSearchResultDto {
   duration: number;
   thumbnail: string;
   view_count?: number;
+}
+
+export type MetadataSource = 'music_brainz' | 'llm_inference' | 'original';
+
+export interface EnrichedSearchResultDto {
+  video_id: string;
+  original_title: string;
+  title: string;
+  artist?: string;
+  album?: string;
+  channel?: string;
+  duration: number;
+  thumbnail: string;
+  view_count?: number;
+  source: MetadataSource;
+}
+
+export interface EnrichMetadataRequest {
+  title: string;
+  channel?: string;
+}
+
+export interface EnrichMetadataResponse {
+  title: string;
+  artist?: string;
+  album?: string;
+  source: MetadataSource;
 }
 
 export interface YouTubeMetadataDto {
@@ -535,6 +568,17 @@ export const musicApi = {
     return `${API_BASE_URL}/music/stream/${songId}`;
   },
 
+  // Download song as OGG (for caching liked songs)
+  downloadSong: async (songId: string): Promise<Blob> => {
+    const response = await api.get(`/music/download/${songId}`, {
+      responseType: 'blob',
+      headers: {
+        'Accept': 'audio/ogg, audio/mpeg, audio/*',
+      },
+    });
+    return response.data;
+  },
+
   getStreamInfo: async (songId: string): Promise<StreamInfoDto> => {
     const response = await api.get<StreamInfoDto>(`/music/stream/${songId}/info`);
     return response.data;
@@ -545,6 +589,18 @@ export const musicApi = {
     const response = await api.get<YouTubeSearchResultDto[]>('/music/youtube/search', {
       params: { q: query, limit }
     });
+    return response.data;
+  },
+
+  searchYouTubeEnriched: async (query: string, limit = 10): Promise<EnrichedSearchResultDto[]> => {
+    const response = await api.get<EnrichedSearchResultDto[]>('/music/youtube/search/enriched', {
+      params: { q: query, limit }
+    });
+    return response.data;
+  },
+
+  enrichMetadata: async (request: EnrichMetadataRequest): Promise<EnrichMetadataResponse> => {
+    const response = await api.post<EnrichMetadataResponse>('/music/youtube/enrich', request);
     return response.data;
   },
 
@@ -599,6 +655,862 @@ export const musicApi = {
   getMostPlayed: async (limit = 20): Promise<SongDto[]> => {
     const response = await api.get<SongDto[]>('/music/stats/most-played', { params: { limit } });
     return response.data;
+  },
+
+  // Special Playlists (Me gusta / Sugerencias)
+  initSpecialPlaylists: async (): Promise<PlaylistDto[]> => {
+    const response = await api.post<PlaylistDto[]>('/music/init-special-playlists');
+    return response.data;
+  },
+
+  toggleSongLike: async (songId: string): Promise<SongDto> => {
+    const response = await api.post<SongDto>(`/music/songs/${songId}/toggle-like`);
+    return response.data;
+  },
+
+  fetchSongCover: async (songId: string): Promise<SongDto> => {
+    const response = await api.post<SongDto>(`/music/songs/${songId}/fetch-cover`);
+    return response.data;
+  },
+
+  getLikedSongs: async (): Promise<SongDto[]> => {
+    const response = await api.get<SongDto[]>('/music/songs/liked');
+    return response.data;
+  },
+
+  refreshSuggestions: async (): Promise<PlaylistWithSongsDto> => {
+    const response = await api.post<PlaylistWithSongsDto>('/music/playlists/suggestions/refresh');
+    return response.data;
+  },
+};
+
+// =============================================================================
+// Pomodoro API Types
+// =============================================================================
+
+export type PomodoroSessionStatus = 'working' | 'short_break' | 'long_break' | 'paused' | 'completed' | 'cancelled';
+export type PomodoroSessionType = 'work' | 'short_break' | 'long_break';
+
+// Helper to check if session is actively running
+export const isSessionRunning = (status: PomodoroSessionStatus): boolean => {
+  return status === 'working' || status === 'short_break' || status === 'long_break';
+};
+
+export interface PomodoroSessionDto {
+  id: string;
+  session_type: PomodoroSessionType;
+  status: PomodoroSessionStatus;
+  duration_minutes: number;
+  elapsed_seconds: number;
+  started_at: string;
+  paused_at?: string;
+  completed_at?: string;
+  task_description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PomodoroSettingsDto {
+  work_duration_minutes: number;
+  short_break_minutes: number;
+  long_break_minutes: number;
+  sessions_until_long_break: number;
+  auto_start_breaks: boolean;
+  auto_start_work: boolean;
+}
+
+export interface PomodoroStatsDto {
+  date: string;
+  total_sessions: number;
+  completed_sessions: number;
+  total_work_minutes: number;
+  total_break_minutes: number;
+}
+
+export interface StartSessionRequest {
+  session_type: PomodoroSessionType;
+  task_description?: string;
+  duration_minutes?: number;
+}
+
+export interface UpdateSettingsRequest {
+  work_duration_minutes?: number;
+  short_break_minutes?: number;
+  long_break_minutes?: number;
+  sessions_until_long_break?: number;
+  auto_start_breaks?: boolean;
+  auto_start_work?: boolean;
+}
+
+export const pomodoroApi = {
+  // Get active session (if any)
+  getActiveSession: async (): Promise<PomodoroSessionDto | null> => {
+    try {
+      const response = await api.get<PomodoroSessionDto>('/pomodoro/sessions/active');
+      return response.data;
+    } catch (error) {
+      // 404 means no active session
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  },
+
+  // Start a new session
+  startSession: async (request: StartSessionRequest): Promise<PomodoroSessionDto> => {
+    const response = await api.post<PomodoroSessionDto>('/pomodoro/sessions/start', request);
+    return response.data;
+  },
+
+  // Pause current session
+  pauseSession: async (): Promise<PomodoroSessionDto> => {
+    const response = await api.post<PomodoroSessionDto>('/pomodoro/sessions/pause');
+    return response.data;
+  },
+
+  // Resume paused session
+  resumeSession: async (): Promise<PomodoroSessionDto> => {
+    const response = await api.post<PomodoroSessionDto>('/pomodoro/sessions/resume');
+    return response.data;
+  },
+
+  // Complete session (mark as done)
+  completeSession: async (): Promise<PomodoroSessionDto> => {
+    const response = await api.post<PomodoroSessionDto>('/pomodoro/sessions/complete');
+    return response.data;
+  },
+
+  // Cancel session
+  cancelSession: async (): Promise<void> => {
+    await api.post('/pomodoro/sessions/cancel');
+  },
+
+  // Get session history
+  getHistory: async (limit = 20): Promise<PomodoroSessionDto[]> => {
+    const response = await api.get<PomodoroSessionDto[]>('/pomodoro/sessions/history', {
+      params: { limit }
+    });
+    return response.data;
+  },
+
+  // Get settings
+  getSettings: async (): Promise<PomodoroSettingsDto> => {
+    const response = await api.get<PomodoroSettingsDto>('/pomodoro/settings');
+    return response.data;
+  },
+
+  // Update settings
+  updateSettings: async (request: UpdateSettingsRequest): Promise<PomodoroSettingsDto> => {
+    const response = await api.put<PomodoroSettingsDto>('/pomodoro/settings', request);
+    return response.data;
+  },
+
+  // Get daily stats
+  getDailyStats: async (date?: string): Promise<PomodoroStatsDto> => {
+    const response = await api.get<PomodoroStatsDto>('/pomodoro/stats/daily', {
+      params: date ? { date } : undefined
+    });
+    return response.data;
+  },
+
+  // Get weekly stats
+  getWeeklyStats: async (): Promise<PomodoroStatsDto[]> => {
+    const response = await api.get<PomodoroStatsDto[]>('/pomodoro/stats/weekly');
+    return response.data;
+  },
+};
+
+// =============================================================================
+// Kanban API Types
+// =============================================================================
+
+export interface KanbanCardDto {
+  id: string;
+  column_id: string;
+  title: string;
+  description?: string;
+  color?: string;
+  labels: string[];
+  due_date?: string;
+  order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KanbanColumnDto {
+  id: string;
+  board_id: string;
+  name: string;
+  color?: string;
+  wip_limit?: number;
+  order: number;
+  cards: KanbanCardDto[];
+  created_at: string;
+  updated_at: string;
+}
+
+ export interface KanbanBoardDto {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  is_archived: boolean;
+  columns: KanbanColumnDto[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KanbanBoardSummaryDto {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  is_archived: boolean;
+  column_count: number;
+  card_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateBoardRequest {
+  name: string;
+  description?: string;
+  color?: string;
+  with_default_columns?: boolean;
+}
+
+export interface UpdateBoardRequest {
+  name?: string;
+  description?: string;
+  color?: string;
+  is_archived?: boolean;
+}
+
+export interface CreateColumnRequest {
+  name: string;
+  color?: string;
+  wip_limit?: number;
+}
+
+export interface UpdateColumnRequest {
+  name?: string;
+  color?: string;
+  wip_limit?: number;
+}
+
+export interface CreateCardRequest {
+  title: string;
+  description?: string;
+  color?: string;
+  labels?: string[];
+  due_date?: string;
+}
+
+export interface UpdateCardRequest {
+  title?: string;
+  description?: string;
+  color?: string;
+  labels?: string[];
+  due_date?: string;
+}
+
+export interface MoveCardRequest {
+  target_column_id: string;
+  target_order: number;
+}
+
+export const kanbanApi = {
+  // List all boards (summaries)
+  listBoards: async (): Promise<KanbanBoardSummaryDto[]> => {
+    const response = await api.get<KanbanBoardSummaryDto[]>('/kanban/boards');
+    return response.data;
+  },
+
+  // Get a single board with all columns and cards
+  getBoard: async (boardId: string): Promise<KanbanBoardDto> => {
+    const response = await api.get<KanbanBoardDto>(`/kanban/boards/${boardId}`);
+    return response.data;
+  },
+
+  // Create a new board
+  createBoard: async (request: CreateBoardRequest): Promise<KanbanBoardDto> => {
+    const response = await api.post<KanbanBoardDto>('/kanban/boards', request);
+    return response.data;
+  },
+
+  // Update a board
+  updateBoard: async (boardId: string, request: UpdateBoardRequest): Promise<KanbanBoardDto> => {
+    const response = await api.patch<KanbanBoardDto>(`/kanban/boards/${boardId}`, request);
+    return response.data;
+  },
+
+  // Delete a board
+  deleteBoard: async (boardId: string): Promise<void> => {
+    await api.delete(`/kanban/boards/${boardId}`);
+  },
+
+  // Create a column
+  createColumn: async (boardId: string, request: CreateColumnRequest): Promise<KanbanColumnDto> => {
+    const response = await api.post<KanbanColumnDto>(`/kanban/boards/${boardId}/columns`, request);
+    return response.data;
+  },
+
+  // Update a column
+  updateColumn: async (boardId: string, columnId: string, request: UpdateColumnRequest): Promise<KanbanColumnDto> => {
+    const response = await api.patch<KanbanColumnDto>(`/kanban/boards/${boardId}/columns/${columnId}`, request);
+    return response.data;
+  },
+
+  // Delete a column
+  deleteColumn: async (boardId: string, columnId: string): Promise<void> => {
+    await api.delete(`/kanban/boards/${boardId}/columns/${columnId}`);
+  },
+
+  // Create a card
+  createCard: async (boardId: string, columnId: string, request: CreateCardRequest): Promise<KanbanCardDto> => {
+    const response = await api.post<KanbanCardDto>(`/kanban/boards/${boardId}/columns/${columnId}/cards`, request);
+    return response.data;
+  },
+
+  // Update a card
+  updateCard: async (boardId: string, columnId: string, cardId: string, request: UpdateCardRequest): Promise<KanbanCardDto> => {
+    const response = await api.patch<KanbanCardDto>(`/kanban/boards/${boardId}/columns/${columnId}/cards/${cardId}`, request);
+    return response.data;
+  },
+
+  // Delete a card
+  deleteCard: async (boardId: string, columnId: string, cardId: string): Promise<void> => {
+    await api.delete(`/kanban/boards/${boardId}/columns/${columnId}/cards/${cardId}`);
+  },
+
+  // Move a card to another column or position
+  moveCard: async (boardId: string, columnId: string, cardId: string, request: MoveCardRequest): Promise<KanbanBoardDto> => {
+    const response = await api.put<KanbanBoardDto>(`/kanban/boards/${boardId}/columns/${columnId}/cards/${cardId}/move`, request);
+    return response.data;
+  },
+};
+
+// =============================================================================
+// Calendar API Types
+// =============================================================================
+
+export type EventType = 'event' | 'task' | 'reminder' | 'birthday' | 'holiday';
+
+export interface ReminderDto {
+  id: string;
+  event_id: string;
+  remind_at: string;
+  message?: string;
+  is_sent: boolean;
+  created_at: string;
+}
+
+export interface CalendarEventDto {
+  id: string;
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time?: string;
+  all_day: boolean;
+  location?: string;
+  color?: string;
+  event_type: EventType;
+  recurrence_rule?: string;
+  reminders: ReminderDto[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateEventRequest {
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time?: string;
+  all_day?: boolean;
+  location?: string;
+  color?: string;
+  event_type?: EventType;
+  recurrence_rule?: string;
+}
+
+export interface UpdateEventRequest {
+  title?: string;
+  description?: string;
+  start_time?: string;
+  end_time?: string;
+  all_day?: boolean;
+  location?: string;
+  color?: string;
+  event_type?: EventType;
+  recurrence_rule?: string;
+}
+
+export interface CreateReminderRequest {
+  remind_at: string;
+  message?: string;
+}
+
+export const calendarApi = {
+  // List all events
+  listEvents: async (from?: string, to?: string): Promise<CalendarEventDto[]> => {
+    const response = await api.get<{ events: CalendarEventDto[]; total: number }>('/calendar/events', {
+      params: { from, to }
+    });
+    return response.data.events || [];
+  },
+
+  // Get today's events
+  getTodayEvents: async (): Promise<CalendarEventDto[]> => {
+    const response = await api.get<{ events: CalendarEventDto[]; total: number } | CalendarEventDto[]>('/calendar/events/today');
+    return Array.isArray(response.data) ? response.data : (response.data.events || []);
+  },
+
+  // Get a single event
+  getEvent: async (id: string): Promise<CalendarEventDto> => {
+    const response = await api.get<CalendarEventDto>(`/calendar/events/${id}`);
+    return response.data;
+  },
+
+  // Create a new event
+  createEvent: async (request: CreateEventRequest): Promise<CalendarEventDto> => {
+    const response = await api.post<CalendarEventDto>('/calendar/events', request);
+    return response.data;
+  },
+
+  // Update an event
+  updateEvent: async (id: string, request: UpdateEventRequest): Promise<CalendarEventDto> => {
+    const response = await api.patch<CalendarEventDto>(`/calendar/events/${id}`, request);
+    return response.data;
+  },
+
+  // Delete an event
+  deleteEvent: async (id: string): Promise<void> => {
+    await api.delete(`/calendar/events/${id}`);
+  },
+
+  // Get upcoming reminders
+  getReminders: async (): Promise<ReminderDto[]> => {
+    const response = await api.get<{ reminders: ReminderDto[] } | ReminderDto[]>('/calendar/reminders');
+    return Array.isArray(response.data) ? response.data : (response.data.reminders || []);
+  },
+
+  // Add a reminder to an event
+  addReminder: async (eventId: string, request: CreateReminderRequest): Promise<ReminderDto> => {
+    const response = await api.post<ReminderDto>(`/calendar/events/${eventId}/reminders`, request);
+    return response.data;
+  },
+
+  // Delete a reminder
+  deleteReminder: async (eventId: string, reminderId: string): Promise<void> => {
+    await api.delete(`/calendar/events/${eventId}/reminders/${reminderId}`);
+  },
+};
+
+// =============================================================================
+// Notes API Types
+// =============================================================================
+
+export interface NoteFolderDto {
+  id: string;
+  name: string;
+  color?: string;
+  parent_id?: string;
+  note_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NoteDto {
+  id: string;
+  title: string;
+  content: string;
+  folder_id?: string;
+  tags: string[];
+  color?: string;
+  is_pinned: boolean;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateNoteRequest {
+  title: string;
+  content?: string;
+  folder_id?: string;
+  tags?: string[];
+  color?: string;
+}
+
+export interface UpdateNoteRequest {
+  title?: string;
+  content?: string;
+  folder_id?: string;
+  tags?: string[];
+  color?: string;
+  is_pinned?: boolean;
+  is_archived?: boolean;
+}
+
+export interface CreateFolderRequest {
+  name: string;
+  color?: string;
+  parent_id?: string;
+}
+
+export interface UpdateFolderRequest {
+  name?: string;
+  color?: string;
+  parent_id?: string;
+}
+
+export const notesApi = {
+  // List all notes
+  listNotes: async (folderId?: string, includeArchived = false): Promise<NoteDto[]> => {
+    const response = await api.get<{ notes: NoteDto[]; total: number }>('/notes', {
+      params: { folder_id: folderId, include_archived: includeArchived }
+    });
+    return response.data.notes || [];
+  },
+
+  // Search notes
+  searchNotes: async (query: string): Promise<NoteDto[]> => {
+    const response = await api.get<{ notes: NoteDto[]; total: number }>('/notes/search', {
+      params: { q: query }
+    });
+    return response.data.notes || [];
+  },
+
+  // Get a single note
+  getNote: async (id: string): Promise<NoteDto> => {
+    const response = await api.get<NoteDto>(`/notes/${id}`);
+    return response.data;
+  },
+
+  // Create a new note
+  createNote: async (request: CreateNoteRequest): Promise<NoteDto> => {
+    const response = await api.post<NoteDto>('/notes', request);
+    return response.data;
+  },
+
+  // Update a note
+  updateNote: async (id: string, request: UpdateNoteRequest): Promise<NoteDto> => {
+    const response = await api.patch<NoteDto>(`/notes/${id}`, request);
+    return response.data;
+  },
+
+  // Delete a note
+  deleteNote: async (id: string): Promise<void> => {
+    await api.delete(`/notes/${id}`);
+  },
+
+  // List all folders
+  listFolders: async (): Promise<NoteFolderDto[]> => {
+    const response = await api.get<{ folders: NoteFolderDto[] } | NoteFolderDto[]>('/notes/folders');
+    return Array.isArray(response.data) ? response.data : (response.data.folders || []);
+  },
+
+  // Create a folder
+  createFolder: async (request: CreateFolderRequest): Promise<NoteFolderDto> => {
+    const response = await api.post<NoteFolderDto>('/notes/folders', request);
+    return response.data;
+  },
+
+  // Update a folder
+  updateFolder: async (id: string, request: UpdateFolderRequest): Promise<NoteFolderDto> => {
+    const response = await api.patch<NoteFolderDto>(`/notes/folders/${id}`, request);
+    return response.data;
+  },
+
+  // Delete a folder
+  deleteFolder: async (id: string): Promise<void> => {
+    await api.delete(`/notes/folders/${id}`);
+  },
+};
+
+// =============================================================================
+// Docs API Types
+// =============================================================================
+
+export type DocType = 'text' | 'markdown' | 'code' | 'spreadsheet' | 'pdf';
+
+export interface DocFolderDto {
+  id: string;
+  name: string;
+  color?: string;
+  parent_id?: string;
+  doc_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentDto {
+  id: string;
+  title: string;
+  content: string;
+  folder_id?: string;
+  doc_type: DocType;
+  mime_type?: string;
+  size_bytes: number;
+  is_starred: boolean;
+  is_shared: boolean;
+  shared_with: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StorageStatsDto {
+  total_documents: number;
+  total_size_bytes: number;
+  by_type: Record<DocType, number>;
+}
+
+export interface CreateDocRequest {
+  title: string;
+  content?: string;
+  folder_id?: string;
+  doc_type?: DocType;
+  mime_type?: string;
+}
+
+export interface UpdateDocRequest {
+  title?: string;
+  content?: string;
+  folder_id?: string;
+  doc_type?: DocType;
+  is_starred?: boolean;
+  is_shared?: boolean;
+  shared_with?: string[];
+}
+
+export interface CreateDocFolderRequest {
+  name: string;
+  color?: string;
+  parent_id?: string;
+}
+
+export interface UpdateDocFolderRequest {
+  name?: string;
+  color?: string;
+  parent_id?: string;
+}
+
+export const docsApi = {
+  // List all documents
+  listDocs: async (folderId?: string): Promise<DocumentDto[]> => {
+    const response = await api.get<{ documents: DocumentDto[]; total: number }>('/docs', {
+      params: { folder_id: folderId }
+    });
+    return response.data.documents || [];
+  },
+
+  // Search documents
+  searchDocs: async (query: string): Promise<DocumentDto[]> => {
+    const response = await api.get<{ documents: DocumentDto[]; total: number }>('/docs/search', {
+      params: { q: query }
+    });
+    return response.data.documents || [];
+  },
+
+  // Get storage stats
+  getStats: async (): Promise<StorageStatsDto> => {
+    const response = await api.get<StorageStatsDto>('/docs/stats');
+    return response.data;
+  },
+
+  // Get a single document
+  getDoc: async (id: string): Promise<DocumentDto> => {
+    const response = await api.get<DocumentDto>(`/docs/${id}`);
+    return response.data;
+  },
+
+  // Create a new document
+  createDoc: async (request: CreateDocRequest): Promise<DocumentDto> => {
+    const response = await api.post<DocumentDto>('/docs', request);
+    return response.data;
+  },
+
+  // Update a document
+  updateDoc: async (id: string, request: UpdateDocRequest): Promise<DocumentDto> => {
+    const response = await api.patch<DocumentDto>(`/docs/${id}`, request);
+    return response.data;
+  },
+
+  // Delete a document
+  deleteDoc: async (id: string): Promise<void> => {
+    await api.delete(`/docs/${id}`);
+  },
+
+  // List all folders
+  listFolders: async (): Promise<DocFolderDto[]> => {
+    const response = await api.get<{ folders: DocFolderDto[] } | DocFolderDto[]>('/docs/folders');
+    return Array.isArray(response.data) ? response.data : (response.data.folders || []);
+  },
+
+  // Create a folder
+  createFolder: async (request: CreateDocFolderRequest): Promise<DocFolderDto> => {
+    const response = await api.post<DocFolderDto>('/docs/folders', request);
+    return response.data;
+  },
+
+  // Update a folder
+  updateFolder: async (id: string, request: UpdateDocFolderRequest): Promise<DocFolderDto> => {
+    const response = await api.patch<DocFolderDto>(`/docs/folders/${id}`, request);
+    return response.data;
+  },
+
+  // Delete a folder
+  deleteFolder: async (id: string): Promise<void> => {
+    await api.delete(`/docs/folders/${id}`);
+  },
+};
+
+// =============================================================================
+// Images API Types
+// =============================================================================
+
+export type ImageSource = 'generated' | 'uploaded' | 'external';
+
+export interface AlbumDto {
+  id: string;
+  name: string;
+  description?: string;
+  cover_image_id?: string;
+  image_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ImageDto {
+  id: string;
+  title: string;
+  description?: string;
+  url: string;
+  thumbnail_url?: string;
+  width: number;
+  height: number;
+  size_bytes: number;
+  source: ImageSource;
+  prompt?: string;
+  negative_prompt?: string;
+  model?: string;
+  seed?: number;
+  steps?: number;
+  cfg_scale?: number;
+  tags: string[];
+  album_id?: string;
+  is_favorite: boolean;
+  created_at: string;
+}
+
+export interface GenerateImageRequest {
+  prompt: string;
+  negative_prompt?: string;
+  width?: number;
+  height?: number;
+  steps?: number;
+  cfg_scale?: number;
+  seed?: number;
+  style?: string;
+}
+
+export interface ImageStyleDto {
+  id: string;
+  name: string;
+  description: string;
+  prompt_modifier: string;
+}
+
+export interface CreateAlbumRequest {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateAlbumRequest {
+  name?: string;
+  description?: string;
+  cover_image_id?: string;
+}
+
+export interface UpdateImageRequest {
+  title?: string;
+  description?: string;
+  tags?: string[];
+  album_id?: string;
+  is_favorite?: boolean;
+}
+
+export const imagesApi = {
+  // List all images
+  listImages: async (albumId?: string, favoritesOnly = false): Promise<ImageDto[]> => {
+    const response = await api.get<{ images: ImageDto[]; total: number; has_more: boolean }>('/images', {
+      params: { album_id: albumId, favorites_only: favoritesOnly }
+    });
+    return response.data.images || [];
+  },
+
+  // Get a single image
+  getImage: async (id: string): Promise<ImageDto> => {
+    const response = await api.get<ImageDto>(`/images/${id}`);
+    return response.data;
+  },
+
+  // Generate a new image
+  generateImage: async (request: GenerateImageRequest): Promise<ImageDto> => {
+    const response = await api.post<ImageDto>('/images/generate', request);
+    return response.data;
+  },
+
+  // Update an image
+  updateImage: async (id: string, request: UpdateImageRequest): Promise<ImageDto> => {
+    const response = await api.patch<ImageDto>(`/images/${id}`, request);
+    return response.data;
+  },
+
+  // Delete an image
+  deleteImage: async (id: string): Promise<void> => {
+    await api.delete(`/images/${id}`);
+  },
+
+  // Toggle favorite
+  toggleFavorite: async (id: string): Promise<ImageDto> => {
+    const response = await api.post<ImageDto>(`/images/${id}/favorite`);
+    return response.data;
+  },
+
+  // Get available styles
+  getStyles: async (): Promise<ImageStyleDto[]> => {
+    const response = await api.get<{ styles: ImageStyleDto[] } | ImageStyleDto[]>('/images/styles');
+    return Array.isArray(response.data) ? response.data : (response.data.styles || []);
+  },
+
+  // List all albums
+  listAlbums: async (): Promise<AlbumDto[]> => {
+    const response = await api.get<{ albums: AlbumDto[] } | AlbumDto[]>('/images/albums');
+    return Array.isArray(response.data) ? response.data : (response.data.albums || []);
+  },
+
+  // Get a single album
+  getAlbum: async (id: string): Promise<AlbumDto> => {
+    const response = await api.get<AlbumDto>(`/images/albums/${id}`);
+    return response.data;
+  },
+
+  // Create an album
+  createAlbum: async (request: CreateAlbumRequest): Promise<AlbumDto> => {
+    const response = await api.post<AlbumDto>('/images/albums', request);
+    return response.data;
+  },
+
+  // Update an album
+  updateAlbum: async (id: string, request: UpdateAlbumRequest): Promise<AlbumDto> => {
+    const response = await api.patch<AlbumDto>(`/images/albums/${id}`, request);
+    return response.data;
+  },
+
+  // Delete an album
+  deleteAlbum: async (id: string): Promise<void> => {
+    await api.delete(`/images/albums/${id}`);
   },
 };
 

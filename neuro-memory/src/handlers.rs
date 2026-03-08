@@ -30,12 +30,12 @@ pub async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoRespon
     match state.db.health_check().await {
         Ok(true) => Json(json!({
             "status": "healthy",
-            "service": "neuro-memory",
+            "service": "tachikoma-memory",
             "version": env!("CARGO_PKG_VERSION"),
         })),
         _ => Json(json!({
             "status": "unhealthy",
-            "service": "neuro-memory",
+            "service": "tachikoma-memory",
         })),
     }
 }
@@ -94,7 +94,7 @@ pub async fn create_memory(
     let importance = request.importance_score.unwrap_or(0.5);
     
     // Generate embedding vector
-    let vector = match generate_embedding(&state.ollama_url, &request.content).await {
+    let vector = match generate_embedding(&state.backend_url, &request.content).await {
         Ok(v) => v,
         Err(e) => {
             error!("Failed to generate embedding: {}", e);
@@ -256,7 +256,7 @@ pub async fn search_memories(
     let threshold = request.threshold.unwrap_or(0.5);
 
     // Generate embedding for query
-    let query_vector = match generate_embedding(&state.ollama_url, &request.query).await {
+    let query_vector = match generate_embedding(&state.backend_url, &request.query).await {
         Ok(v) => v,
         Err(e) => {
             error!("Failed to generate query embedding: {}", e);
@@ -517,31 +517,31 @@ pub async fn subscribe_graph_events(
 // Helper Functions
 // ============================================================================
 
-/// Generate embedding using Ollama
-async fn generate_embedding(ollama_url: &str, text: &str) -> Result<Vec<f32>, String> {
+/// Generate embedding using tachikoma-backend LLM gateway
+/// The backend routes to Ollama and handles model selection
+async fn generate_embedding(backend_url: &str, text: &str) -> Result<Vec<f32>, String> {
     let client = reqwest::Client::new();
-    let url = format!("{}/api/embeddings", ollama_url);
+    let url = format!("{}/api/llm/embed", backend_url);
 
     let response = client
         .post(&url)
         .json(&json!({
-            "model": "nomic-embed-text",
-            "prompt": text
+            "text": text
         }))
         .send()
         .await
         .map_err(|e| e.to_string())?;
 
     if !response.status().is_success() {
-        return Err(format!("Ollama error: {}", response.status()));
+        return Err(format!("Backend LLM error: {}", response.status()));
     }
 
     #[derive(serde::Deserialize)]
-    struct EmbeddingResponse {
+    struct EmbedResponse {
         embedding: Vec<f32>,
     }
 
-    let result: EmbeddingResponse = response.json().await.map_err(|e| e.to_string())?;
+    let result: EmbedResponse = response.json().await.map_err(|e| e.to_string())?;
     Ok(result.embedding)
 }
 

@@ -1,4 +1,4 @@
-# NEURO-OS Memory Service
+# TACHIKOMA-OS Memory Service
 
 Microservicio para gestión de memorias y grafo de conocimiento.
 
@@ -39,7 +39,7 @@ Microservicio para gestión de memorias y grafo de conocimiento.
 | DATABASE_URL | 127.0.0.1:8000 | URL de SurrealDB |
 | DATABASE_USER | root | Usuario de DB |
 | DATABASE_PASS | root | Contraseña de DB |
-| DATABASE_NS | neuro | Namespace |
+| DATABASE_NS | tachikoma | Namespace |
 | DATABASE_DB | memories | Database |
 | OLLAMA_URL | http://localhost:11434 | URL de Ollama para embeddings |
 
@@ -57,8 +57,8 @@ DATABASE_URL=127.0.0.1:8000 cargo run
 
 ```bash
 # Build production
-docker build -t neuro-memory .
+docker build -t tachikoma-memory .
 
 # Build development (fast)
-docker build -f Dockerfile.dev -t neuro-memory:dev .
+docker build -f Dockerfile.dev -t tachikoma-memory:dev .
 ```

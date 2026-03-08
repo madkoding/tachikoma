@@ -131,7 +131,7 @@ impl DatabaseConfig {
             url: std::env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "ws://localhost:8000".to_string()),
             namespace: std::env::var("DATABASE_NS")
-                .unwrap_or_else(|_| "neuro".to_string()),
+                .unwrap_or_else(|_| "tachikoma".to_string()),
             database: std::env::var("DATABASE_DB")
                 .unwrap_or_else(|_| "memories".to_string()),
             username: std::env::var("DATABASE_USER")
@@ -171,7 +171,7 @@ impl OllamaConfig {
                 .parse()
                 .unwrap_or(120),
             default_model: std::env::var("OLLAMA_DEFAULT_MODEL")
-                .unwrap_or_else(|_| "qwen2.5-coder:7b".to_string()),
+                .unwrap_or_else(|_| "qwen3:0.6b".to_string()),
             embedding_model: std::env::var("OLLAMA_EMBEDDING_MODEL")
                 .unwrap_or_else(|_| "nomic-embed-text".to_string()),
         })
@@ -216,6 +216,8 @@ impl SearxngConfig {
 /// =============================================================================
 #[derive(Debug, Clone, Deserialize)]
 pub struct MicroservicesConfig {
+    /// Voice service URL
+    pub voice_url: String,
     /// Checklists service URL
     pub checklists_url: String,
     /// Music service URL
@@ -226,12 +228,26 @@ pub struct MicroservicesConfig {
     pub chat_url: String,
     /// Agent service URL
     pub agent_url: String,
+    /// Pomodoro service URL
+    pub pomodoro_url: String,
+    /// Kanban service URL
+    pub kanban_url: String,
+    /// Note service URL
+    pub note_url: String,
+    /// Docs service URL
+    pub docs_url: String,
+    /// Calendar service URL
+    pub calendar_url: String,
+    /// Image service URL
+    pub image_url: String,
 }
 
 impl MicroservicesConfig {
     /// Load microservices configuration from environment
     pub fn from_env() -> Self {
         Self {
+            voice_url: std::env::var("VOICE_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:8100".to_string()),
             checklists_url: std::env::var("CHECKLISTS_SERVICE_URL")
                 .unwrap_or_else(|_| "http://localhost:3001".to_string()),
             music_url: std::env::var("MUSIC_SERVICE_URL")
@@ -242,6 +258,18 @@ impl MicroservicesConfig {
                 .unwrap_or_else(|_| "http://localhost:3003".to_string()),
             agent_url: std::env::var("AGENT_SERVICE_URL")
                 .unwrap_or_else(|_| "http://localhost:3005".to_string()),
+            pomodoro_url: std::env::var("POMODORO_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3010".to_string()),
+            kanban_url: std::env::var("KANBAN_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3006".to_string()),
+            note_url: std::env::var("NOTE_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3007".to_string()),
+            docs_url: std::env::var("DOCS_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3008".to_string()),
+            calendar_url: std::env::var("CALENDAR_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3009".to_string()),
+            image_url: std::env::var("IMAGE_SERVICE_URL")
+                .unwrap_or_else(|_| "http://localhost:3011".to_string()),
         }
     }
 }

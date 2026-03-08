@@ -1,9 +1,9 @@
 [package]
-name = "neuro-music"
+name = "tachikoma-music"
 version = "0.1.0"
 edition = "2021"
-description = "Music streaming microservice for Neuro-OS with YouTube integration"
-authors = ["Neuro-OS Team"]
+description = "Music streaming microservice for Tachikoma-OS with YouTube integration"
+authors = ["Tachikoma-OS Team"]
 
 [dependencies]
 # Web framework
@@ -34,8 +34,14 @@ regex = "1"
 futures = "0.3"
 bytes = "1"
 async-stream = "0.3"
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1", features = ["sync", "time"] }
 urlencoding = "2"
+
+# Cache for metadata
+moka = { version = "0.12", features = ["future"] }
+
+# SSE support
+axum-extra = { version = "0.9", features = ["typed-header"] }
 
 [profile.release]
 lto = true

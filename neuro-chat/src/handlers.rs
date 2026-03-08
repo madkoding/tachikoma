@@ -1,6 +1,10 @@
 //! =============================================================================
 //! API Handlers
 //! =============================================================================
+//! 
+//! All LLM operations go through tachikoma-backend's /api/llm/* endpoints.
+//! This service no longer connects directly to Ollama.
+//! =============================================================================
 
 use axum::{
     extract::{Path, State},
@@ -9,16 +13,17 @@ use axum::{
     Json,
 };
 use chrono::Utc;
-use futures::stream::{self, Stream};
+use futures::stream::Stream;
 use serde_json::json;
 use std::{convert::Infallible, sync::Arc, time::Duration};
 use surrealdb::sql::Datetime;
 use tokio::sync::mpsc;
-use tracing::{debug, error, info};
+use tracing::error;
 use uuid::Uuid;
 
 use crate::{
     models::*,
+    backend_client::{ChatMessage as LlmMessage, SpeculativeChunk, StreamChunk},
     AppState,
 };
 
@@ -28,26 +33,26 @@ use crate::{
 
 pub async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let db_healthy = state.db.health_check().await.unwrap_or(false);
-    let ollama_healthy = state.ollama.health_check().await;
+    let llm_healthy = state.llm_client.health_check().await;
     let memory_healthy = state.memory_client.health_check().await;
 
-    let status = if db_healthy && ollama_healthy { "healthy" } else { "degraded" };
+    let status = if db_healthy && llm_healthy { "healthy" } else { "degraded" };
 
     Json(json!({
         "status": status,
-        "service": "neuro-chat",
+        "service": "tachikoma-chat",
         "version": env!("CARGO_PKG_VERSION"),
         "services": {
             "database": if db_healthy { "healthy" } else { "unhealthy" },
-            "ollama": if ollama_healthy { "healthy" } else { "unhealthy" },
+            "backend_llm": if llm_healthy { "healthy" } else { "unhealthy" },
             "memory": if memory_healthy { "healthy" } else { "unavailable" },
         }
     }))
 }
 
-/// List available models
+/// List available models (via backend)
 pub async fn list_models(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    match state.ollama.list_models().await {
+    match state.llm_client.list_models().await {
         Ok(models) => Json(json!({ "models": models })).into_response(),
         Err(e) => (StatusCode::SERVICE_UNAVAILABLE, Json(json!({ "error": e }))).into_response(),
     }
@@ -57,13 +62,14 @@ pub async fn list_models(State(state): State<Arc<AppState>>) -> impl IntoRespons
 // Chat Operations
 // ============================================================================
 
-/// Send a message and get a complete response
+/// Send a message and get a complete response (via backend LLM gateway)
 pub async fn send_message(
     State(state): State<Arc<AppState>>,
     Json(request): Json<SendMessageRequest>,
 ) -> impl IntoResponse {
     let start = std::time::Instant::now();
-    let model = request.model.unwrap_or_else(|| state.config.default_model.clone());
+    // Model is optional - backend will use defaults if not specified
+    let model = request.model.clone();
     
     // Get or create conversation
     let conversation_id = match request.conversation_id {
@@ -75,7 +81,7 @@ pub async fn send_message(
     let mut messages = vec![];
     
     // Add system prompt
-    messages.push(OllamaMessage {
+    messages.push(LlmMessage {
         role: "system".to_string(),
         content: get_system_prompt(),
     });
@@ -89,7 +95,7 @@ pub async fn send_message(
                     .map(|m| format!("- {}", m.memory.content))
                     .collect::<Vec<_>>()
                     .join("\n");
-                messages.push(OllamaMessage {
+                messages.push(LlmMessage {
                     role: "system".to_string(),
                     content: format!("Relevant memories:\n{}", memory_context),
                 });
@@ -100,7 +106,7 @@ pub async fn send_message(
     // Add conversation history
     if let Ok(history) = get_conversation_messages(&state, conversation_id).await {
         for msg in history.iter().rev().take(10).rev() {
-            messages.push(OllamaMessage {
+            messages.push(LlmMessage {
                 role: msg.role.to_string(),
                 content: msg.content.clone(),
             });
@@ -108,44 +114,45 @@ pub async fn send_message(
     }
 
     // Add user message
-    messages.push(OllamaMessage {
+    messages.push(LlmMessage {
         role: "user".to_string(),
         content: request.message.clone(),
     });
 
-    // Call Ollama
-    match state.ollama.chat(messages, &model).await {
+    // Call backend LLM gateway
+    match state.llm_client.chat(messages, model.as_deref()).await {
         Ok(response) => {
             let message_id = Uuid::new_v4();
             
             // Save messages to database
             let _ = save_message(&state, conversation_id, MessageRole::User, &request.message).await;
-            let _ = save_message(&state, conversation_id, MessageRole::Assistant, &response.message.content).await;
+            let _ = save_message(&state, conversation_id, MessageRole::Assistant, &response.content).await;
 
             let resp = SendMessageResponse {
-                content: response.message.content,
+                content: response.content,
                 conversation_id,
                 message_id,
-                model,
-                tokens_prompt: response.prompt_eval_count,
-                tokens_completion: response.eval_count,
+                model: response.model,
+                tokens_prompt: response.prompt_tokens as i32,
+                tokens_completion: response.completion_tokens as i32,
                 processing_time_ms: start.elapsed().as_millis() as u64,
             };
             Json(resp).into_response()
         }
         Err(e) => {
-            error!("Ollama error: {}", e);
+            error!("Backend LLM error: {}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e }))).into_response()
         }
     }
 }
 
-/// Stream a message response via SSE
+/// Stream a message response via SSE (via backend LLM gateway)
 pub async fn stream_message(
     State(state): State<Arc<AppState>>,
     Json(request): Json<SendMessageRequest>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    let model = request.model.unwrap_or_else(|| state.config.default_model.clone());
+    // Model is optional - backend will use defaults if not specified
+    let model = request.model.clone();
     
     // Get or create conversation
     let conversation_id = match request.conversation_id {
@@ -156,7 +163,7 @@ pub async fn stream_message(
     // Build messages
     let mut messages = vec![];
     
-    messages.push(OllamaMessage {
+    messages.push(LlmMessage {
         role: "system".to_string(),
         content: get_system_prompt(),
     });
@@ -170,7 +177,7 @@ pub async fn stream_message(
                     .map(|m| format!("- {}", m.memory.content))
                     .collect::<Vec<_>>()
                     .join("\n");
-                messages.push(OllamaMessage {
+                messages.push(LlmMessage {
                     role: "system".to_string(),
                     content: format!("Relevant memories:\n{}", memory_context),
                 });
@@ -181,31 +188,32 @@ pub async fn stream_message(
     // Add history
     if let Ok(history) = get_conversation_messages(&state, conversation_id).await {
         for msg in history.iter().rev().take(10).rev() {
-            messages.push(OllamaMessage {
+            messages.push(LlmMessage {
                 role: msg.role.to_string(),
                 content: msg.content.clone(),
             });
         }
     }
 
-    messages.push(OllamaMessage {
+    messages.push(LlmMessage {
         role: "user".to_string(),
         content: request.message.clone(),
     });
 
     // Create channel for streaming
-    let (tx, mut rx) = mpsc::channel::<Result<OllamaStreamChunk, String>>(100);
+    let (tx, mut rx) = mpsc::channel::<Result<StreamChunk, String>>(100);
     
-    // Spawn Ollama streaming task
-    let ollama = state.ollama.clone();
+    // Spawn backend streaming task
+    let llm_client = state.llm_client.clone();
     let model_clone = model.clone();
     tokio::spawn(async move {
-        ollama.chat_stream(messages, &model_clone, tx).await;
+        llm_client.chat_stream(messages, model_clone.as_deref(), tx).await;
     });
 
     // Create SSE stream
     let user_message = request.message.clone();
     let state_clone = state.clone();
+    let model_display = model.unwrap_or_else(|| "default".to_string());
     
     let stream = async_stream::stream! {
         // Send start event
@@ -214,29 +222,40 @@ pub async fn stream_message(
             .data(json!({
                 "type": "start",
                 "conversation_id": conversation_id,
-                "model": model
+                "model": model_display
             }).to_string()));
 
         let mut full_content = String::new();
-        let mut prompt_tokens = 0;
-        let mut completion_tokens = 0;
+        let mut prompt_tokens: u64 = 0;
+        let mut completion_tokens: u64 = 0;
 
         while let Some(result) = rx.recv().await {
             match result {
-                Ok(chunk) => {
-                    if let Some(msg) = &chunk.message {
-                        full_content.push_str(&msg.content);
+                Ok(chunk) => match chunk {
+                    StreamChunk::Start { model: _ } => {
+                        // Already sent start event
+                    }
+                    StreamChunk::Token { content } => {
+                        full_content.push_str(&content);
                         yield Ok(Event::default()
                             .event("message")
                             .data(json!({
                                 "type": "chunk",
-                                "content": msg.content
+                                "content": content
                             }).to_string()));
                     }
-                    
-                    if chunk.done {
-                        prompt_tokens = chunk.prompt_eval_count;
-                        completion_tokens = chunk.eval_count;
+                    StreamChunk::Done { prompt_tokens: pt, completion_tokens: ct, .. } => {
+                        prompt_tokens = pt;
+                        completion_tokens = ct;
+                        break;
+                    }
+                    StreamChunk::Error { message } => {
+                        yield Ok(Event::default()
+                            .event("message")
+                            .data(json!({
+                                "type": "error",
+                                "error": message
+                            }).to_string()));
                         break;
                     }
                 }
@@ -352,7 +371,7 @@ pub async fn delete_conversation(
 // ============================================================================
 
 fn get_system_prompt() -> String {
-    r#"Eres un asistente de IA amigable y útil llamado NEURO. 
+    r#"Eres un asistente de IA amigable y útil llamado TACHIKOMA. 
 Respondes en español de forma concisa y clara.
 Tienes acceso a memorias del usuario que te ayudan a personalizar las respuestas.
 Siempre intentas ser útil y proporcionar información precisa."#.to_string()
@@ -437,4 +456,161 @@ async fn save_message(
         .map_err(|e| e.to_string())?;
 
     Ok(())
+}
+// ============================================================================
+// Speculative Decoding Handler
+// ============================================================================
+
+/// Stream a message response using speculative decoding via SSE
+/// 
+/// Calls backend's speculative_stream endpoint which uses a fast draft model 
+/// to generate tokens speculatively, then verifies with a larger target model.
+pub async fn speculative_stream(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<SpeculativeMessageRequest>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    // Models are optional - backend will use tier defaults (Light=draft, Standard=target)
+    let draft_model = request.draft_model.clone();
+    let target_model = request.target_model.clone();
+    let lookahead = request.lookahead
+        .unwrap_or(state.config.speculative_lookahead);
+
+    // Get or create conversation
+    let conversation_id = match request.conversation_id {
+        Some(id) => id,
+        None => create_conversation(&state).await.unwrap_or_else(|_| Uuid::new_v4()),
+    };
+
+    // Build messages
+    let mut messages = vec![];
+    
+    messages.push(LlmMessage {
+        role: "system".to_string(),
+        content: get_system_prompt(),
+    });
+
+    // Add memory context
+    if request.include_memories {
+        if let Ok(memories) = state.memory_client.search(&request.message, 5, 0.5).await {
+            if !memories.is_empty() {
+                let memory_context = memories
+                    .iter()
+                    .map(|m| format!("- {}", m.memory.content))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                messages.push(LlmMessage {
+                    role: "system".to_string(),
+                    content: format!("Relevant memories:\n{}", memory_context),
+                });
+            }
+        }
+    }
+
+    // Add history
+    if let Ok(history) = get_conversation_messages(&state, conversation_id).await {
+        for msg in history.iter().rev().take(10).rev() {
+            messages.push(LlmMessage {
+                role: msg.role.to_string(),
+                content: msg.content.clone(),
+            });
+        }
+    }
+
+    messages.push(LlmMessage {
+        role: "user".to_string(),
+        content: request.message.clone(),
+    });
+
+    // Create channel for speculative streaming
+    let (tx, mut rx) = mpsc::channel::<SpeculativeChunk>(100);
+
+    // Spawn speculative generation task via backend
+    let llm_client = state.llm_client.clone();
+    let draft_clone = draft_model.clone();
+    let target_clone = target_model.clone();
+    tokio::spawn(async move {
+        llm_client.speculative_stream(
+            messages, 
+            draft_clone.as_deref(), 
+            target_clone.as_deref(), 
+            Some(lookahead), 
+            tx
+        ).await;
+    });
+
+    // Create SSE stream
+    let user_message = request.message.clone();
+    let state_clone = state.clone();
+    let draft_display = draft_model.unwrap_or_else(|| "light".to_string());
+    let target_display = target_model.unwrap_or_else(|| "standard".to_string());
+
+    let stream = async_stream::stream! {
+        // Send start event
+        yield Ok(Event::default()
+            .event("message")
+            .data(json!({
+                "type": "start",
+                "conversation_id": conversation_id,
+                "draft_model": draft_display,
+                "target_model": target_display,
+                "mode": "speculative"
+            }).to_string()));
+
+        let mut full_content = String::new();
+
+        while let Some(chunk) = rx.recv().await {
+            match chunk {
+                SpeculativeChunk::Start { .. } => {
+                    // Already sent start event above
+                }
+                SpeculativeChunk::Tokens { content } => {
+                    full_content.push_str(&content);
+                    yield Ok(Event::default()
+                        .event("message")
+                        .data(json!({
+                            "type": "chunk",
+                            "content": content
+                        }).to_string()));
+                }
+                SpeculativeChunk::Done { stats } => {
+                    // Save messages
+                    let _ = save_message(&state_clone, conversation_id, MessageRole::User, &user_message).await;
+                    let _ = save_message(&state_clone, conversation_id, MessageRole::Assistant, &full_content).await;
+
+                    // Send done event with stats
+                    yield Ok(Event::default()
+                        .event("message")
+                        .data(json!({
+                            "type": "done",
+                            "conversation_id": conversation_id,
+                            "speculative_stats": {
+                                "draft_tokens_generated": stats.draft_tokens_generated,
+                                "tokens_accepted": stats.tokens_accepted,
+                                "tokens_rejected": stats.tokens_rejected,
+                                "acceptance_rate": stats.acceptance_rate,
+                                "iterations": stats.iterations,
+                                "draft_model": stats.draft_model,
+                                "target_model": stats.target_model
+                            }
+                        }).to_string()));
+                    break;
+                }
+                SpeculativeChunk::Error { message } => {
+                    yield Ok(Event::default()
+                        .event("message")
+                        .data(json!({
+                            "type": "error",
+                            "error": message
+                        }).to_string()));
+                    break;
+                }
+            }
+        }
+    };
+
+    Sse::new(stream).keep_alive(
+        axum::response::sse::KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("keep-alive"),
+    )
 }

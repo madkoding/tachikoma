@@ -7,8 +7,9 @@ import {
   X, 
   CheckSquare
 } from 'lucide-react';
-import { useMusicStore, formatDuration } from '../../stores/musicStore';
-import { YouTubeSearchResultDto, CreateSongRequest, musicApi } from '../../api/client';
+import { useMusicStore, useCurrentPlaylistDetail, formatDuration } from '../../stores/musicStore';
+import { EnrichedSearchResultDto, CreateSongRequest, musicApi } from '../../api/client';
+import { AnimatedLedDigits } from '../common';
 
 interface AddSongsModalProps {
   playlistId: string;
@@ -17,7 +18,7 @@ interface AddSongsModalProps {
   onSongsAdded?: () => void;
 }
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 export const AddSongsModal: React.FC<AddSongsModalProps> = ({ 
   playlistId, 
@@ -25,12 +26,15 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
   onClose,
   onSongsAdded 
 }) => {
-  const { addSong, deleteSong, currentPlaylistDetail } = useMusicStore();
+  // Use optimized selector for playlist detail
+  const { currentPlaylistDetail } = useCurrentPlaylistDetail();
+  const { addSong, deleteSong } = useMusicStore();
   
   // Search state
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<YouTubeSearchResultDto[]>([]);
+  const [results, setResults] = useState<EnrichedSearchResultDto[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [currentLimit, setCurrentLimit] = useState(PAGE_SIZE);
   const [lastQuery, setLastQuery] = useState('');
@@ -51,6 +55,7 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
   
   // Refs
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
   // Focus input when modal opens
@@ -68,10 +73,11 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
       setCurrentLimit(PAGE_SIZE);
       setLastQuery('');
       setHasMore(false);
+      setIsLoadingMore(false);
     }
   }, [isOpen]);
   
-  // Search handler
+  // Search handler - use enriched search for better metadata
   const handleSearch = async (searchQuery: string, limit: number = PAGE_SIZE) => {
     if (!searchQuery.trim()) {
       setResults([]);
@@ -81,7 +87,7 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
     
     setIsSearching(true);
     try {
-      const searchResults = await musicApi.searchYouTube(searchQuery, limit);
+      const searchResults = await musicApi.searchYouTubeEnriched(searchQuery, limit);
       setResults(searchResults);
       setLastQuery(searchQuery);
       setCurrentLimit(limit);
@@ -102,26 +108,47 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
   
   // Load more (infinite scroll)
   const loadMore = useCallback(async () => {
-    if (isSearching || !hasMore || !lastQuery) return;
+    if (isSearching || isLoadingMore || !hasMore || !lastQuery) return;
     
-    const newLimit = currentLimit + PAGE_SIZE;
-    await handleSearch(lastQuery, newLimit);
-  }, [isSearching, hasMore, lastQuery, currentLimit]);
-  
-  // Scroll handler for infinite scroll
-  const handleScroll = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    // Load more when user scrolls to bottom (with 100px threshold)
-    if (scrollHeight - scrollTop - clientHeight < 100) {
-      loadMore();
+    setIsLoadingMore(true);
+    try {
+      const newLimit = currentLimit + PAGE_SIZE;
+      const searchResults = await musicApi.searchYouTubeEnriched(lastQuery, newLimit);
+      setResults(searchResults);
+      setCurrentLimit(newLimit);
+      setHasMore(searchResults.length >= newLimit);
+    } catch (error) {
+      console.error('Load more failed:', error);
+    } finally {
+      setIsLoadingMore(false);
     }
-  }, [loadMore]);
+  }, [isSearching, isLoadingMore, hasMore, lastQuery, currentLimit]);
+  
+  // IntersectionObserver for infinite scroll (more reliable than onScroll)
+  useEffect(() => {
+    const trigger = loadMoreTriggerRef.current;
+    if (!trigger) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && hasMore && !isSearching && !isLoadingMore) {
+          loadMore();
+        }
+      },
+      { 
+        root: scrollContainerRef.current,
+        threshold: 0.1,
+        rootMargin: '100px'
+      }
+    );
+    
+    observer.observe(trigger);
+    return () => observer.disconnect();
+  }, [hasMore, isSearching, isLoadingMore, loadMore]);
   
   // Toggle song (add or remove)
-  const handleToggleSong = async (result: YouTubeSearchResultDto) => {
+  const handleToggleSong = async (result: EnrichedSearchResultDto) => {
     if (processingIds.has(result.video_id)) return;
     
     setProcessingIds(prev => new Set(prev).add(result.video_id));
@@ -133,11 +160,12 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
         // Song exists - remove it
         await deleteSong(playlistId, existingSongId);
       } else {
-        // Song doesn't exist - add it
+        // Song doesn't exist - add it with enriched metadata
         const request: CreateSongRequest = {
           youtube_url: `https://www.youtube.com/watch?v=${result.video_id}`,
-          title: result.title,
-          artist: result.channel,
+          title: result.title, // Enriched title
+          artist: result.artist || result.channel || undefined, // Enriched artist
+          album: result.album || undefined, // Enriched album
         };
         await addSong(playlistId, request);
       }
@@ -252,8 +280,8 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
         {/* Results */}
         <div 
           ref={scrollContainerRef}
-          onScroll={handleScroll}
-          className="flex-1 overflow-y-auto p-2"
+          className="flex-1 overflow-y-auto p-2 min-h-0"
+          style={{ maxHeight: 'calc(85vh - 200px)' }}
         >
           {results.length > 0 ? (
             <div className="space-y-1">
@@ -280,21 +308,28 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
                         alt={result.title}
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute bottom-1 right-1 px-1 bg-black/80 text-[10px] rounded led-time">
-                        {formatDuration(result.duration)}
+                      <div className="absolute bottom-1 right-1 px-1 bg-black/80 text-[10px] rounded">
+                        <AnimatedLedDigits value={formatDuration(result.duration)} variant="time" />
                       </div>
                     </div>
 
-                    {/* Info */}
+                    {/* Info - Show enriched metadata */}
                     <div className="flex-1 min-w-0">
                       <div className={`font-medium truncate text-sm ${isInPlaylist ? 'text-green-400' : 'text-white'}`}>
                         {result.title}
                       </div>
                       <div className="text-xs text-gray-400 truncate flex items-center gap-2">
-                        <span>{result.channel}</span>
+                        {result.artist ? (
+                          <span className="text-cyan-400">{result.artist}</span>
+                        ) : (
+                          <span>{result.channel}</span>
+                        )}
+                        {result.album && (
+                          <span className="text-gray-500">• {result.album}</span>
+                        )}
                         {result.view_count && (
                           <span className="text-gray-600">
-                            {(result.view_count / 1000000).toFixed(1)}M vistas
+                            • {(result.view_count / 1000000).toFixed(1)}M vistas
                           </span>
                         )}
                       </div>
@@ -318,20 +353,31 @@ export const AddSongsModal: React.FC<AddSongsModalProps> = ({
               })}
               
               {/* Load more indicator */}
-              {isSearching && (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
+              {isLoadingMore && (
+                <div className="flex items-center justify-center py-4 gap-2">
+                  <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
+                  <span className="text-sm text-gray-400">Cargando más...</span>
                 </div>
               )}
               
-              {hasMore && !isSearching && (
+              {hasMore && !isSearching && !isLoadingMore && (
                 <button
                   onClick={loadMore}
-                  className="w-full py-3 text-sm text-gray-400 hover:text-cyan-400 transition-colors"
+                  className="w-full py-3 text-sm text-gray-400 hover:text-cyan-400 transition-colors flex items-center justify-center gap-2"
                 >
-                  Cargar más resultados...
+                  <Plus className="w-4 h-4" />
+                  Cargar más resultados ({results.length} mostrados)
                 </button>
               )}
+              
+              {!hasMore && results.length > 0 && (
+                <div className="text-center py-3 text-xs text-gray-500">
+                  {results.length} resultados encontrados
+                </div>
+              )}
+              
+              {/* Invisible trigger for IntersectionObserver */}
+              <div ref={loadMoreTriggerRef} className="h-1" />
             </div>
           ) : !isSearching && query && !isYouTubeUrl ? (
             <div className="flex flex-col items-center justify-center py-12 text-gray-500">

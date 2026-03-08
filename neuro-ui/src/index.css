@@ -129,6 +129,18 @@ html, body, #root {
   50% { opacity: 0; }
 }
 
+/* Equalizer bar animation for playing indicator - replaces Math.random() */
+@keyframes equalizer-bar {
+  0%, 100% { height: 20%; }
+  25% { height: 80%; }
+  50% { height: 40%; }
+  75% { height: 100%; }
+}
+
+.animate-equalizer-bar {
+  animation: equalizer-bar 0.8s ease-in-out infinite;
+}
+
 /* Marquee animation for current song title */
 @keyframes marquee {
   0% { transform: translateX(0%); }
@@ -699,6 +711,17 @@ body {
   text-shadow: 0 0 3px rgba(0, 255, 200, 0.5);
 }
 
+/* Variant: cyan LED for play count */
+.led-digits-cyan {
+  font-family: 'DSEG7 Classic', 'Share Tech Mono', 'Courier New', monospace;
+  font-style: italic;
+  font-size: 0.6rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #00ccff;
+  text-shadow: 0 0 3px rgba(0, 204, 255, 0.6);
+}
+
 /* Variant: large LED for prominent displays */
 .led-digits-large {
   font-family: 'DSEG7 Classic', 'Share Tech Mono', 'Courier New', monospace;
@@ -740,5 +763,128 @@ body {
 
 .led-digits-animated {
   animation: ledPulse 2s ease-in-out infinite;
+}
+
+/* =============================================================================
+   LED Calendar Styles
+   Digital display styling for calendar dates and day numbers
+   ============================================================================= */
+
+/* LED container for calendar day cells */
+.led-calendar-day {
+  font-family: 'DSEG7 Classic', 'Share Tech Mono', 'Courier New', monospace;
+  font-style: italic;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  color: #00d4ff;
+  text-shadow: 
+    0 0 4px #00d4ff,
+    0 0 8px #00d4ff66;
+  background: linear-gradient(180deg, 
+    rgba(0, 15, 25, 0.9) 0%, 
+    rgba(0, 25, 35, 0.95) 50%,
+    rgba(0, 15, 25, 0.9) 100%
+  );
+  padding: 2px 4px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  box-shadow: 
+    inset 0 1px 3px rgba(0, 0, 0, 0.5),
+    0 0 6px rgba(0, 212, 255, 0.15);
+  min-width: 24px;
+  text-align: center;
+}
+
+/* Today's date - brighter glow */
+.led-calendar-day-today {
+  font-family: 'DSEG7 Classic', 'Share Tech Mono', 'Courier New', monospace;
+  font-style: italic;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  color: #0a0a0a;
+  background: linear-gradient(180deg, 
+    #00d4ff 0%, 
+    #00a8cc 50%,
+    #00d4ff 100%
+  );
+  padding: 2px 4px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 212, 255, 0.8);
+  box-shadow: 
+    0 0 10px rgba(0, 212, 255, 0.5),
+    0 0 20px rgba(0, 212, 255, 0.3);
+  min-width: 24px;
+  text-align: center;
+}
+
+/* LED style for month/year header */
+.led-calendar-header {
+  font-family: 'DSEG7 Classic', 'Share Tech Mono', 'Courier New', monospace;
+  font-style: italic;
+  font-size: 1rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #00ffcc;
+  text-shadow: 
+    0 0 5px #00ffcc,
+    0 0 10px #00ffcc88;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, 
+    rgba(0, 8, 12, 0.95) 0%, 
+    rgba(0, 15, 20, 0.98) 50%,
+    rgba(0, 8, 12, 0.95) 100%
+  );
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 255, 200, 0.2);
+  box-shadow: 
+    inset 0 1px 4px rgba(0, 0, 0, 0.6),
+    0 0 8px rgba(0, 255, 200, 0.1);
+}
+
+/* LED style for sidebar date display */
+.led-sidebar-date {
+  font-family: 'DSEG7 Classic', 'Share Tech Mono', 'Courier New', monospace;
+  font-style: italic;
+  font-size: 0.85rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #00d4ff;
+  text-shadow: 
+    0 0 4px #00d4ff,
+    0 0 8px #00d4ff66;
+  background: linear-gradient(180deg, 
+    rgba(0, 15, 25, 0.9) 0%, 
+    rgba(0, 25, 35, 0.95) 50%,
+    rgba(0, 15, 25, 0.9) 100%
+  );
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  box-shadow: 
+    inset 0 1px 3px rgba(0, 0, 0, 0.5),
+    0 0 6px rgba(0, 212, 255, 0.15);
+}
+
+/* LED digits for event times */
+.led-event-time {
+  font-family: 'DSEG7 Classic', 'Share Tech Mono', 'Courier New', monospace;
+  font-style: italic;
+  font-size: 0.65rem;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  color: rgba(0, 212, 255, 0.7);
+  text-shadow: 0 0 3px rgba(0, 212, 255, 0.5);
+}
+
+/* Weekday headers LED style */
+.led-weekday {
+  font-family: 'DSEG7 Classic', 'Share Tech Mono', 'Courier New', monospace;
+  font-style: italic;
+  font-size: 0.6rem;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  color: rgba(0, 255, 200, 0.5);
+  text-shadow: 0 0 3px rgba(0, 255, 200, 0.3);
 }
 

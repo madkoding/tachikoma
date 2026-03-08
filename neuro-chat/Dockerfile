@@ -1,5 +1,5 @@
 # =============================================================================
-# Dockerfile for neuro-chat (Production)
+# Dockerfile for tachikoma-chat (Production)
 # =============================================================================
 
 FROM rust:1.85-slim AS chef
@@ -23,6 +23,6 @@ RUN cargo build --release
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=builder /app/target/release/neuro-chat /app/neuro-chat
+COPY --from=builder /app/target/release/tachikoma-chat /app/tachikoma-chat
 EXPOSE 3003
-CMD ["/app/neuro-chat"]
+CMD ["/app/tachikoma-chat"]

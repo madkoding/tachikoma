@@ -3,13 +3,14 @@
 //! =============================================================================
 
 use axum::{
+    body::Bytes,
     extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
 use serde::Deserialize;
 use std::sync::Arc;
-use tracing::{error, instrument};
+use tracing::{debug, error, instrument};
 use uuid::Uuid;
 
 use crate::domain::entities::music::{
@@ -199,17 +200,101 @@ pub async fn get_song_by_youtube_id(
 pub struct CreateSongRequest {
     #[serde(flatten)]
     pub song: CreateSong,
-    pub metadata: YouTubeMetadata,
+    // Accept flexible metadata shape (some clients send `id` or full `yt-dlp` output)
+    pub metadata: serde_json::Value,
 }
 
 /// POST /api/data/playlists/:id/songs
-#[instrument(skip(state, data))]
+#[instrument(skip(state, body))]
 pub async fn create_song(
     State(state): State<Arc<AppState>>,
     Path(playlist_id): Path<Uuid>,
-    Json(data): Json<CreateSongRequest>,
+    body: Bytes,
 ) -> Result<(StatusCode, Json<Song>), (StatusCode, Json<ErrorResponse>)> {
-    match state.music_repository.create_song(playlist_id, data.song, data.metadata).await {
+    // Log raw body for debugging
+    let body_str = String::from_utf8_lossy(&body);
+    debug!(body = %body_str, "Received create song request");
+    
+    // Parse the JSON manually into a flexible structure
+    let data: CreateSongRequest = serde_json::from_slice(&body)
+        .map_err(|e| {
+            error!(error = %e, body = %body_str, "Failed to parse create song request");
+            (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(ErrorResponse::new("PARSE_ERROR", e.to_string())),
+            )
+        })?;
+
+    // Normalize metadata: accept either { "youtube_id": "..." } or { "id": "..." },
+    // also accept youtube_url and strip noisy fields like `description`.
+    let mut meta_value = data.metadata.clone();
+
+    // Use helper to normalize/sanitize metadata
+    meta_value = normalize_metadata(meta_value);
+
+    // helper: normalize & sanitize metadata (extracted below)
+
+
+    // helper function: normalize & sanitize metadata
+    fn normalize_metadata(mut meta: serde_json::Value) -> serde_json::Value {
+        // 1) Map `id` -> `youtube_id` if missing
+        if meta.get("youtube_id").is_none() {
+            if let Some(id) = meta.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+                if let Some(obj) = meta.as_object_mut() {
+                    obj.insert("youtube_id".to_string(), serde_json::Value::String(id));
+                }
+            }
+        }
+
+        // 2) Extract from youtube_url if still missing
+        if meta.get("youtube_id").is_none() {
+            if let Some(url) = meta.get("youtube_url").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+                if let Some(id) = extract_youtube_id(&url) {
+                    if let Some(obj) = meta.as_object_mut() {
+                        obj.insert("youtube_id".to_string(), serde_json::Value::String(id));
+                    }
+                }
+            }
+        }
+
+        // 3) Remove noisy fields
+        if let Some(obj) = meta.as_object_mut() {
+            // Fields considered noisy / unnecessary
+            for key in [
+                "description",
+                "uploader_url",
+                "uploader",
+                "uploader_id",
+                "webpage_url",
+                "extractor",
+                "extractor_key",
+                "upload_date",
+                "categories",
+                "tags",
+            ] {
+                obj.remove(key);
+            }
+        }
+
+        meta
+    }
+
+    // Try to deserialize into the expected type
+    let metadata: YouTubeMetadata = serde_json::from_value(meta_value.clone()).map_err(|e| {
+        error!(error = %e, metadata = %meta_value, "Invalid metadata format after normalization");
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse::new("INVALID_METADATA", e.to_string())),
+        )
+    })?;
+
+    // Ensure youtube_id is present
+    if metadata.youtube_id.is_empty() {
+        error!("Missing youtube_id in metadata after normalization");
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, Json(ErrorResponse::new("MISSING_FIELD", "metadata.youtube_id is required"))));
+    }
+
+    match state.music_repository.create_song(playlist_id, data.song, metadata).await {
         Ok(song) => Ok((StatusCode::CREATED, Json(song))),
         Err(e) => {
             error!(error = %e, "Failed to create song");
@@ -410,6 +495,132 @@ pub async fn save_equalizer_settings(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse::new("SAVE_ERROR", e.to_string())),
             ))
+        }
+    }
+}
+
+/// GET /api/data/songs/liked
+#[instrument(skip(state))]
+pub async fn get_liked_songs(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<Song>>, (StatusCode, Json<ErrorResponse>)> {
+    match state.music_repository.get_liked_songs().await {
+        Ok(songs) => Ok(Json(songs)),
+        Err(e) => {
+            error!(error = %e, "Failed to get liked songs");
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new("DATABASE_ERROR", e.to_string())),
+            ))
+        }
+    }
+}
+
+/// POST /api/data/playlists/:id/suggestions-timestamp
+#[instrument(skip(state))]
+pub async fn update_suggestions_timestamp(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
+    match state.music_repository.update_suggestions_timestamp(id).await {
+        Ok(()) => Ok(StatusCode::OK),
+        Err(e) => {
+            error!(error = %e, "Failed to update suggestions timestamp");
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new("UPDATE_ERROR", e.to_string())),
+            ))
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+
+/// Extract the YouTube video id from common URL formats:
+/// - https://www.youtube.com/watch?v=ID
+/// - https://youtu.be/ID
+fn extract_youtube_id(url: &str) -> Option<String> {
+    // Look for v= parameter
+    if let Some(pos) = url.find("v=") {
+        let tail = &url[pos + 2..];
+        let id: String = tail
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+            .collect();
+        if !id.is_empty() {
+            return Some(id);
+        }
+    }
+
+    // Look for youtu.be short link
+    if let Some(pos) = url.find("youtu.be/") {
+        let tail = &url[pos + "youtu.be/".len()..];
+        let id: String = tail
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+            .collect();
+        if !id.is_empty() {
+            return Some(id);
+        }
+    }
+
+    None
+}
+
+// ======================
+// Unit tests
+// ======================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_id_maps_to_youtube_id_and_removes_description() {
+        let input = json!({
+            "id": "XYZ123",
+            "title": "Foo",
+            "description": "some noisy description",
+            "uploader_url": "http://example.com/uploader"
+        });
+
+        let out = normalize_metadata(input);
+        assert_eq!(out.get("youtube_id").and_then(|v| v.as_str()), Some("XYZ123"));
+        assert!(out.get("description").is_none());
+        assert!(out.get("uploader_url").is_none());
+    }
+
+    #[test]
+    fn test_extract_from_youtube_url() {
+        let input = json!({
+            "youtube_url": "https://www.youtube.com/watch?v=ABC987",
+            "title": "Bar"
+        });
+
+        let out = normalize_metadata(input);
+        assert_eq!(out.get("youtube_id").and_then(|v| v.as_str()), Some("ABC987"));
+    }
+
+    #[test]
+    fn test_remove_multiple_noisy_fields() {
+        let input = json!({
+            "id": "ID1",
+            "description": "x",
+            "uploader": "user",
+            "uploader_id": "u1",
+            "webpage_url": "http://...",
+            "extractor": "yt-dlp",
+            "tags": ["a","b"],
+            "categories": ["c"]
+        });
+
+        let out = normalize_metadata(input);
+        assert_eq!(out.get("youtube_id").and_then(|v| v.as_str()), Some("ID1"));
+        for f in &["description","uploader","uploader_id","webpage_url","extractor","tags","categories"] {
+            assert!(out.get(*f).is_none(), "{} should be removed", f);
         }
     }
 }

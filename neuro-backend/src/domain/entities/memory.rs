@@ -4,16 +4,16 @@
 //! Represents a single memory unit in the GraphRAG system.
 //! Each memory is stored as a node in SurrealDB with vector embeddings
 //! for semantic search and graph relations for contextual connections.
-//! 
+//!
 //! # GraphRAG Pattern
-//! 
+//!
 //! The Memory Node is the core unit of the Graph Retrieval-Augmented Generation
 //! system. It combines:
-//! 
+//!
 //! 1. **Vector Embeddings**: For semantic similarity search
 //! 2. **Graph Relations**: For contextual navigation between memories
 //! 3. **Metadata**: For filtering and temporal ordering
-//! 
+//!
 //! ```text
 //!                    ┌─────────────────┐
 //!                    │   MemoryNode    │
@@ -41,10 +41,10 @@ use uuid::Uuid;
 /// =============================================================================
 /// MemoryNode - Core Memory Entity
 /// =============================================================================
-/// Represents a single memory unit in the NEURO-OS GraphRAG system.
-/// 
+/// Represents a single memory unit in the TACHIKOMA-OS GraphRAG system.
+///
 /// # Fields
-/// 
+///
 /// * `id` - Unique identifier for the memory (UUID v4)
 /// * `content` - The actual content/text of the memory
 /// * `vector` - Vector embedding for semantic search (typically 384-1536 dims)
@@ -54,12 +54,12 @@ use uuid::Uuid;
 /// * `updated_at` - Timestamp of the last update
 /// * `access_count` - Number of times this memory has been accessed
 /// * `importance_score` - Computed importance score (0.0 - 1.0)
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust
-/// use neuro_backend::domain::entities::memory::MemoryNode;
-/// 
+/// use tachikoma_backend::domain::entities::memory::MemoryNode;
+///
 /// let memory = MemoryNode::new(
 ///     "The user prefers dark mode interfaces".to_string(),
 ///     vec![0.1, 0.2, 0.3, ...], // embedding vector
@@ -114,15 +114,15 @@ impl MemoryNode {
     /// =========================================================================
     /// Constructs a new memory node with the provided content, vector, and type.
     /// Automatically generates a UUID and sets timestamps.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `content` - The text content of the memory
     /// * `vector` - The embedding vector for semantic search
     /// * `memory_type` - The classification type of the memory
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new `MemoryNode` instance with generated ID and current timestamps
     /// =========================================================================
     pub fn new(content: String, vector: Vec<f32>, memory_type: MemoryType) -> Self {
@@ -145,17 +145,17 @@ impl MemoryNode {
     /// =========================================================================
     /// Constructs a memory node with all parameters specified.
     /// Used when loading from database or creating with specific metadata.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `id` - The unique identifier
     /// * `content` - The text content
     /// * `vector` - The embedding vector
     /// * `memory_type` - The memory classification
     /// * `metadata` - Additional metadata
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new `MemoryNode` instance with the provided values
     /// =========================================================================
     pub fn with_metadata(
@@ -183,9 +183,9 @@ impl MemoryNode {
     /// =========================================================================
     /// Increments the access count and recalculates the importance score.
     /// Called whenever this memory is retrieved in a query.
-    /// 
+    ///
     /// # Side Effects
-    /// 
+    ///
     /// * Increments `access_count` by 1
     /// * Recalculates `importance_score` based on new access data
     /// * Updates `updated_at` timestamp
@@ -200,13 +200,13 @@ impl MemoryNode {
     /// Recalculate the importance score
     /// =========================================================================
     /// Computes a new importance score based on:
-    /// 
+    ///
     /// 1. Access frequency (more accesses = more important)
     /// 2. Recency (more recent updates = more relevant)
     /// 3. Explicit importance from metadata
-    /// 
+    ///
     /// # Formula
-    /// 
+    ///
     /// ```text
     /// importance = (access_weight * 0.3) + (recency_weight * 0.3) + (explicit * 0.4)
     /// ```
@@ -224,9 +224,8 @@ impl MemoryNode {
         let explicit_importance = self.metadata.explicit_importance.unwrap_or(0.5);
 
         // Weighted combination
-        self.importance_score = (access_weight * 0.3)
-            + (recency_weight * 0.3)
-            + (explicit_importance * 0.4);
+        self.importance_score =
+            (access_weight * 0.3) + (recency_weight * 0.3) + (explicit_importance * 0.4);
 
         // Clamp to valid range
         self.importance_score = self.importance_score.clamp(0.0, 1.0);
@@ -267,7 +266,7 @@ pub enum MemoryType {
     /// General context information (e.g., "Currently working on project X")
     Context,
 
-    /// User-defined semantic tags (e.g., "Project: NEURO-OS")
+    /// User-defined semantic tags (e.g., "Project: TACHIKOMA-OS")
     SemanticTag,
 
     /// Error or issue information (e.g., "Build failed due to missing dependency")
@@ -503,12 +502,122 @@ mod tests {
 
     #[test]
     fn test_memory_without_embedding() {
-        let memory = MemoryNode::new(
-            "Test content".to_string(),
-            vec![],
-            MemoryType::General,
-        );
+        let memory = MemoryNode::new("Test content".to_string(), vec![], MemoryType::General);
 
         assert!(!memory.has_embedding());
+    }
+
+    #[test]
+    fn test_memory_access_count_increment() {
+        let mut memory =
+            MemoryNode::new("Test content".to_string(), vec![0.1, 0.2], MemoryType::Note);
+
+        for i in 1..=5 {
+            memory.record_access();
+            assert_eq!(memory.access_count, i);
+        }
+    }
+
+    #[test]
+    fn test_memory_last_access_updated() {
+        let mut memory = MemoryNode::new("Test".to_string(), vec![1.0], MemoryType::Fact);
+
+        let before = Utc::now();
+        memory.record_access();
+        let after = Utc::now();
+
+        assert!(memory.last_access >= before);
+        assert!(memory.last_access <= after);
+    }
+
+    #[test]
+    fn test_memory_with_different_types() {
+        let types = vec![
+            MemoryType::General,
+            MemoryType::Fact,
+            MemoryType::Note,
+            MemoryType::Event,
+            MemoryType::Task,
+        ];
+
+        for mem_type in types {
+            let memory = MemoryNode::new("Test".to_string(), vec![0.5], mem_type);
+            assert_eq!(memory.memory_type, mem_type);
+        }
+    }
+
+    #[test]
+    fn test_memory_query_builder_default() {
+        let query = MemoryQuery::default();
+        assert_eq!(query.limit, None);
+        assert_eq!(query.min_similarity, None);
+        assert!(query.tags.is_empty());
+        assert!(query.memory_types.is_empty());
+    }
+
+    #[test]
+    fn test_memory_query_with_tags() {
+        let query = MemoryQuery::default().with_tags(vec!["tag1".to_string(), "tag2".to_string()]);
+
+        assert_eq!(query.tags.len(), 2);
+        assert!(query.tags.contains(&"tag1".to_string()));
+        assert!(query.tags.contains(&"tag2".to_string()));
+    }
+
+    #[test]
+    fn test_memory_query_with_memory_types() {
+        let query =
+            MemoryQuery::default().with_memory_types(vec![MemoryType::Fact, MemoryType::Note]);
+
+        assert_eq!(query.memory_types.len(), 2);
+        assert!(query.memory_types.contains(&MemoryType::Fact));
+        assert!(query.memory_types.contains(&MemoryType::Note));
+    }
+
+    #[test]
+    fn test_memory_query_with_limit() {
+        let query = MemoryQuery::default().with_limit(10);
+        assert_eq!(query.limit, Some(10));
+    }
+
+    #[test]
+    fn test_memory_query_with_min_similarity() {
+        let query = MemoryQuery::default().with_min_similarity(0.75);
+        assert_eq!(query.min_similarity, Some(0.75));
+    }
+
+    #[test]
+    fn test_memory_query_min_similarity_clamped() {
+        let query_low = MemoryQuery::default().with_min_similarity(-0.5);
+        assert_eq!(query_low.min_similarity, Some(0.0));
+
+        let query_high = MemoryQuery::default().with_min_similarity(1.5);
+        assert_eq!(query_high.min_similarity, Some(1.0));
+    }
+
+    #[test]
+    fn test_memory_query_builder_chain() {
+        let query = MemoryQuery::default()
+            .with_tags(vec!["test".to_string()])
+            .with_limit(5)
+            .with_min_similarity(0.8)
+            .with_memory_types(vec![MemoryType::Fact]);
+
+        assert_eq!(query.tags.len(), 1);
+        assert_eq!(query.limit, Some(5));
+        assert_eq!(query.min_similarity, Some(0.8));
+        assert_eq!(query.memory_types.len(), 1);
+    }
+
+    #[test]
+    fn test_memory_equality() {
+        let vector = vec![0.1, 0.2, 0.3];
+        let memory1 = MemoryNode::new("Same".to_string(), vector.clone(), MemoryType::Note);
+        let memory2 = MemoryNode::new("Same".to_string(), vector.clone(), MemoryType::Note);
+
+        assert_eq!(memory1.content, memory2.content);
+        assert_eq!(memory1.vector, memory2.vector);
+        assert_eq!(memory1.memory_type, memory2.memory_type);
+        assert_ne!(memory1.id, memory2.id);
     }
 }

@@ -1,0 +1,646 @@
+/* ============================================================================
+   MODERN THEME - Mobile First, Clean & Minimal
+   Diseño responsive desde móvil hacia desktop
+============================================================================ */
+
+/* ============================================================================
+   VARIABLES - Light & Dark Theme
+============================================================================ */
+
+:root,
+html[data-theme="light"] {
+  /* Backgrounds */
+  --bg: #ffffff;
+  --bg-alt: #f8f9fa;
+
+  /* Text */
+  --text: #202124;
+  --text-light: #5f6368;
+  --text-lighter: #80868b;
+
+  /* Borders */
+  --border: #dadce0;
+
+  /* Links */
+  --link: #1a0dab;
+  --link-visited: #681da8;
+  --link-hover: #1967d2;
+
+  /* Accent */
+  --accent: #1a73e8;
+}
+
+html[data-theme="dark"] {
+  --bg: #202124;
+  --bg-alt: #292a2d;
+
+  --text: #e8eaed;
+  --text-light: #9aa0a6;
+  --text-lighter: #80868b;
+
+  --border: #3c4043;
+
+  --link: #8ab4f8;
+  --link-visited: #c58af9;
+  --link-hover: #aecbfa;
+
+  --accent: #8ab4f8;
+}
+
+/* ============================================================================
+   RESET & BASE
+============================================================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================================
+   LAYOUT
+============================================================================ */
+
+main {
+  width: 100%;
+  padding: 0 16px;
+}
+
+/* ============================================================================
+   NAVIGATION
+============================================================================ */
+
+nav#links_on_top {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+nav#links_on_top a,
+nav#links_on_top button {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border-radius: 4px;
+  color: var(--text-light);
+  text-decoration: none;
+  font-size: 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+nav#links_on_top a:hover,
+nav#links_on_top button:hover {
+  background: var(--bg-alt);
+}
+
+nav#links_on_top svg {
+  width: 20px;
+  height: 20px;
+}
+
+nav#links_on_top span {
+  display: none;
+}
+
+.theme-toggle {
+  font-size: 18px;
+}
+
+/* ============================================================================
+   INDEX PAGE
+============================================================================ */
+
+.index {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  padding: 20px 16px;
+}
+
+.index .title h1 {
+  font-size: 36px;
+  font-weight: 400;
+  margin-bottom: 32px;
+  color: var(--text);
+  text-align: center;
+}
+
+.index .search_box {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--bg);
+}
+
+.index .search_box:focus-within {
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================================================
+   SEARCH HEADER
+============================================================================ */
+
+#search_header {
+  padding: 12px 0;
+}
+
+#search_header .search_box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+}
+
+#q {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 16px;
+  outline: none;
+}
+
+#q::placeholder {
+  color: var(--text-lighter);
+}
+
+#clear_search,
+#send_search {
+  background: transparent;
+  border: none;
+  color: var(--text-light);
+  cursor: pointer;
+  padding: 4px;
+}
+
+/* ============================================================================
+   CATEGORIES
+============================================================================ */
+
+#categories {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 0;
+  margin-bottom: 8px;
+}
+
+#categories::-webkit-scrollbar {
+  display: none;
+}
+
+#categories_container {
+  display: flex;
+  gap: 8px;
+  min-width: min-content;
+}
+
+.category {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-light);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.category.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.category svg {
+  width: 14px;
+  height: 14px;
+}
+
+.category_checkbox input {
+  display: none;
+}
+
+/* ============================================================================
+   RESULTS - TEXT (Mobile First)
+============================================================================ */
+
+#results {
+  padding: 16px 0;
+}
+
+#urls {
+  width: 100%;
+}
+
+.result {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.result:last-child {
+  border-bottom: none;
+}
+
+/* URL breadcrumb */
+.url_header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+  text-decoration: none;
+}
+
+.favicon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.favicon img {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.url_wrapper {
+  font-size: 12px;
+  color: var(--text-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Title */
+.result h3 {
+  margin: 0 0 2px 0;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.3;
+}
+
+.result h3 a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+.result h3 a:visited {
+  color: var(--link-visited);
+}
+
+.result h3 a:hover {
+  text-decoration: underline;
+}
+
+/* Description */
+.content,
+.result_content {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-light);
+}
+
+/* Hide extra metadata on mobile */
+.result_sub_header,
+.result_sub_footer {
+  display: none;
+}
+
+/* Hide thumbnails in text results */
+.thumbnail {
+  display: none !important;
+}
+
+/* ============================================================================
+   IMAGES & VIDEOS - Pinterest Masonry Layout
+============================================================================ */
+
+#urls.only_template_images,
+#urls.only_template_videos {
+  column-count: 2;
+  column-gap: 12px;
+}
+
+.result-images,
+.result-videos {
+  break-inside: avoid;
+  margin-bottom: 12px;
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-alt);
+}
+
+.result-images a,
+.result-videos a {
+  display: block;
+  position: relative;
+}
+
+/* Images */
+.result-images .image_thumbnail {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Videos */
+.result-videos .thumbnail {
+  display: block !important;
+  width: 100%;
+  height: auto;
+}
+
+/* Title overlay on hover */
+.result-images .title,
+.result-videos .title {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 8px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  color: white;
+  font-size: 12px;
+  line-height: 1.3;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.result-images:hover .title,
+.result-videos:hover .title {
+  opacity: 1;
+}
+
+/* Hide extra elements */
+.result-images .detail,
+.result-videos .detail,
+.result-images .source,
+.result-videos .source,
+.result-images .image_resolution {
+  display: none !important;
+}
+
+/* ============================================================================
+   SIDEBAR - Hidden on mobile
+============================================================================ */
+
+#sidebar {
+  display: none;
+}
+
+/* ============================================================================
+   PAGINATION
+============================================================================ */
+
+nav#pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 0;
+  flex-wrap: wrap;
+}
+
+nav#pagination button,
+nav#pagination input {
+  min-width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+nav#pagination button:hover,
+nav#pagination input:hover {
+  background: var(--bg-alt);
+}
+
+nav#pagination .page_number_current {
+  background: var(--accent) !important;
+  color: white !important;
+}
+
+nav#pagination form {
+  display: inline-flex;
+}
+
+/* ============================================================================
+   FOOTER
+============================================================================ */
+
+footer {
+  margin-top: 40px;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-alt);
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-lighter);
+}
+
+footer a {
+  color: var(--text-light);
+  text-decoration: none;
+}
+
+footer a:hover {
+  text-decoration: underline;
+}
+
+/* ============================================================================
+   TABLET (≥600px)
+============================================================================ */
+
+@media (min-width: 600px) {
+  main {
+    padding: 0 24px;
+  }
+
+  nav#links_on_top span {
+    display: inline;
+    margin-left: 4px;
+  }
+
+  .index .title h1 {
+    font-size: 48px;
+  }
+
+  .result {
+    padding: 20px 0;
+  }
+
+  .result h3 {
+    font-size: 20px;
+  }
+
+  /* Show minimal metadata on tablet */
+  .result_sub_header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-lighter);
+  }
+
+  .result_sub_header > *:not(:last-child)::after {
+    content: "·";
+    margin-left: 8px;
+  }
+
+  /* 3 columns for images/videos */
+  #urls.only_template_images,
+  #urls.only_template_videos {
+    column-count: 3;
+    column-gap: 16px;
+  }
+
+  .result-images,
+  .result-videos {
+    margin-bottom: 16px;
+  }
+}
+
+/* ============================================================================
+   DESKTOP (≥1024px)
+============================================================================ */
+
+@media (min-width: 1024px) {
+  main {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .index .title h1 {
+    font-size: 56px;
+  }
+
+  /* Show sidebar */
+  #results {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 32px;
+  }
+
+  #sidebar {
+    display: block;
+  }
+
+  #result_count {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-bottom: 16px;
+  }
+
+  .sidebar-collapsible {
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .sidebar-collapsible summary {
+    padding: 10px;
+    cursor: pointer;
+    background: var(--bg-alt);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .sidebar-collapsible > div,
+  .sidebar-collapsible > ul {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  /* 4 columns for images/videos */
+  #urls.only_template_images,
+  #urls.only_template_videos {
+    column-count: 4;
+    column-gap: 16px;
+  }
+
+  /* Hide sidebar for image/video results */
+  #results.only_template_images,
+  #results.only_template_videos {
+    grid-template-columns: 1fr;
+  }
+
+  #results.only_template_images #sidebar,
+  #results.only_template_videos #sidebar {
+    display: none;
+  }
+}
+
+/* ============================================================================
+   LARGE DESKTOP (≥1400px)
+============================================================================ */
+
+@media (min-width: 1400px) {
+  main {
+    max-width: 1400px;
+  }
+
+  /* 5 columns for images/videos */
+  #urls.only_template_images,
+  #urls.only_template_videos {
+    column-count: 5;
+    column-gap: 20px;
+  }
+}
+
+/* ============================================================================
+   UTILITIES
+============================================================================ */
+
+.invisible {
+  display: none;
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+a:focus,
+button:focus,
+input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

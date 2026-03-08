@@ -1,9 +1,9 @@
 [package]
-name = "neuro-agent"
+name = "tachikoma-agent"
 version = "0.1.0"
 edition = "2021"
-description = "Agent tools microservice for NEURO-OS (search, commands)"
-authors = ["NEURO-OS Team"]
+description = "Agent tools microservice for TACHIKOMA-OS (search, commands)"
+authors = ["TACHIKOMA-OS Team"]
 
 [dependencies]
 # Web framework

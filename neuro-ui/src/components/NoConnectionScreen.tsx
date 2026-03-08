@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { WifiOff, RefreshCw, Server, Database } from 'lucide-react';
 
@@ -8,71 +8,162 @@ interface NoConnectionScreenProps {
   isChecking?: boolean;
 }
 
+// Pre-generated noise tile size (small for memory efficiency)
+const NOISE_TILE_SIZE = 128;
+// Target FPS for noise animation (24 FPS for smooth film-like effect)
+const TARGET_FPS = 24;
+const FRAME_INTERVAL = 1000 / TARGET_FPS;
+
 export function NoConnectionScreen({ error, onRetry, isChecking }: NoConnectionScreenProps) {
   const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
+  const lastFrameTimeRef = useRef<number>(0);
+  // Pre-generated noise patterns for tiling
+  const noisePatternsRef = useRef<ImageData[]>([]);
+  const currentPatternRef = useRef<number>(0);
+  const glitchTimeoutRef = useRef<number>();
 
-  // TV static noise effect
+  // Generate multiple noise tiles at init (done once)
+  const generateNoisePatterns = useCallback((ctx: CanvasRenderingContext2D, count: number = 4) => {
+    const patterns: ImageData[] = [];
+    for (let p = 0; p < count; p++) {
+      const imageData = ctx.createImageData(NOISE_TILE_SIZE, NOISE_TILE_SIZE);
+      const data = imageData.data;
+      
+      for (let i = 0; i < data.length; i += 4) {
+        const noise = Math.random() * 255;
+        // Grayscale with slight blue tint (like old CRT)
+        data[i] = noise * 0.9;       // R
+        data[i + 1] = noise * 0.95;  // G
+        data[i + 2] = noise;         // B
+        data[i + 3] = 180;           // Alpha
+      }
+      patterns.push(imageData);
+    }
+    return patterns;
+  }, []);
+
+  // Low-resource TV static noise effect using tiled patterns
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { 
+      alpha: false, // Disable alpha for better performance
+      desynchronized: true // Hint for lower latency
+    });
     if (!ctx) return;
 
+    // Create offscreen canvas for noise tile
+    const tileCanvas = document.createElement('canvas');
+    tileCanvas.width = NOISE_TILE_SIZE;
+    tileCanvas.height = NOISE_TILE_SIZE;
+    const tileCtx = tileCanvas.getContext('2d');
+    if (!tileCtx) return;
+
+    // Create offscreen canvas for scanlines pattern (generated once)
+    const scanlineCanvas = document.createElement('canvas');
+    scanlineCanvas.width = 1;
+    scanlineCanvas.height = 4; // 2px line + 2px gap
+    const scanlineCtx = scanlineCanvas.getContext('2d');
+    if (!scanlineCtx) return;
+    
+    // Draw scanline pattern (dark line every 4 pixels)
+    scanlineCtx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    scanlineCtx.fillRect(0, 0, 1, 2);
+    scanlineCtx.fillStyle = 'transparent';
+    scanlineCtx.clearRect(0, 2, 1, 2);
+    
+    const scanlinePattern = ctx.createPattern(scanlineCanvas, 'repeat');
+
+    // Generate noise patterns once
+    noisePatternsRef.current = generateNoisePatterns(tileCtx);
+
     const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      // Use device pixel ratio for crisp rendering but cap it for performance
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+      ctx.scale(dpr, dpr);
     };
     
     resize();
     window.addEventListener('resize', resize);
 
-    const renderNoise = () => {
-      const imageData = ctx.createImageData(canvas.width, canvas.height);
-      const data = imageData.data;
+    // Glitch effect - runs independently at random intervals
+    const scheduleGlitch = () => {
+      const delay = 2000 + Math.random() * 4000; // 2-6 seconds
+      glitchTimeoutRef.current = window.setTimeout(() => {
+        if (canvas && ctx) {
+          // Draw glitch line
+          const glitchY = Math.random() * window.innerHeight;
+          const glitchHeight = Math.random() * 8 + 2;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+          ctx.fillRect(0, glitchY, window.innerWidth, glitchHeight);
+        }
+        scheduleGlitch();
+      }, delay);
+    };
+    scheduleGlitch();
+
+    // Offset for pattern movement
+    let offsetX = 0;
+    let offsetY = 0;
+
+    const renderNoise = (timestamp: number) => {
+      // Throttle to target FPS
+      if (timestamp - lastFrameTimeRef.current < FRAME_INTERVAL) {
+        animationRef.current = requestAnimationFrame(renderNoise);
+        return;
+      }
+      lastFrameTimeRef.current = timestamp;
+
+      // Cycle through pre-generated patterns
+      currentPatternRef.current = (currentPatternRef.current + 1) % noisePatternsRef.current.length;
+      const currentPattern = noisePatternsRef.current[currentPatternRef.current];
       
-      for (let i = 0; i < data.length; i += 4) {
-        // Generate random grayscale value with some color tint
-        const noise = Math.random() * 255;
-        const scanlineEffect = Math.sin(((i / 4) / canvas.width) * Math.PI * 2 + Date.now() * 0.01) * 10;
+      // Draw noise tile to offscreen canvas
+      tileCtx.putImageData(currentPattern, 0, 0);
+      
+      // Create tiled pattern from the small noise image
+      const pattern = ctx.createPattern(tileCanvas, 'repeat');
+      if (pattern) {
+        // Move the pattern over time for visual movement
+        offsetX = (offsetX + 2) % NOISE_TILE_SIZE;
+        offsetY = (offsetY + 1) % NOISE_TILE_SIZE;
         
-        // Grayscale with slight blue tint (like old CRT)
-        data[i] = noise * 0.9 + scanlineEffect;     // R
-        data[i + 1] = noise * 0.95 + scanlineEffect; // G
-        data[i + 2] = noise + scanlineEffect;        // B
-        data[i + 3] = 180; // Alpha - semi-transparent
+        ctx.save();
+        ctx.translate(offsetX, offsetY);
+        ctx.fillStyle = pattern;
+        ctx.fillRect(-NOISE_TILE_SIZE, -NOISE_TILE_SIZE, window.innerWidth + NOISE_TILE_SIZE * 2, window.innerHeight + NOISE_TILE_SIZE * 2);
+        ctx.restore();
       }
       
-      ctx.putImageData(imageData, 0, 0);
-      
-      // Add scanlines
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
-      for (let y = 0; y < canvas.height; y += 2) {
-        ctx.fillRect(0, y, canvas.width, 1);
-      }
-      
-      // Add occasional horizontal glitch lines
-      if (Math.random() > 0.97) {
-        const glitchY = Math.random() * canvas.height;
-        const glitchHeight = Math.random() * 10 + 2;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.fillRect(0, glitchY, canvas.width, glitchHeight);
+      // Draw CRT scanlines using pre-generated pattern (much faster than loop)
+      if (scanlinePattern) {
+        ctx.fillStyle = scanlinePattern;
+        ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
       }
       
       animationRef.current = requestAnimationFrame(renderNoise);
     };
 
-    renderNoise();
+    animationRef.current = requestAnimationFrame(renderNoise);
 
     return () => {
       window.removeEventListener('resize', resize);
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
+      if (glitchTimeoutRef.current) {
+        clearTimeout(glitchTimeoutRef.current);
+      }
+      noisePatternsRef.current = [];
     };
-  }, []);
+  }, [generateNoisePatterns]);
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-hidden">

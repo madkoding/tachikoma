@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  rust-tests:
+    name: Rust Tests (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - tachikoma-backend
+          - tachikoma-chat
+          - tachikoma-memory
+          - tachikoma-agent
+          - tachikoma-voice
+          - tachikoma-music
+          - tachikoma-kanban
+          - tachikoma-note
+          - tachikoma-docs
+          - tachikoma-calendar
+          - tachikoma-pomodoro
+          - tachikoma-image
+          - tachikoma-checklists
+          - zbrain
+      fail-fast: false
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ matrix.service }} -> target
+      
+      - name: Check formatting
+        working-directory: ${{ matrix.service }}
+        run: cargo fmt --all -- --check
+      
+      - name: Run Clippy lints
+        working-directory: ${{ matrix.service }}
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      
+      - name: Build
+        working-directory: ${{ matrix.service }}
+        run: cargo build --verbose
+      
+      - name: Run tests
+        working-directory: ${{ matrix.service }}
+        run: cargo test --verbose --all-targets
+
+  rust-integration-tests:
+    name: Rust Integration Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+      
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+      
+      - name: Build tachikoma-backend
+        working-directory: tachikoma-backend
+        run: cargo build --tests
+      
+      - name: Run integration tests
+        working-directory: tachikoma-backend
+        run: cargo test --test '*' --verbose
+
+  typescript-checks:
+    name: TypeScript Checks (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app:
+          - tachikoma-ui
+          - tachikoma-admin
+      fail-fast: false
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: ${{ matrix.app }}
+        run: npm ci
+      
+      - name: Type check
+        working-directory: ${{ matrix.app }}
+        run: npm run type-check || npx tsc --noEmit
+      
+      - name: Lint
+        working-directory: ${{ matrix.app }}
+        run: npm run lint || echo "No lint script configured"
+      
+      - name: Build
+        working-directory: ${{ matrix.app }}
+        run: npm run build || echo "No build script configured"
+
+  docker-build:
+    name: Docker Build Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Validate docker-compose
+        run: docker compose config
+      
+      - name: Build critical services
+        run: |
+          docker compose build tachikoma-backend tachikoma-chat tachikoma-memory
+
+  code-quality:
+    name: Code Quality Summary
+    runs-on: ubuntu-latest
+    needs: [rust-tests, typescript-checks]
+    if: always()
+    
+    steps:
+      - name: Check job statuses
+        run: |
+          echo "Rust Tests: ${{ needs.rust-tests.result }}"
+          echo "TypeScript Checks: ${{ needs.typescript-checks.result }}"
+          
+          if [ "${{ needs.rust-tests.result }}" == "failure" ] || [ "${{ needs.typescript-checks.result }}" == "failure" ]; then
+            echo "❌ Some checks failed"
+            exit 1
+          else
+            echo "✅ All checks passed"
+          fi

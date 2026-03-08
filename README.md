@@ -1,46 +1,86 @@
-# NEURO-OS 🧠
+# TACHIKOMA-OS 🧠
 
-**NEURO-OS** is a modular AI ecosystem that combines a memory graph (GraphRAG), intelligent agents with tool capabilities, and automatic model selection based on available VRAM.
+**TACHIKOMA-OS** is a modular AI ecosystem that combines a memory graph (GraphRAG), intelligent agents with tool capabilities, and automatic model selection based on available VRAM.
+
+Available as:
+- 🌐 **Web Application** (React/Vite)
+- 🖥️ **Desktop Application** (Windows, Linux, macOS via Tauri)
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                           NEURO-OS                                   │
+│                           TACHIKOMA-OS                                   │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
-│  │  User UI    │  │  Admin UI   │  │   Z-Brain   │  │ External    │ │
-│  │  (React)    │  │  (React)    │  │   (CLI)     │  │ Clients     │ │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘ │
-│         │                │                │                │        │
-│         └────────────────┴────────────────┴────────────────┘        │
-│                                   │                                  │
-│                          ┌────────┴────────┐                        │
-│                          │   REST API      │                        │
-│                          │   (Axum)        │                        │
-│                          └────────┬────────┘                        │
-│                                   │                                  │
-│  ┌────────────────────────────────┴────────────────────────────────┐│
-│  │                    Application Layer                            ││
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────────────────┐││
-│  │  │ ChatService  │ │MemoryService│ │   AgentOrchestrator      │││
-│  │  └──────────────┘ └──────────────┘ │  ┌─────────┐ ┌────────┐ │││
-│  │                                     │  │ Tools   │ │ModelMgr│ │││
-│  │                                     │  └─────────┘ └────────┘ │││
-│  │                                     └──────────────────────────┘││
-│  └─────────────────────────────────────────────────────────────────┘│
-│                                   │                                  │
-│  ┌────────────────────────────────┴────────────────────────────────┐│
-│  │                   Infrastructure Layer                          ││
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            ││
-│  │  │SurrealDB     │ │ Ollama       │ │ Searxng      │            ││
-│  │  │(Graph+Vector)│ │ (LLM)        │ │ (Search)     │            ││
-│  │  └──────────────┘ └──────────────┘ └──────────────┘            ││
-│  └─────────────────────────────────────────────────────────────────┘│
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                  │
+│  │  User UI    │  │  Admin UI   │  │   Z-Brain   │                  │
+│  │  (React)    │  │  (React)    │  │   (CLI)     │                  │
+│  │  :5173      │  │  :5174      │  │             │                  │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘                  │
+│         │                │                │                          │
+│         └────────────────┴────────────────┘                          │
+│                          │                                           │
+│              ┌───────────┴───────────┐                              │
+│              │   API Gateway (Axum)  │                              │
+│              │       :3000           │                              │
+│              └───────────┬───────────┘                              │
+│                          │                                           │
+│  ┌───────────────────────┴───────────────────────┐                  │
+│  │              Microservices Layer              │                  │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐         │                  │
+│  │  │  Chat   │ │ Memory  │ │  Agent  │         │                  │
+│  │  │  :3003  │ │  :3004  │ │  :3005  │         │                  │
+│  │  └─────────┘ └─────────┘ └─────────┘         │                  │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐         │                  │
+│  │  │Checklst │ │  Music  │ │  Voice  │         │                  │
+│  │  │  :3001  │ │  :3002  │ │  :8100  │         │                  │
+│  │  └─────────┘ └─────────┘ └─────────┘         │                  │
+│  └───────────────────────────────────────────────┘                  │
+│                          │                                           │
+│  ┌───────────────────────┴───────────────────────┐                  │
+│  │              Infrastructure Layer              │                  │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌────────┐ │                  │
+│  │  │  SurrealDB   │ │   Ollama     │ │Searxng │ │                  │
+│  │  │  :8000       │ │   :11434     │ │ :8080  │ │                  │
+│  │  └──────────────┘ └──────────────┘ └────────┘ │                  │
+│  └───────────────────────────────────────────────┘                  │
 │                                                                      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+## Microservices
+
+| Service | Port | Description |
+|---------|------|-------------|
+| tachikoma-backend | 3000 | Central API Gateway + LLM Gateway |
+| tachikoma-checklists | 3001 | Checklist management |
+| tachikoma-music | 3002 | YouTube music streaming |
+| tachikoma-chat | 3003 | LLM conversations |
+| tachikoma-memory | 3004 | GraphRAG semantic memory |
+| tachikoma-agent | 3005 | AI agent tools |
+| tachikoma-voice | 8100 | Piper TTS synthesis |
+
+### External Services (tachikoma-ollama)
+
+Ollama runs independently in the [tachikoma-ollama](https://github.com/madkoding/tachikoma-ollama) project:
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Ollama | 11434 | LLM inference server |
+
+**Important**: All LLM operations (chat, embeddings, speculative decoding) go through tachikoma-backend's `/api/llm/*` endpoints. Microservices should NOT connect directly to Ollama.
+
+### Planned Microservices
+
+| Service | Port | Description |
+|---------|------|-------------|
+| tachikoma-kanban | 3006 | Kanban boards |
+| tachikoma-note | 3007 | Notes + voice transcription |
+| tachikoma-docs | 3008 | AI document generation (DOCX, XLSX, PPTX) |
+| tachikoma-calendar | 3009 | Calendar + reminders |
+| tachikoma-pomodoro | 3010 | Pomodoro timer |
+| tachikoma-image | 3011 | AI image gallery |
 
 ## Features
 
@@ -67,10 +107,13 @@
 
 ### 💻 User Interfaces
 - **User UI**: React + TypeScript + Tailwind chat interface
+  - 🌐 **Web**: Runs in browser (localhost:5173)
+  - 🖥️ **Desktop**: Native app for Windows/Linux/macOS via Tauri
   - Dark/Light mode
   - i18n support (English/Spanish)
   - Conversation history with grouping
   - Typing indicators and markdown rendering
+  - **Desktop build**: See [TACHIKOMA_DESKTOP_SETUP.md](TACHIKOMA_DESKTOP_SETUP.md)
 
 - **Admin UI**: Memory graph management dashboard
   - Force-directed graph visualization (react-force-graph)
@@ -89,37 +132,25 @@
 ```
 kibo/
 ├── docker-compose.yml          # Container orchestration
-├── .env.example                # Environment template
+├── docker-compose.dev.yml      # Development overrides
+├── dev.sh                      # Development helper script
 ├── config/
 │   └── searxng/
 │       └── settings.yml        # Searxng configuration
-├── neuro-backend/              # Rust backend
-│   ├── Cargo.toml
+├── tachikoma-backend/              # API Gateway (Rust/Axum)
 │   └── src/
-│       ├── main.rs
-│       ├── domain/             # Entities, Value Objects, Ports
-│       ├── application/        # Services (ChatService, MemoryService, etc.)
-│       └── infrastructure/     # Adapters (DB, Ollama, Searxng, API)
-├── neuro-ui/                   # User chat interface
-│   ├── package.json
-│   └── src/
-│       ├── components/         # React components
-│       ├── pages/              # Page components
-│       ├── stores/             # Zustand stores
-│       └── api/                # API client
-├── neuro-admin/                # Admin dashboard
-│   ├── package.json
-│   └── src/
-│       ├── components/         # Layout, navigation
-│       ├── pages/              # Dashboard, Graph, Memories
-│       └── api/                # API client
+│       ├── domain/             # Entities, Value Objects
+│       ├── application/        # Business logic
+│       └── infrastructure/     # API, DB, Adapters
+├── tachikoma-checklists/           # Checklist microservice
+├── tachikoma-music/                # Music streaming microservice
+├── tachikoma-chat/                 # LLM chat microservice
+├── tachikoma-memory/               # GraphRAG memory microservice
+├── tachikoma-agent/                # Agent tools microservice
+├── tachikoma-voice/                # TTS microservice
+├── tachikoma-ui/                   # User interface (React)
+├── tachikoma-admin/                # Admin dashboard (React)
 └── zbrain/                     # CLI shell
-    ├── Cargo.toml
-    └── src/
-        ├── main.rs
-        ├── api.rs              # NEURO-OS client
-        ├── config.rs           # Configuration
-        └── shell.rs            # Interactive shell
 ```
 
 ## Quick Start
@@ -138,47 +169,55 @@ cp .env.example .env
 # Edit .env with your settings
 ```
 
-### 2. Start Infrastructure
+### 2. Start Ollama (External)
+
+First, clone and start tachikoma-ollama in a separate directory:
 
 ```bash
-docker-compose up -d surrealdb searxng ollama
+# In a separate project directory (not in kibo)
+git clone https://github.com/madkoding/tachikoma-ollama.git
+cd tachikoma-ollama
+./setup.sh  # Downloads models and starts Ollama
 ```
 
-### 3. Pull Required Models
+### 3. Start Infrastructure
 
 ```bash
-# Fast model (required)
-docker exec -it ollama ollama pull ministral:3b
-
-# Balanced model (recommended)
-docker exec -it ollama ollama pull qwen2.5:7b
-
-# Complex/Coding model (optional)
-docker exec -it ollama ollama pull qwen2.5-coder:14b
-
-# Embedding model (required)
-docker exec -it ollama ollama pull nomic-embed-text
+# In the kibo directory
+docker-compose up -d surrealdb searxng
 ```
 
 ### 4. Run Backend
 
 ```bash
-cd neuro-backend
+cd tachikoma-backend
 cargo run --release
 ```
 
 ### 5. Run User Interface
 
+**Web version:**
 ```bash
-cd neuro-ui
+cd tachikoma-ui
 npm install
 npm run dev
 ```
 
+**Desktop version:**
+```bash
+cd tachikoma-ui
+npm install
+npm run tauri:dev  # Development with hot-reload
+# Or for production build:
+npm run tauri:build  # Generates native executable
+```
+
+See [TACHIKOMA_DESKTOP_SETUP.md](TACHIKOMA_DESKTOP_SETUP.md) for complete desktop build guide.
+
 ### 6. Run Admin Interface (Optional)
 
 ```bash
-cd neuro-admin
+cd tachikoma-admin
 npm install
 npm run dev
 ```
@@ -220,7 +259,7 @@ cargo build --release
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `NEURO_API_PORT` | Backend port | 3000 |
+| `TACHIKOMA_API_PORT` | Backend port | 3000 |
 | `SURREALDB_URL` | SurrealDB connection | ws://localhost:8000 |
 | `SURREALDB_USER` | Database user | root |
 | `SURREALDB_PASS` | Database password | root |
@@ -235,20 +274,20 @@ cargo build --release
 
 ### Backend Development
 ```bash
-cd neuro-backend
+cd tachikoma-backend
 cargo watch -x run  # Auto-reload on changes
 ```
 
 ### Frontend Development
 ```bash
-cd neuro-ui
+cd tachikoma-ui
 npm run dev  # Vite dev server with HMR
 ```
 
 ### Running Tests
 ```bash
 # Backend tests
-cd neuro-backend
+cd tachikoma-backend
 cargo test
 
 # Z-Brain tests

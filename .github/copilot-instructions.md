@@ -1,15 +1,111 @@
-# NEURO-OS Copilot Instructions
+# TACHIKOMA-OS Copilot Instructions
 
 ## Arquitectura del Proyecto
 
-NEURO-OS es un ecosistema de IA modular que consiste en:
+TACHIKOMA-OS es un ecosistema de IA modular que consiste en:
 
-- **neuro-backend**: API Gateway central en Rust/Axum (puerto 3000)
-- **neuro-ui**: Interfaz de usuario en React/Vite (puerto 5173)
-- **neuro-admin**: Panel de administración en React/Vite (puerto 5174)
-- **neuro-music**: Microservicio de música en Rust/Axum (puerto 3002)
-- **neuro-voice**: Microservicio de síntesis de voz en Rust (puerto 8100)
-- **neuro-checklists**: Microservicio de checklists en Rust (puerto 3001)
+## ⚠️ CONVENCIÓN DE NOMBRES ESTANDARIZADA
+
+**Todos los nombres deben seguir el patrón `tachikoma-{servicio}`** para mantener consistencia:
+
+| Elemento | Patrón | Ejemplo |
+|----------|--------|---------|
+| Carpeta | `tachikoma-{servicio}` | `tachikoma-voice/` |
+| Cargo.toml `name` | `tachikoma-{servicio}` | `name = "tachikoma-voice"` |
+| Servicio docker-compose | `tachikoma-{servicio}` | `tachikoma-voice:` |
+| `container_name` | `tachikoma-{servicio}` | `container_name: tachikoma-voice` |
+| Variables de entorno | `{SERVICIO}_SERVICE_URL` | `VOICE_SERVICE_URL` |
+
+**Ejemplo correcto de servicio en docker-compose.yml:**
+```yaml
+tachikoma-voice:                    # ✅ Nombre del servicio = tachikoma-voice
+  build:
+    context: ./tachikoma-voice      # ✅ Carpeta = tachikoma-voice
+    dockerfile: Dockerfile
+  container_name: tachikoma-voice   # ✅ container_name = tachikoma-voice
+```
+
+### Servicios Core
+- **tachikoma-backend**: API Gateway central + LLM Gateway en Rust/Axum (puerto 3000)
+- **tachikoma-ui**: Interfaz de usuario en React/Vite (puerto 5173)
+- **tachikoma-admin**: Panel de administración en React/Vite (puerto 5174)
+
+### Microservicios Existentes
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| tachikoma-voice | 8100 | Síntesis de voz con Piper TTS |
+| tachikoma-checklists | 3001 | Gestión de checklists |
+| tachikoma-music | 3002 | Streaming de música YouTube |
+| tachikoma-chat | 3003 | Conversaciones con LLM (via backend) |
+| tachikoma-memory | 3004 | Memoria semántica GraphRAG (embeddings via backend) |
+| tachikoma-agent | 3005 | Herramientas de agente IA |
+
+### Microservicios Planeados
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| tachikoma-kanban | 3006 | Tableros Kanban |
+| tachikoma-note | 3007 | Notas + transcripción de voz con IA |
+| tachikoma-docs | 3008 | Documentos con IA (DOCX, XLSX, PPTX, embeddings via backend) |
+| tachikoma-calendar | 3009 | Calendario + recordatorios |
+| tachikoma-pomodoro | 3010 | Timer Pomodoro |
+| tachikoma-image | 3011 | Galería de imágenes generadas por IA (via backend) |
+
+### Servicios de Infraestructura (Docker)
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| SurrealDB | 8000 | Base de datos Graph + Vector |
+| Searxng | 8080 | Motor de búsqueda privado |
+
+### Servicios Externos (tachikoma-ollama)
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| Ollama | 11434 | Inferencia LLM local (proyecto independiente) |
+
+## ⚠️ IMPORTANTE: LLM Gateway Pattern
+
+**Todas las operaciones LLM deben pasar por tachikoma-backend.** Los microservicios NO deben conectarse directamente a Ollama.
+
+### Endpoints LLM en backend (`/api/llm/*`)
+| Endpoint | Método | Descripción |
+|----------|--------|-------------|
+| `/api/llm/health` | GET | Estado de Ollama y modelos disponibles |
+| `/api/llm/embed` | POST | Generar embedding para un texto |
+| `/api/llm/embed/batch` | POST | Generar embeddings para múltiples textos |
+| `/api/llm/chat` | POST | Chat completo (no streaming) |
+| `/api/llm/chat/stream` | POST | Chat con streaming SSE |
+| `/api/llm/speculative/stream` | POST | Speculative decoding con streaming SSE |
+| `/api/llm/generate` | POST | Generación de tokens raw |
+
+### Model Tiers (configurados en backend)
+| Tier | Modelo | Uso |
+|------|--------|-----|
+| Light | ministral-3:3b | Draft model para speculative decoding, respuestas rápidas |
+| Standard | ministral-3:8b | Target model, uso general |
+| Heavy | ministral-3:8b | Mismo que Standard (no hay modelo más pesado por ahora) |
+| Embedding | nomic-embed-text | Embeddings vectoriales |
+
+### Ejemplo: Microservicio usando backend como LLM gateway
+
+```rust
+// En el microservicio (ej: tachikoma-chat)
+pub struct BackendLlmClient {
+    client: reqwest::Client,
+    base_url: String,  // BACKEND_URL, no OLLAMA_URL
+}
+
+impl BackendLlmClient {
+    pub async fn chat(&self, messages: Vec<ChatMessage>, model: Option<&str>) -> Result<ChatResponse, String> {
+        let url = format!("{}/api/llm/chat", self.base_url);
+        let body = json!({ "messages": messages, "model": model });
+        // ...
+    }
+
+    pub async fn embed(&self, text: &str) -> Result<Vec<f32>, String> {
+        let url = format!("{}/api/llm/embed", self.base_url);
+        // ...
+    }
+}
+```
 
 ## Patrón de Proxy para Microservicios
 
@@ -37,19 +133,36 @@ let target_url = format!("{}/api{}{}", service_url, path, query);
 
 ### Checklist para agregar un nuevo microservicio:
 
-1. **Agregar configuración en `config.rs`:**
+1. **Crear estructura del microservicio:**
+   ```
+   tachikoma-newservice/
+   ├── Cargo.toml
+   ├── Dockerfile
+   ├── Dockerfile.dev
+   ├── README.md
+   └── src/
+       ├── main.rs
+       ├── config.rs
+       ├── routes.rs
+       ├── handlers.rs
+       ├── models.rs
+       └── backend_client.rs  # Si necesita acceso a datos
+   ```
+
+2. **Agregar configuración en `config.rs` del backend:**
    ```rust
    pub struct MicroservicesConfig {
        pub new_service_url: String,
    }
    ```
 
-2. **Agregar variable de entorno:**
+3. **Agregar variable de entorno:**
    - En `tasks.json`: `NEW_SERVICE_URL=http://127.0.0.1:PORT`
-   - En `start.sh`: export `NEW_SERVICE_URL`
-   - En `docker-compose.yml`: si corre en Docker
+   - En `dev.sh`: agregar rebuild-newservice
+   - En `docker-compose.yml`: definir el servicio
+   - En `docker-compose.dev.yml`: agregar volumes de cache
 
-3. **Crear handler en `handlers/proxy.rs`:**
+4. **Crear handler en `handlers/proxy.rs`:**
    ```rust
    pub async fn proxy_new_service(
        State(state): State<Arc<AppState>>,
@@ -80,10 +193,10 @@ let target_url = format!("{}/api{}{}", service_url, path, query);
 
 ```bash
 # Ver fecha del binario
-ls -la neuro-backend/target/debug/neuro-backend
+ls -la tachikoma-backend/target/debug/tachikoma-backend
 
 # Ver proceso y hora de inicio
-ps aux | grep neuro-backend
+ps aux | grep tachikoma-backend
 
 # Verificar build info via health endpoint
 curl http://localhost:3000/api/health | jq '.build_info'
@@ -100,7 +213,7 @@ Esto ayuda a identificar si el binario en ejecución corresponde al código actu
 
 ```bash
 # Limpiar fingerprint y recompilar
-rm -rf target/debug/.fingerprint/neuro-backend*
+rm -rf target/debug/.fingerprint/tachikoma-backend*
 cargo build
 
 # O usar la tarea de VS Code
@@ -110,9 +223,9 @@ cargo build
 ## Estructura de Tareas de VS Code
 
 - **🐳 Docker Services**: Levanta SurrealDB, Ollama, Searxng, Voice, Music
-- **🦀 Backend (Rust)**: Ejecuta neuro-backend con cargo watch
-- **⚛️ User UI (Vite)**: Inicia neuro-ui
-- **🔧 Admin UI (Vite)**: Inicia neuro-admin
+- **🦀 Backend (Rust)**: Ejecuta tachikoma-backend con cargo watch
+- **⚛️ User UI (Vite)**: Inicia tachikoma-ui
+- **🔧 Admin UI (Vite)**: Inicia tachikoma-admin
 - **🔨 Rebuild Backend (Clean)**: Limpia cache y recompila desde cero
 - **🎵 Rebuild Music Service**: Reconstruye el contenedor de música
 
@@ -122,7 +235,7 @@ cargo build
 ```bash
 # ❌ INCORRECTO - Esto interfiere con los tasks de VS Code
 cargo run
-./target/debug/neuro-backend
+./target/debug/tachikoma-backend
 cargo watch -x run
 ```
 
@@ -193,7 +306,7 @@ const response = await fetch('/api/music/playlists');
 
 ## Variables de Entorno Requeridas
 
-### neuro-backend:
+### tachikoma-backend:
 - `DATABASE_URL`: WebSocket URL de SurrealDB
 - `DATABASE_USER`: Usuario de SurrealDB
 - `DATABASE_PASS`: Contraseña de SurrealDB
@@ -269,14 +382,14 @@ El proyecto usa **SurrealDB v1.5.6** tanto en el servidor como en los clientes R
 |------------|---------|-------|
 | SurrealDB Server (Docker) | `surrealdb/surrealdb:v1.5.6` | En docker-compose.yml |
 | Cliente Rust | `surrealdb = "1.5"` | En Cargo.toml |
-| Storage Engine | `file:/data/neuro.db` | NO usar `surrealkv` |
+| Storage Engine | `file:/data/tachikoma.db` | NO usar `surrealkv` |
 
 ### Configuración en docker-compose.yml:
 
 ```yaml
 surrealdb:
   image: surrealdb/surrealdb:v1.5.6  # ⚠️ Fijar versión, NO usar :latest
-  command: start --user root --pass secret --log info file:/data/neuro.db
+  command: start --user root --pass secret --log info file:/data/tachikoma.db
 ```
 
 ### Configuración en Cargo.toml:

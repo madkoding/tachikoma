@@ -1,8 +1,8 @@
 //! =============================================================================
-//! Neuro-Checklists Microservice
+//! Tachikoma-Checklists Microservice
 //! =============================================================================
 //! Independent microservice for managing checklists.
-//! Uses neuro-backend as data layer via HTTP client.
+//! Uses tachikoma-backend as data layer via HTTP client.
 //! =============================================================================
 
 mod backend_client;
@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "neuro_checklists=info,tower_http=debug".into()),
+                .unwrap_or_else(|_| "tachikoma_checklists=info,tower_http=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration
     let config = Config::from_env();
     
-    info!("🗒️  Neuro-Checklists Microservice");
+    info!("🗒️  Tachikoma-Checklists Microservice");
     info!("================================");
     info!("Port: {}", config.port);
     info!("Backend URL: {}", config.backend_url);

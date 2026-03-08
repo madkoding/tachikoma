@@ -1,88 +1,158 @@
 {
   "version": "2.0.0",
   "tasks": [
-    {
-      "label": "🧹 Kill Dev Processes",
-      "type": "shell",
-      "command": "fuser -k 3000/tcp 2>/dev/null; fuser -k 5173/tcp 2>/dev/null; fuser -k 5174/tcp 2>/dev/null; sleep 0.3; echo '✓ Ports cleaned'",
-      "problemMatcher": [],
-      "presentation": { "reveal": "silent", "panel": "shared" }
-    },
-    {
-      "label": "🛑 Stop Docker Services",
-      "type": "shell",
-      "command": "docker compose down 2>/dev/null; docker stop neuro-voice neuro-music neuro-checklists neuro-chat neuro-memory neuro-agent neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; docker rm neuro-voice neuro-music neuro-checklists neuro-chat neuro-memory neuro-agent neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; echo '✓ Docker services stopped and removed'",
-      "problemMatcher": [],
-      "presentation": { "reveal": "silent", "panel": "shared" }
-    },
+    // =========================================================================
+    // STOP
+    // =========================================================================
     {
       "label": "🛑 Stop All",
       "type": "shell",
-      "command": "docker compose down 2>/dev/null; docker stop neuro-voice neuro-music neuro-checklists neuro-chat neuro-memory neuro-agent neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; docker rm neuro-voice neuro-music neuro-checklists neuro-chat neuro-memory neuro-agent neuro-surrealdb neuro-searxng neuro-ollama 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; pkill -f 'neuro-backend' 2>/dev/null; fuser -k 3000/tcp 5173/tcp 5174/tcp 2>/dev/null; echo '✓ All services stopped'",
+      "command": "docker compose down --remove-orphans 2>/dev/null; docker rm -f tachikoma-voice tachikoma-music tachikoma-checklists tachikoma-chat tachikoma-memory tachikoma-agent tachikoma-pomodoro tachikoma-kanban tachikoma-note tachikoma-docs tachikoma-calendar tachikoma-image tachikoma-surrealdb tachikoma-searxng 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; pkill -f 'tachikoma-backend' 2>/dev/null; fuser -k 3000/tcp 5173/tcp 5174/tcp 2>/dev/null; echo '✓ All services stopped'",
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared" }
     },
+
+    // =========================================================================
+    // DOCKER SERVICES
+    // =========================================================================
     {
-      "label": "🐳 Docker Services",
-      "type": "shell",
-      "command": "./start.sh --docker",
-      "isBackground": true,
-      "problemMatcher": [],
-      "presentation": { "reveal": "silent", "panel": "dedicated", "group": "dev" },
-      "dependsOn": ["🛑 Stop Docker Services"]
-    },
-    {
-      "label": "⚡ Docker Services (Fast Dev)",
+      "label": "🐳 Docker (Dev Mode)",
+      "detail": "Inicia microservicios Docker con builds rápidos (debug + mold)",
       "type": "shell",
       "command": "./dev.sh docker-dev",
       "isBackground": true,
       "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "dedicated", "group": "dev" },
-      "dependsOn": ["🛑 Stop Docker Services"]
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "docker" },
+      "dependsOn": ["🛑 Stop All"]
     },
     {
-      "label": "🦀 Backend (Rust)",
+      "label": "👁️ Docker (Watch Mode)",
+      "detail": "Auto-rebuild cuando cambias código en tachikoma-*/src",
       "type": "shell",
-      "command": "fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd neuro-backend && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 MUSIC_SERVICE_URL=http://127.0.0.1:3002 CHECKLISTS_SERVICE_URL=http://127.0.0.1:3001 MEMORY_SERVICE_URL=http://127.0.0.1:3004 CHAT_SERVICE_URL=http://127.0.0.1:3003 AGENT_SERVICE_URL=http://127.0.0.1:3005 RUST_LOG=neuro_backend=debug,info cargo watch -x run",
+      "command": "./dev.sh watch",
       "isBackground": true,
       "problemMatcher": {
+        "owner": "docker-watch",
+        "pattern": { "regexp": "^.*$", "message": 0 },
+        "background": { "activeOnStart": true, "beginsPattern": "Watching|watch", "endsPattern": "never-matches" }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "docker" },
+      "dependsOn": ["🛑 Stop All"]
+    },
+
+    // =========================================================================
+    // BACKEND (Rust)
+    // =========================================================================
+    {
+      "label": "🦀 Backend",
+      "detail": "tachikoma-backend con cargo watch (hot-reload)",
+      "type": "shell",
+      "command": "fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd tachikoma-backend && cargo watch -x run",
+      "isBackground": true,
+      "options": {
+        "env": {
+          "DATABASE_URL": "ws://127.0.0.1:8000",
+          "DATABASE_USER": "root",
+          "DATABASE_PASS": "tachikomaos_secret_2024",
+          "OLLAMA_URL": "http://127.0.0.1:11434",
+          "SEARXNG_URL": "http://127.0.0.1:8080",
+          "VOICE_SERVICE_URL": "http://127.0.0.1:8100",
+          "MUSIC_SERVICE_URL": "http://127.0.0.1:3002",
+          "CHECKLISTS_SERVICE_URL": "http://127.0.0.1:3001",
+          "CHAT_SERVICE_URL": "http://127.0.0.1:3003",
+          "MEMORY_SERVICE_URL": "http://127.0.0.1:3004",
+          "AGENT_SERVICE_URL": "http://127.0.0.1:3005",
+          "KANBAN_SERVICE_URL": "http://127.0.0.1:3006",
+          "NOTE_SERVICE_URL": "http://127.0.0.1:3007",
+          "DOCS_SERVICE_URL": "http://127.0.0.1:3008",
+          "CALENDAR_SERVICE_URL": "http://127.0.0.1:3009",
+          "POMODORO_SERVICE_URL": "http://127.0.0.1:3010",
+          "IMAGE_SERVICE_URL": "http://127.0.0.1:3011",
+          "RUST_LOG": "info"
+        }
+      },
+      "problemMatcher": {
         "owner": "rust",
-        "fileLocation": ["relative", "${workspaceFolder}/neuro-backend"],
+        "fileLocation": ["relative", "${workspaceFolder}/tachikoma-backend"],
         "pattern": { "regexp": "^error\\[E\\d+\\]: (.+)$", "message": 1 },
-        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Restarting", "endsPattern": "NEURO-OS Backend ready|Server:" }
+        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Restarting", "endsPattern": "TACHIKOMA-OS Backend ready|Server:" }
       },
       "presentation": { "reveal": "always", "panel": "dedicated", "group": "dev" }
     },
+
+    // =========================================================================
+    // FRONTEND (Vite)
+    // =========================================================================
     {
-      "label": "🦀 Backend (after Docker)",
+      "label": "⚛️ User UI",
+      "detail": "tachikoma-ui en puerto 5173",
       "type": "shell",
-      "command": "echo '⏳ Waiting for Docker services...' && sleep 5 && fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd neuro-backend && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 MUSIC_SERVICE_URL=http://127.0.0.1:3002 CHECKLISTS_SERVICE_URL=http://127.0.0.1:3001 MEMORY_SERVICE_URL=http://127.0.0.1:3004 CHAT_SERVICE_URL=http://127.0.0.1:3003 AGENT_SERVICE_URL=http://127.0.0.1:3005 RUST_LOG=info cargo watch -x run",
+      "command": "fuser -k 5173/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh 2>/dev/null; cd tachikoma-ui && npm run dev",
       "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^(.*):(\\d+):(\\d+): (.*)$", "file": 1, "line": 2, "column": 3, "message": 4 },
+        "background": { "activeOnStart": true, "beginsPattern": "VITE|vite|npm", "endsPattern": "ready in|Local:|localhost" }
+      },
+      "presentation": { "reveal": "silent", "panel": "dedicated", "group": "dev" }
+    },
+    {
+      "label": "🔧 Admin UI",
+      "detail": "tachikoma-admin en puerto 5174",
+      "type": "shell",
+      "command": "fuser -k 5174/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh 2>/dev/null; cd tachikoma-admin && npm run dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite-admin",
+        "pattern": { "regexp": "^(.*):(\\d+):(\\d+): (.*)$", "file": 1, "line": 2, "column": 3, "message": 4 },
+        "background": { "activeOnStart": true, "beginsPattern": "VITE|vite|npm", "endsPattern": "ready in|Local:|localhost" }
+      },
+      "presentation": { "reveal": "silent", "panel": "dedicated", "group": "dev" }
+    },
+
+    // =========================================================================
+    // START ALL (with dependencies)
+    // =========================================================================
+    {
+      "label": "🦀 Backend (wait for Docker)",
+      "type": "shell",
+      "command": "echo '⏳ Waiting for Docker...' && sleep 5 && fuser -k 3000/tcp 2>/dev/null; sleep 0.3; cd tachikoma-backend && cargo watch -x run",
+      "isBackground": true,
+      "options": {
+        "env": {
+          "DATABASE_URL": "ws://127.0.0.1:8000",
+          "DATABASE_USER": "root",
+          "DATABASE_PASS": "tachikomaos_secret_2024",
+          "OLLAMA_URL": "http://127.0.0.1:11434",
+          "SEARXNG_URL": "http://127.0.0.1:8080",
+          "VOICE_SERVICE_URL": "http://127.0.0.1:8100",
+          "MUSIC_SERVICE_URL": "http://127.0.0.1:3002",
+          "CHECKLISTS_SERVICE_URL": "http://127.0.0.1:3001",
+          "CHAT_SERVICE_URL": "http://127.0.0.1:3003",
+          "MEMORY_SERVICE_URL": "http://127.0.0.1:3004",
+          "AGENT_SERVICE_URL": "http://127.0.0.1:3005",
+          "KANBAN_SERVICE_URL": "http://127.0.0.1:3006",
+          "NOTE_SERVICE_URL": "http://127.0.0.1:3007",
+          "DOCS_SERVICE_URL": "http://127.0.0.1:3008",
+          "CALENDAR_SERVICE_URL": "http://127.0.0.1:3009",
+          "POMODORO_SERVICE_URL": "http://127.0.0.1:3010",
+          "IMAGE_SERVICE_URL": "http://127.0.0.1:3011",
+          "RUST_LOG": "info"
+        }
+      },
       "problemMatcher": {
         "owner": "rust",
-        "fileLocation": ["relative", "${workspaceFolder}/neuro-backend"],
+        "fileLocation": ["relative", "${workspaceFolder}/tachikoma-backend"],
         "pattern": { "regexp": "^error\\[E\\d+\\]: (.+)$", "message": 1 },
-        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Restarting|Waiting", "endsPattern": "NEURO-OS Backend ready|Server:" }
+        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Restarting|Waiting", "endsPattern": "TACHIKOMA-OS Backend ready|Server:" }
       },
       "presentation": { "reveal": "always", "panel": "dedicated", "group": "dev" },
-      "dependsOn": ["⚡ Docker Services (Fast Dev)"]
+      "dependsOn": ["🐳 Docker (Dev Mode)"]
     },
     {
-      "label": "⚛️ User UI (Vite)",
+      "label": "⚛️ User UI (wait for Backend)",
       "type": "shell",
-      "command": "fuser -k 5173/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh && cd neuro-ui && npm run dev",
-      "isBackground": true,
-      "problemMatcher": {
-        "owner": "vite",
-        "pattern": { "regexp": "^(.*):(\\d+):(\\d+): (.*)$", "file": 1, "line": 2, "column": 3, "message": 4 },
-        "background": { "activeOnStart": true, "beginsPattern": "VITE|vite|npm", "endsPattern": "ready in|Local:|localhost" }
-      },
-      "presentation": { "reveal": "silent", "panel": "dedicated", "group": "dev" }
-    },
-    {
-      "label": "⚛️ User UI (after Backend)",
-      "type": "shell",
-      "command": "echo '⏳ Waiting for Backend...' && until curl -s http://localhost:3000/api/health > /dev/null 2>&1; do sleep 2; done && echo '✓ Backend ready!' && fuser -k 5173/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh && cd neuro-ui && npm run dev",
+      "command": "echo '⏳ Waiting for Backend...' && until curl -s http://localhost:3000/api/health > /dev/null 2>&1; do sleep 2; done && echo '✓ Backend ready!' && fuser -k 5173/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh 2>/dev/null; cd tachikoma-ui && npm run dev",
       "isBackground": true,
       "problemMatcher": {
         "owner": "vite",
@@ -90,24 +160,12 @@
         "background": { "activeOnStart": true, "beginsPattern": "VITE|vite|npm|Waiting", "endsPattern": "ready in|Local:|localhost" }
       },
       "presentation": { "reveal": "silent", "panel": "dedicated", "group": "dev" },
-      "dependsOn": ["🦀 Backend (after Docker)"]
+      "dependsOn": ["🦀 Backend (wait for Docker)"]
     },
     {
-      "label": "🔧 Admin UI (Vite)",
+      "label": "🔧 Admin UI (wait for Backend)",
       "type": "shell",
-      "command": "fuser -k 5174/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh && cd neuro-admin && npm run dev",
-      "isBackground": true,
-      "problemMatcher": {
-        "owner": "vite-admin",
-        "pattern": { "regexp": "^(.*):(\\d+):(\\d+): (.*)$", "file": 1, "line": 2, "column": 3, "message": 4 },
-        "background": { "activeOnStart": true, "beginsPattern": "VITE|vite|npm", "endsPattern": "ready in|Local:|localhost" }
-      },
-      "presentation": { "reveal": "silent", "panel": "dedicated", "group": "dev" }
-    },
-    {
-      "label": "🔧 Admin UI (after Backend)",
-      "type": "shell",
-      "command": "echo '⏳ Waiting for Backend...' && until curl -s http://localhost:3000/api/health > /dev/null 2>&1; do sleep 2; done && echo '✓ Backend ready!' && fuser -k 5174/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh && cd neuro-admin && npm run dev",
+      "command": "echo '⏳ Waiting for Backend...' && until curl -s http://localhost:3000/api/health > /dev/null 2>&1; do sleep 2; done && echo '✓ Backend ready!' && fuser -k 5174/tcp 2>/dev/null; sleep 0.3; source ~/.nvm/nvm.sh 2>/dev/null; cd tachikoma-admin && npm run dev",
       "isBackground": true,
       "problemMatcher": {
         "owner": "vite-admin",
@@ -115,89 +173,62 @@
         "background": { "activeOnStart": true, "beginsPattern": "VITE|vite|npm|Waiting", "endsPattern": "ready in|Local:|localhost" }
       },
       "presentation": { "reveal": "silent", "panel": "dedicated", "group": "dev" },
-      "dependsOn": ["🦀 Backend (after Docker)"]
+      "dependsOn": ["🦀 Backend (wait for Docker)"]
     },
     {
-      "label": "🚀 Start All Dev",
-      "dependsOn": ["⚛️ User UI (after Backend)", "🔧 Admin UI (after Backend)"],
-      "dependsOrder": "parallel",
-      "problemMatcher": [],
-      "runOptions": { "runOn": "default" }
-    },
-    {
-      "label": "🏭 Start All Prod",
-      "dependsOn": ["🐳 Docker Services", "🦀 Backend (Rust)", "⚛️ User UI (Vite)", "🔧 Admin UI (Vite)"],
+      "label": "🚀 Start Full Stack",
+      "detail": "Docker → Backend → User UI + Admin UI",
+      "dependsOn": ["⚛️ User UI (wait for Backend)", "🔧 Admin UI (wait for Backend)"],
       "dependsOrder": "parallel",
       "problemMatcher": []
     },
-    {
-      "label": "🔄 Rebuild Voice Service",
-      "type": "shell",
-      "command": "./dev.sh voice",
-      "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "dedicated" }
-    },
-    {
-      "label": "🎵 Rebuild Music Service",
-      "type": "shell",
-      "command": "docker compose build --no-cache music-service && docker compose up -d music-service",
-      "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "dedicated" }
-    },
-    {
-      "label": "⚡ Rebuild Voice (Fast)",
-      "type": "shell",
-      "command": "./dev.sh rebuild-voice",
-      "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "dedicated" }
-    },
-    {
-      "label": "⚡ Rebuild Music (Fast)",
-      "type": "shell",
-      "command": "./dev.sh rebuild-music",
-      "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "dedicated" }
-    },
-    {
-      "label": "⚡ Rebuild Checklists (Fast)",
-      "type": "shell",
-      "command": "./dev.sh rebuild-checklists",
-      "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "dedicated" }
-    },
-    {
-      "label": "⚡ Rebuild Chat (Fast)",
-      "type": "shell",
-      "command": "./dev.sh rebuild-chat",
-      "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "dedicated" }
-    },
-    {
-      "label": "⚡ Rebuild Memory (Fast)",
-      "type": "shell",
-      "command": "./dev.sh rebuild-memory",
-      "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "dedicated" }
-    },
-    {
-      "label": "⚡ Rebuild Agent (Fast)",
-      "type": "shell",
-      "command": "./dev.sh rebuild-agent",
-      "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "dedicated" }
-    },
+
+    // =========================================================================
+    // UTILITIES
+    // =========================================================================
     {
       "label": "🔨 Rebuild Backend (Clean)",
+      "detail": "cargo clean + rebuild desde cero",
       "type": "shell",
-      "command": "fuser -k 3000/tcp 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; pkill -f 'neuro-backend' 2>/dev/null; sleep 0.5; cd neuro-backend && cargo clean && DATABASE_URL=ws://127.0.0.1:8000 DATABASE_USER=root DATABASE_PASS=neuroos_secret_2024 OLLAMA_URL=http://127.0.0.1:11434 SEARXNG_URL=http://127.0.0.1:8080 VOICE_SERVICE_URL=http://127.0.0.1:8100 MUSIC_SERVICE_URL=http://127.0.0.1:3002 CHECKLISTS_SERVICE_URL=http://127.0.0.1:3001 MEMORY_SERVICE_URL=http://127.0.0.1:3004 CHAT_SERVICE_URL=http://127.0.0.1:3003 AGENT_SERVICE_URL=http://127.0.0.1:3005 RUST_LOG=warn cargo watch -x run",
+      "command": "fuser -k 3000/tcp 2>/dev/null; pkill -f 'cargo watch' 2>/dev/null; sleep 0.5; cd tachikoma-backend && cargo clean && cargo watch -x run",
       "isBackground": true,
+      "options": {
+        "env": {
+          "DATABASE_URL": "ws://127.0.0.1:8000",
+          "DATABASE_USER": "root",
+          "DATABASE_PASS": "tachikomaos_secret_2024",
+          "OLLAMA_URL": "http://127.0.0.1:11434",
+          "SEARXNG_URL": "http://127.0.0.1:8080",
+          "VOICE_SERVICE_URL": "http://127.0.0.1:8100",
+          "MUSIC_SERVICE_URL": "http://127.0.0.1:3002",
+          "CHECKLISTS_SERVICE_URL": "http://127.0.0.1:3001",
+          "CHAT_SERVICE_URL": "http://127.0.0.1:3003",
+          "MEMORY_SERVICE_URL": "http://127.0.0.1:3004",
+          "AGENT_SERVICE_URL": "http://127.0.0.1:3005",
+          "KANBAN_SERVICE_URL": "http://127.0.0.1:3006",
+          "NOTE_SERVICE_URL": "http://127.0.0.1:3007",
+          "DOCS_SERVICE_URL": "http://127.0.0.1:3008",
+          "CALENDAR_SERVICE_URL": "http://127.0.0.1:3009",
+          "POMODORO_SERVICE_URL": "http://127.0.0.1:3010",
+          "IMAGE_SERVICE_URL": "http://127.0.0.1:3011",
+          "RUST_LOG": "warn"
+        }
+      },
       "problemMatcher": {
         "owner": "rust",
-        "fileLocation": ["relative", "${workspaceFolder}/neuro-backend"],
+        "fileLocation": ["relative", "${workspaceFolder}/tachikoma-backend"],
         "pattern": { "regexp": "^error\\[E\\d+\\]: (.+)$", "message": 1 },
-        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Cleaning", "endsPattern": "NEURO-OS Backend ready|Server:" }
+        "background": { "activeOnStart": true, "beginsPattern": "Compiling|Cleaning", "endsPattern": "TACHIKOMA-OS Backend ready|Server:" }
       },
-      "presentation": { "reveal": "always", "panel": "dedicated", "group": "dev" }
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "🧹 Clean Docker Cache",
+      "detail": "Limpia cargo cache de contenedores Docker",
+      "type": "shell",
+      "command": "./dev.sh clean-cache",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
     }
   ]
 }

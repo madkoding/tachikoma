@@ -9,9 +9,13 @@ import {
   Clock,
   ListMusic,
   Shuffle,
-  Loader2
+  Loader2,
+  Heart,
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
-import { useMusicStore, formatDurationLong } from '../../stores/musicStore';
+import { useMusicStore, usePlaylists, formatDurationLong } from '../../stores/musicStore';
+import { AnimatedLedDigits } from '../common';
 import { PlaylistDto } from '../../api/client';
 
 interface PlaylistListProps {
@@ -25,9 +29,13 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
   selectedPlaylistId,
   onCreatePlaylist,
 }) => {
-  const { playlists, isLoadingPlaylists, deletePlaylist, pollingPlaylistId } = useMusicStore();
+  // Use optimized selector for playlists
+  const { playlists, isLoadingPlaylists } = usePlaylists();
+  // Get other actions from store
+  const { deletePlaylist, pollingPlaylistId, refreshSuggestions } = useMusicStore();
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -108,6 +116,14 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-cyan-500/20 to-purple-500/20">
                       <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
                     </div>
+                  ) : playlist.is_favorites ? (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-red-500/20 to-pink-500/20">
+                      <Heart className="w-6 h-6 text-red-400" fill="currentColor" />
+                    </div>
+                  ) : playlist.is_suggestions ? (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-cyan-500/20">
+                      <Sparkles className="w-6 h-6 text-purple-400" />
+                    </div>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-cyan-500/20 to-purple-500/20">
                       <Music className="w-6 h-6 text-gray-500" />
@@ -128,11 +144,11 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
                   <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
                     <span className="flex items-center gap-1">
                       <Music className="w-3 h-3" />
-                      {playlist.song_count}
+                      <AnimatedLedDigits value={`${playlist.song_count}`} variant="subtle" />
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      {formatDurationLong(playlist.total_duration)}
+                      <AnimatedLedDigits value={formatDurationLong(playlist.total_duration)} variant="subtle" />
                     </span>
                     {playlist.shuffle && (
                       <Shuffle className="w-3 h-3 text-cyan-400" />
@@ -145,16 +161,18 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
                   )}
                 </div>
 
-                {/* Menu button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenuOpen(menuOpen === playlist.id ? null : playlist.id);
-                  }}
-                  className="p-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
-                >
-                  <MoreVertical className="w-4 h-4" />
-                </button>
+                {/* Menu button - hidden for favorites since it has no actions */}
+                {!playlist.is_favorites && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(menuOpen === playlist.id ? null : playlist.id);
+                    }}
+                    className="p-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                )}
               </div>
 
               {/* Dropdown menu */}
@@ -165,38 +183,58 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
                     onClick={() => setMenuOpen(null)}
                   />
                   <div className="absolute right-2 top-12 z-20 bg-gray-800 border border-gray-700 shadow-xl overflow-hidden min-w-[140px]">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // TODO: Open edit modal
-                        setMenuOpen(null);
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                      Editar
-                    </button>
-                    <button
-                      onClick={(e) => handleDelete(playlist.id, e)}
-                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
-                        confirmDelete === playlist.id
-                          ? 'bg-red-500/20 text-red-400'
-                          : 'text-gray-300 hover:bg-gray-700'
-                      }`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      {confirmDelete === playlist.id ? 'Confirmar' : 'Eliminar'}
-                    </button>
+                    {/* Edit - only for non-special playlists */}
+                    {!playlist.is_favorites && !playlist.is_suggestions && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // TODO: Open edit modal
+                          setMenuOpen(null);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                        Editar
+                      </button>
+                    )}
+                    {/* Refresh suggestions */}
+                    {playlist.is_suggestions && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          setRefreshing(true);
+                          try {
+                            await refreshSuggestions();
+                          } finally {
+                            setRefreshing(false);
+                            setMenuOpen(null);
+                          }
+                        }}
+                        disabled={refreshing}
+                        className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                        {refreshing ? 'Actualizando...' : 'Actualizar sugerencias'}
+                      </button>
+                    )}
+                    {/* Delete - only for non-special playlists */}
+                    {!playlist.is_favorites && !playlist.is_suggestions && (
+                      <button
+                        onClick={(e) => handleDelete(playlist.id, e)}
+                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                          confirmDelete === playlist.id
+                            ? 'bg-red-500/20 text-red-400'
+                            : 'text-gray-300 hover:bg-gray-700'
+                        }`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {confirmDelete === playlist.id ? 'Confirmar' : 'Eliminar'}
+                      </button>
+                    )}
                   </div>
                 </>
               )}
 
-              {/* Suggestion badge */}
-              {playlist.is_suggestions && (
-                <div className="absolute top-2 right-2 px-2 py-0.5 bg-purple-500/20 text-purple-400 text-[10px] font-medium">
-                  Sugerencias IA
-                </div>
-              )}
             </div>
           ))
         )}

@@ -17,7 +17,7 @@ export default {
         'cyber-yellow': '#ffcc00',
         'cyber-red': '#ff3366',
         'cyber-purple': '#9966ff',
-        neuro: {
+        tachikoma: {
           50: '#f0f9ff',
           100: '#e0f2fe',
           200: '#bae6fd',

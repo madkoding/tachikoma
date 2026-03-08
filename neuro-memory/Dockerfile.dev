@@ -1,5 +1,5 @@
 # =============================================================================
-# Dockerfile.dev for neuro-memory (Development - Fast builds)
+# Dockerfile.dev for tachikoma-memory (Development - Fast builds)
 # =============================================================================
 
 FROM rust:1.85-slim AS chef
@@ -27,6 +27,6 @@ RUN cargo build
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=builder /app/target/debug/neuro-memory /app/neuro-memory
+COPY --from=builder /app/target/debug/tachikoma-memory /app/tachikoma-memory
 EXPOSE 3004
-CMD ["/app/neuro-memory"]
+CMD ["/app/tachikoma-memory"]

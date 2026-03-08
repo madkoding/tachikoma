@@ -47,7 +47,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
 # Copy binary
-COPY --from=builder /app/target/release/neuro-checklists /app/neuro-checklists
+COPY --from=builder /app/target/release/tachikoma-checklists /app/tachikoma-checklists
 
 # Set environment
 ENV RUST_LOG=info
@@ -55,4 +55,4 @@ ENV PORT=3001
 
 EXPOSE 3001
 
-CMD ["/app/neuro-checklists"]
+CMD ["/app/tachikoma-checklists"]

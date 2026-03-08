@@ -115,7 +115,7 @@ impl KnowledgeExtractor {
         Self {
             llm_provider,
             memory_service,
-            extraction_model: "ministral-3:3b".to_string(), // Use default model already in memory
+            extraction_model: "qwen3:0.6b".to_string(), // Use default model already in memory
         }
     }
 

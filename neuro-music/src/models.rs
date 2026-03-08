@@ -16,6 +16,8 @@ pub struct Playlist {
     pub description: Option<String>,
     pub cover_url: Option<String>,
     pub is_suggestions: bool,
+    pub is_favorites: bool,
+    pub last_suggestions_update: Option<DateTime<Utc>>,
     pub shuffle: bool,
     pub repeat_mode: RepeatMode,
     pub song_count: i32,
@@ -96,6 +98,7 @@ pub struct Song {
     pub thumbnail_url: Option<String>,
     pub song_order: i32,
     pub play_count: i32,
+    pub is_liked: bool,
     pub last_played: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
@@ -116,6 +119,7 @@ pub struct UpdateSong {
     pub album: Option<String>,
     pub cover_url: Option<String>,
     pub song_order: Option<i32>,
+    pub is_liked: Option<bool>,
 }
 
 // =============================================================================

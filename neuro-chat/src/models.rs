@@ -158,51 +158,6 @@ pub struct ConversationWithMessages {
 // ============================================================================
 // Ollama Models
 // ============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OllamaMessage {
-    pub role: String,
-    pub content: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct OllamaChatRequest {
-    pub model: String,
-    pub messages: Vec<OllamaMessage>,
-    pub stream: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub options: Option<OllamaOptions>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct OllamaOptions {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub num_ctx: Option<i32>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct OllamaChatResponse {
-    pub message: OllamaMessage,
-    pub done: bool,
-    #[serde(default)]
-    pub prompt_eval_count: i32,
-    #[serde(default)]
-    pub eval_count: i32,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct OllamaStreamChunk {
-    pub message: Option<OllamaMessage>,
-    pub done: bool,
-    #[serde(default)]
-    pub prompt_eval_count: i32,
-    #[serde(default)]
-    pub eval_count: i32,
-}
-
-// ============================================================================
 // Memory Models (for client calls)
 // ============================================================================
 
@@ -225,4 +180,24 @@ pub struct MemorySearchRequest {
     pub query: String,
     pub limit: Option<usize>,
     pub threshold: Option<f64>,
+}
+
+// ============================================================================
+// Speculative Decoding Models
+// ============================================================================
+
+/// Request for speculative streaming chat
+/// Models are optional - backend uses tier defaults (Light=draft, Standard=target)
+#[derive(Debug, Deserialize)]
+pub struct SpeculativeMessageRequest {
+    pub message: String,
+    pub conversation_id: Option<Uuid>,
+    #[serde(default)]
+    pub include_memories: bool,
+    /// Override draft model (small/fast) - defaults to Light tier
+    pub draft_model: Option<String>,
+    /// Override target model (large/accurate) - defaults to Standard tier
+    pub target_model: Option<String>,
+    /// Number of tokens to generate speculatively (default: 5)
+    pub lookahead: Option<usize>,
 }

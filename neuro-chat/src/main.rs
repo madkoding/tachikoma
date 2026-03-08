@@ -1,8 +1,11 @@
 //! =============================================================================
-//! NEURO-OS Chat Service - Main Entry Point
+//! TACHIKOMA-OS Chat Service - Main Entry Point
 //! =============================================================================
 //! Microservice for chat interactions with LLM, streaming responses,
 //! and conversation management.
+//! 
+//! This service uses tachikoma-backend as the ONLY gateway to Ollama.
+//! All LLM operations go through the backend's /api/llm/* endpoints.
 //! =============================================================================
 
 use std::sync::Arc;
@@ -17,18 +20,18 @@ mod db;
 mod handlers;
 mod models;
 mod routes;
-mod ollama;
+mod backend_client;
 mod memory_client;
 
 pub use config::Config;
 pub use db::Database;
-pub use ollama::OllamaClient;
+pub use backend_client::BackendLlmClient;
 pub use memory_client::MemoryClient;
 
 /// Application state shared across handlers
 pub struct AppState {
     pub db: Database,
-    pub ollama: OllamaClient,
+    pub llm_client: BackendLlmClient,
     pub memory_client: MemoryClient,
     pub config: Config,
 }
@@ -39,15 +42,17 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,neuro_chat=debug".into()),
+                .unwrap_or_else(|_| "info,tachikoma_chat=debug".into()),
         )
         .init();
 
-    info!("💬 Starting NEURO-OS Chat Service...");
+    info!("💬 Starting TACHIKOMA-OS Chat Service...");
 
     // Load configuration
     let config = Config::from_env();
     info!("Configuration loaded");
+    info!("  Backend URL: {}", config.backend_url);
+    info!("  Speculative decoding: {}", if config.speculative_enabled { "enabled" } else { "disabled" });
 
     // Connect to database
     let db = Database::connect(&config).await?;
@@ -58,13 +63,13 @@ async fn main() -> Result<()> {
     info!("✅ Database schema initialized");
 
     // Create clients
-    let ollama = OllamaClient::new(&config.ollama_url);
+    let llm_client = BackendLlmClient::new(&config.backend_url);
     let memory_client = MemoryClient::new(&config.memory_service_url);
 
     // Create app state
     let state = Arc::new(AppState {
         db,
-        ollama,
+        llm_client,
         memory_client,
         config: config.clone(),
     });

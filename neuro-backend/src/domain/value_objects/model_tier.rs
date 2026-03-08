@@ -3,9 +3,9 @@
 //! =============================================================================
 //! Represents the different tiers of AI models based on capability and resource
 //! requirements. Used by the ModelManager to select appropriate models.
-//! 
+//!
 //! # Model Selection Strategy
-//! 
+//!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────────────┐
 //! │                        MODEL SELECTION MATRIX                           │
@@ -26,9 +26,9 @@ use serde::{Deserialize, Serialize};
 /// =============================================================================
 /// Defines the tier of AI model to use based on task complexity and
 /// available system resources (primarily VRAM).
-/// 
+///
 /// # Tiers
-/// 
+///
 /// * `Light` - 3B parameter models for fast, simple tasks
 /// * `Standard` - 7B parameter models for general-purpose use
 /// * `Heavy` - 14B+ parameter models for complex reasoning/coding
@@ -42,14 +42,14 @@ pub enum ModelTier {
     /// =======================================================================
     /// Fast, efficient models for simple tasks that don't require deep
     /// reasoning. Ideal for terminal commands and quick queries.
-    /// 
+    ///
     /// # Characteristics
     /// - VRAM: ~2-4 GB
     /// - Speed: Very fast (< 1s for short responses)
     /// - Quality: Good for simple tasks
-    /// 
+    ///
     /// # Model Examples
-    /// - ministral-3:3b
+    /// - qwen3:0.6b
     /// - phi-3-mini
     /// - gemma-2b
     /// =======================================================================
@@ -60,12 +60,12 @@ pub enum ModelTier {
     /// =======================================================================
     /// Balanced models for general-purpose use. Good quality with
     /// reasonable performance.
-    /// 
+    ///
     /// # Characteristics
     /// - VRAM: ~4-8 GB
     /// - Speed: Medium (1-5s for typical responses)
     /// - Quality: Good for most tasks
-    /// 
+    ///
     /// # Model Examples
     /// - qwen2.5-coder:7b
     /// - llama3.1:8b
@@ -78,12 +78,12 @@ pub enum ModelTier {
     /// =======================================================================
     /// High-capability models for complex tasks requiring deep reasoning,
     /// code generation, or nuanced understanding.
-    /// 
+    ///
     /// # Characteristics
     /// - VRAM: > 8 GB (typically 12-16 GB)
     /// - Speed: Slower (5-15s for complex responses)
     /// - Quality: Excellent for complex tasks
-    /// 
+    ///
     /// # Model Examples
     /// - qwen2.5-coder:14b
     /// - llama3.1:70b (quantized)
@@ -96,12 +96,12 @@ pub enum ModelTier {
     /// =======================================================================
     /// Dedicated models for generating vector embeddings.
     /// Not used for generation, only for semantic search.
-    /// 
+    ///
     /// # Characteristics
     /// - VRAM: ~1-2 GB
     /// - Speed: Very fast
     /// - Output: Fixed-dimension vectors
-    /// 
+    ///
     /// # Model Examples
     /// - nomic-embed-text
     /// - bge-large
@@ -116,16 +116,16 @@ impl ModelTier {
     /// =========================================================================
     /// Returns the recommended model name for each tier.
     /// These are the models that NEURO-OS is optimized for.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The default model name string
     /// =========================================================================
     pub fn default_model(&self) -> &'static str {
         match self {
-            ModelTier::Light => "qwen2.5:3b",
-            ModelTier::Standard => "qwen2.5-coder:7b",
-            ModelTier::Heavy => "qwen2.5-coder:14b",
+            ModelTier::Light => "qwen3:0.6b",
+            ModelTier::Standard => "qwen3:0.6b",
+            ModelTier::Heavy => "qwen3:0.6b", // Same as Standard for now
             ModelTier::Embedding => "nomic-embed-text",
         }
     }
@@ -134,17 +134,17 @@ impl ModelTier {
     /// Get the minimum VRAM required for this tier (in MB)
     /// =========================================================================
     /// Returns the minimum VRAM required to run models in this tier.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// VRAM requirement in megabytes
     /// =========================================================================
     pub fn min_vram_mb(&self) -> u64 {
         match self {
-            ModelTier::Light => 2048,      // 2 GB
-            ModelTier::Standard => 4096,   // 4 GB
-            ModelTier::Heavy => 8192,      // 8 GB
-            ModelTier::Embedding => 1024,  // 1 GB
+            ModelTier::Light => 2048,     // 2 GB
+            ModelTier::Standard => 4096,  // 4 GB
+            ModelTier::Heavy => 8192,     // 8 GB
+            ModelTier::Embedding => 1024, // 1 GB
         }
     }
 
@@ -152,17 +152,17 @@ impl ModelTier {
     /// Get the recommended VRAM for this tier (in MB)
     /// =========================================================================
     /// Returns the recommended VRAM for optimal performance.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Recommended VRAM in megabytes
     /// =========================================================================
     pub fn recommended_vram_mb(&self) -> u64 {
         match self {
-            ModelTier::Light => 4096,      // 4 GB
-            ModelTier::Standard => 8192,   // 8 GB
-            ModelTier::Heavy => 16384,     // 16 GB
-            ModelTier::Embedding => 2048,  // 2 GB
+            ModelTier::Light => 4096,     // 4 GB
+            ModelTier::Standard => 8192,  // 8 GB
+            ModelTier::Heavy => 16384,    // 16 GB
+            ModelTier::Embedding => 2048, // 2 GB
         }
     }
 
@@ -170,9 +170,9 @@ impl ModelTier {
     /// Get the expected max context length for this tier
     /// =========================================================================
     /// Returns the typical context length supported by models in this tier.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Context length in tokens
     /// =========================================================================
     pub fn context_length(&self) -> usize {
@@ -189,13 +189,13 @@ impl ModelTier {
     /// =========================================================================
     /// Determines the best model tier given the available GPU memory.
     /// Falls back to lighter tiers if resources are insufficient.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `available_vram_mb` - Available VRAM in megabytes
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The appropriate model tier for the available resources
     /// =========================================================================
     pub fn from_available_vram(available_vram_mb: u64) -> Self {
@@ -212,15 +212,15 @@ impl ModelTier {
     /// Select appropriate tier based on task complexity
     /// =========================================================================
     /// Determines the best model tier given the task requirements.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `is_code_task` - Whether the task involves code generation
     /// * `requires_reasoning` - Whether deep reasoning is needed
     /// * `is_quick_response` - Whether speed is prioritized
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The recommended model tier for the task
     /// =========================================================================
     pub fn from_task_requirements(
@@ -255,9 +255,9 @@ impl ModelTier {
     /// Get the expected tokens per second for this tier
     /// =========================================================================
     /// Returns the typical generation speed.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Expected tokens per second
     /// =========================================================================
     pub fn expected_tokens_per_second(&self) -> f64 {
@@ -360,7 +360,7 @@ impl ModelConfig {
     pub fn for_quick_response() -> Self {
         Self {
             tier: ModelTier::Light,
-            model_name: "ministral-3:3b".to_string(),
+            model_name: "qwen3:0.6b".to_string(),
             temperature: 0.5,
             top_p: 0.9,
             max_tokens: 256,
@@ -409,9 +409,119 @@ mod tests {
 
     #[test]
     fn test_default_models() {
-        assert_eq!(ModelTier::Light.default_model(), "ministral-3:3b");
-        assert_eq!(ModelTier::Standard.default_model(), "qwen2.5-coder:7b");
-        assert_eq!(ModelTier::Heavy.default_model(), "qwen2.5-coder:14b");
+        assert_eq!(ModelTier::Light.default_model(), "qwen3:0.6b");
+        assert_eq!(ModelTier::Standard.default_model(), "qwen3:0.6b");
+        assert_eq!(ModelTier::Heavy.default_model(), "qwen3:0.6b");
         assert_eq!(ModelTier::Embedding.default_model(), "nomic-embed-text");
+    }
+
+    #[test]
+    fn test_vram_requirements() {
+        assert_eq!(ModelTier::Light.min_vram_mb(), 2048);
+        assert_eq!(ModelTier::Standard.min_vram_mb(), 4096);
+        assert_eq!(ModelTier::Heavy.min_vram_mb(), 8192);
+        assert_eq!(ModelTier::Embedding.min_vram_mb(), 1024);
+    }
+
+    #[test]
+    fn test_recommended_vram() {
+        assert_eq!(ModelTier::Light.recommended_vram_mb(), 4096);
+        assert_eq!(ModelTier::Standard.recommended_vram_mb(), 8192);
+        assert_eq!(ModelTier::Heavy.recommended_vram_mb(), 16384);
+        assert_eq!(ModelTier::Embedding.recommended_vram_mb(), 2048);
+    }
+
+    #[test]
+    fn test_context_lengths() {
+        assert_eq!(ModelTier::Light.context_length(), 4096);
+        assert_eq!(ModelTier::Standard.context_length(), 8192);
+        assert_eq!(ModelTier::Heavy.context_length(), 32768);
+        assert_eq!(ModelTier::Embedding.context_length(), 8192);
+    }
+
+    #[test]
+    fn test_generation_tiers() {
+        let tiers = ModelTier::generation_tiers();
+        assert_eq!(tiers.len(), 3);
+        assert!(tiers.contains(&ModelTier::Light));
+        assert!(tiers.contains(&ModelTier::Standard));
+        assert!(tiers.contains(&ModelTier::Heavy));
+        assert!(!tiers.contains(&ModelTier::Embedding));
+    }
+
+    #[test]
+    fn test_code_generation_support() {
+        assert!(!ModelTier::Light.supports_code_generation());
+        assert!(ModelTier::Standard.supports_code_generation());
+        assert!(ModelTier::Heavy.supports_code_generation());
+        assert!(!ModelTier::Embedding.supports_code_generation());
+    }
+
+    #[test]
+    fn test_tokens_per_second() {
+        assert_eq!(ModelTier::Light.expected_tokens_per_second(), 80.0);
+        assert_eq!(ModelTier::Standard.expected_tokens_per_second(), 40.0);
+        assert_eq!(ModelTier::Heavy.expected_tokens_per_second(), 20.0);
+    }
+
+    #[test]
+    fn test_model_config_default() {
+        let config = ModelConfig::new(ModelTier::Standard);
+        assert_eq!(config.tier, ModelTier::Standard);
+        assert_eq!(config.model_name, "qwen3:0.6b");
+        assert_eq!(config.temperature, 0.7);
+        assert_eq!(config.top_p, 0.9);
+        assert_eq!(config.max_tokens, 2048);
+        assert!(config.system_prompt.is_none());
+    }
+
+    #[test]
+    fn test_model_config_for_code() {
+        let config = ModelConfig::for_code();
+        assert_eq!(config.tier, ModelTier::Heavy);
+        assert!(config.model_name.contains("coder"));
+        assert_eq!(config.temperature, 0.3);
+        assert!(config.system_prompt.is_some());
+    }
+
+    #[test]
+    fn test_model_config_for_quick_response() {
+        let config = ModelConfig::for_quick_response();
+        assert_eq!(config.tier, ModelTier::Light);
+        assert_eq!(config.max_tokens, 256);
+        assert_eq!(config.temperature, 0.5);
+    }
+
+    #[test]
+    fn test_model_config_for_embeddings() {
+        let config = ModelConfig::for_embeddings();
+        assert_eq!(config.tier, ModelTier::Embedding);
+        assert_eq!(config.temperature, 0.0);
+        assert_eq!(config.max_tokens, 0);
+    }
+
+    #[test]
+    fn test_tier_display() {
+        assert_eq!(format!("{}", ModelTier::Light), "Light (3B)");
+        assert_eq!(format!("{}", ModelTier::Standard), "Standard (7B)");
+        assert_eq!(format!("{}", ModelTier::Heavy), "Heavy (14B+)");
+        assert_eq!(format!("{}", ModelTier::Embedding), "Embedding");
+    }
+
+    #[test]
+    fn test_default_tier() {
+        assert_eq!(ModelTier::default(), ModelTier::Standard);
+    }
+
+    #[test]
+    fn test_model_config_builder() {
+        let mut config = ModelConfig::new(ModelTier::Heavy);
+        config.temperature = 0.5;
+        config.top_p = 0.95;
+        config.max_tokens = 4096;
+
+        assert_eq!(config.temperature, 0.5);
+        assert_eq!(config.top_p, 0.95);
+        assert_eq!(config.max_tokens, 4096);
     }
 }

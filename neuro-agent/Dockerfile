@@ -44,7 +44,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/target/release/neuro-agent /app/neuro-agent
+COPY --from=builder /app/target/release/tachikoma-agent /app/tachikoma-agent
 
 # Default environment
 ENV HOST=0.0.0.0
@@ -54,4 +54,4 @@ ENV RUST_LOG=info
 
 EXPOSE 3005
 
-CMD ["./neuro-agent"]
+CMD ["./tachikoma-agent"]
