@@ -1,7 +1,3 @@
-//! =============================================================================
-//! Configuration
-//! =============================================================================
-
 use std::env;
 
 #[derive(Clone, Debug)]
@@ -14,7 +10,8 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Self {
-        // Default allowed commands for safe execution
+        let base = neuro_common::Config::from_env(3005);
+
         let default_allowed = vec![
             "ls", "cat", "head", "tail", "wc", "grep", "find", "which",
             "date", "cal", "uptime", "whoami", "pwd", "echo", "df", "du",
@@ -25,11 +22,8 @@ impl Config {
             .unwrap_or_else(|_| default_allowed.iter().map(|s| s.to_string()).collect());
 
         Self {
-            host: env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
-            port: env::var("PORT")
-                .unwrap_or_else(|_| "3005".to_string())
-                .parse()
-                .unwrap_or(3005),
+            host: base.host,
+            port: base.port,
             searxng_url: env::var("SEARXNG_URL")
                 .unwrap_or_else(|_| "http://localhost:8080".to_string()),
             allowed_commands,

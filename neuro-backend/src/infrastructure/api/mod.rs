@@ -12,4 +12,5 @@ pub mod middleware;
 pub mod events;
 
 pub use routes::create_router;
-pub use events::{EventBroadcaster, MemoryEvent, MemoryEventData, RelationEventData};
+pub use routes::ApiDoc;
+pub use events::EventBroadcaster;

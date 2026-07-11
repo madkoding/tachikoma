@@ -201,3 +201,76 @@ pub struct SpeculativeMessageRequest {
     /// Number of tokens to generate speculatively (default: 5)
     pub lookahead: Option<usize>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn sample_conversation() -> Conversation {
+        Conversation {
+            id: Uuid::new_v4(),
+            title: Some("Test".to_string()),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            archived: false,
+            message_count: 0,
+        }
+    }
+
+    fn sample_message(conversation_id: Uuid) -> ChatMessage {
+        ChatMessage {
+            id: Uuid::new_v4(),
+            conversation_id,
+            role: MessageRole::User,
+            content: "hello".to_string(),
+            model: None,
+            tokens: None,
+            metadata: serde_json::Value::Null,
+            created_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn conversation_serde_roundtrip() {
+        let c = sample_conversation();
+        let json = serde_json::to_string(&c).unwrap();
+        let back: Conversation = serde_json::from_str(&json).unwrap();
+        assert_eq!(c.id, back.id);
+        assert_eq!(c.title, back.title);
+        assert_eq!(c.message_count, back.message_count);
+    }
+
+    #[test]
+    fn message_role_serde_lowercase() {
+        let json = serde_json::to_string(&MessageRole::Assistant).unwrap();
+        assert_eq!(json, "\"assistant\"");
+        let back: MessageRole = serde_json::from_str("\"user\"").unwrap();
+        assert_eq!(back, MessageRole::User);
+    }
+
+    #[test]
+    fn message_role_display() {
+        assert_eq!(MessageRole::User.to_string(), "user");
+        assert_eq!(MessageRole::System.to_string(), "system");
+    }
+
+    #[test]
+    fn chat_message_serde_roundtrip() {
+        let msg = sample_message(Uuid::new_v4());
+        let json = serde_json::to_string(&msg).unwrap();
+        let back: ChatMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(msg.id, back.id);
+        assert_eq!(msg.role, back.role);
+        assert_eq!(msg.content, back.content);
+    }
+
+    #[test]
+    fn send_message_request_defaults() {
+        let json = r#"{"message":"hi"}"#;
+        let req: SendMessageRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.message, "hi");
+        assert!(!req.include_memories);
+        assert!(req.conversation_id.is_none());
+    }
+}

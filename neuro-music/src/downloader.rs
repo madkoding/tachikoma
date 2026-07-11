@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::process::Command;
 use tokio::fs;
-use tracing::{info, error, warn};
+use tracing::{info, warn};
 
 use crate::config::Config;
 use crate::youtube::YouTubeService;

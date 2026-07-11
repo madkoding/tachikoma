@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useMusicStore, usePlayerState, formatDuration } from '../../stores/musicStore';
 import { SongDto, PlaylistWithSongsDto } from '../../api/client';
-import { AnimatedLedDigits } from '../common';
+import AnimatedLedDigits from '../common/AnimatedLedDigits';
 
 type SortOption = 'most_played' | 'alphabetical' | 'duration' | 'album' | 'artist';
 

@@ -97,7 +97,6 @@ export function useNodeRenderer({ hoveredNodeId, nodes }: UseNodeRendererProps) 
         
         // Check if there's a new update we haven't processed
         if (nodeUpdateTime > state.updateTime) {
-          console.log('[useNodeRenderer] Animation loop detected update for:', nodeId, 'updateTime:', nodeUpdateTime);
           state.updateTime = nodeUpdateTime;
           // Get color from node
           const color = NODE_COLORS[currentNode?.memory_type || 'default'] || NODE_COLORS.default;
@@ -861,21 +860,4 @@ function disposeObject(obj: THREE.Object3D) {
   } else if (obj instanceof THREE.Group) {
     obj.children.forEach(child => disposeObject(child));
   }
-}
-
-// Helper function to dispose entire group
-function disposeGroup(group: THREE.Group) {
-  group.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-      child.geometry.dispose();
-      if (Array.isArray(child.material)) {
-        child.material.forEach(m => m.dispose());
-      } else {
-        child.material.dispose();
-      }
-    } else if (child instanceof THREE.Points) {
-      child.geometry.dispose();
-      (child.material as THREE.Material).dispose();
-    }
-  });
 }

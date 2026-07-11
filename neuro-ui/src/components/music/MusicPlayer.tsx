@@ -17,7 +17,7 @@ import { useMusicStore, usePlayerState, usePlayerActions, formatDuration, Repeat
 import { usePerformanceSettings } from '../../stores/performanceStore';
 import { SpectrumAnalyzer } from './SpectrumAnalyzer';
 import { EqualizerModal } from './EqualizerModal';
-import { AnimatedLedDigits } from '../common';
+import AnimatedLedDigits from '../common/AnimatedLedDigits';
 
 interface MusicPlayerProps {
   compact?: boolean;

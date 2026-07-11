@@ -28,13 +28,4 @@ export const GRAPH_CONFIG = {
       strength: 0.02,
     },
   },
-
-  // Simulación
-  simulation: {
-    alphaDecay: 0.1,
-    velocityDecay: 0.5,
-    warmupTicks: 10,
-    cooldownTicks: 10,
-    cooldownTime: 0,
-  },
 };

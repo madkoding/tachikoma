@@ -7,6 +7,7 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use tokio::sync::mpsc;
 
 use crate::domain::errors::DomainError;
@@ -14,24 +15,10 @@ use crate::domain::errors::DomainError;
 /// =============================================================================
 /// ChatMessage - Message in a conversation
 /// =============================================================================
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ChatMessage {
     pub role: String,
     pub content: String,
-}
-
-impl ChatMessage {
-    pub fn user(content: impl Into<String>) -> Self {
-        Self { role: "user".to_string(), content: content.into() }
-    }
-
-    pub fn assistant(content: impl Into<String>) -> Self {
-        Self { role: "assistant".to_string(), content: content.into() }
-    }
-
-    pub fn system(content: impl Into<String>) -> Self {
-        Self { role: "system".to_string(), content: content.into() }
-    }
 }
 
 /// =============================================================================
@@ -98,7 +85,7 @@ pub struct SpeculativeStats {
 /// =============================================================================
 /// LlmHealthStatus - Detailed health status
 /// =============================================================================
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct LlmHealthStatus {
     /// Is the provider reachable
     pub healthy: bool,
@@ -127,12 +114,7 @@ pub trait LlmProvider: Send + Sync {
     /// Generate text completion from a simple prompt
     async fn generate(&self, prompt: &str, model: Option<&str>) -> Result<GenerationResult, DomainError>;
 
-    /// Generate streaming completion (simplified - returns full result)
-    async fn generate_stream(&self, prompt: &str, model: Option<&str>) -> Result<GenerationResult, DomainError> {
-        self.generate(prompt, model).await
-    }
-
-    // =========================================================================
+    // ==========================================================================
     // Chat (with message history)
     // =========================================================================
 
@@ -162,17 +144,9 @@ pub trait LlmProvider: Send + Sync {
         tx: mpsc::Sender<SpeculativeChunk>,
     );
 
-    /// Generate specific number of tokens (used internally for speculative)
-    async fn generate_tokens(
-        &self,
-        prompt: &str,
-        model: &str,
-        num_tokens: i32,
-    ) -> Result<String, DomainError>;
-
     // =========================================================================
     // Embeddings
-    // =========================================================================
+    // ==========================================================================
 
     /// Generate text embedding
     async fn embed(&self, text: &str) -> Result<Vec<f32>, DomainError>;
@@ -182,10 +156,7 @@ pub trait LlmProvider: Send + Sync {
 
     // =========================================================================
     // Model Management
-    // =========================================================================
-
-    /// Check if a model is available
-    async fn is_model_available(&self, model_name: &str) -> bool;
+    // ==========================================================================
 
     /// List available models
     async fn list_models(&self) -> Result<Vec<ModelInfo>, DomainError>;

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
+type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error' | 'disabled';
 
 interface GraphHeaderProps {
   readonly nodeCount: number;
@@ -31,6 +31,11 @@ function ConnectionIndicator({ status }: { readonly status: ConnectionStatus }) 
       color: 'bg-red-500',
       pulse: true,
       text: t('graph.status.error', 'Error'),
+    },
+    disabled: {
+      color: 'bg-gray-500',
+      pulse: false,
+      text: t('graph.status.disconnected', 'Desconectado'),
     },
   };
 

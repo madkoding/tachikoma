@@ -232,53 +232,6 @@ pub async fn create_song(
     // Use helper to normalize/sanitize metadata
     meta_value = normalize_metadata(meta_value);
 
-    // helper: normalize & sanitize metadata (extracted below)
-
-
-    // helper function: normalize & sanitize metadata
-    fn normalize_metadata(mut meta: serde_json::Value) -> serde_json::Value {
-        // 1) Map `id` -> `youtube_id` if missing
-        if meta.get("youtube_id").is_none() {
-            if let Some(id) = meta.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()) {
-                if let Some(obj) = meta.as_object_mut() {
-                    obj.insert("youtube_id".to_string(), serde_json::Value::String(id));
-                }
-            }
-        }
-
-        // 2) Extract from youtube_url if still missing
-        if meta.get("youtube_id").is_none() {
-            if let Some(url) = meta.get("youtube_url").and_then(|v| v.as_str()).map(|s| s.to_string()) {
-                if let Some(id) = extract_youtube_id(&url) {
-                    if let Some(obj) = meta.as_object_mut() {
-                        obj.insert("youtube_id".to_string(), serde_json::Value::String(id));
-                    }
-                }
-            }
-        }
-
-        // 3) Remove noisy fields
-        if let Some(obj) = meta.as_object_mut() {
-            // Fields considered noisy / unnecessary
-            for key in [
-                "description",
-                "uploader_url",
-                "uploader",
-                "uploader_id",
-                "webpage_url",
-                "extractor",
-                "extractor_key",
-                "upload_date",
-                "categories",
-                "tags",
-            ] {
-                obj.remove(key);
-            }
-        }
-
-        meta
-    }
-
     // Try to deserialize into the expected type
     let metadata: YouTubeMetadata = serde_json::from_value(meta_value.clone()).map_err(|e| {
         error!(error = %e, metadata = %meta_value, "Invalid metadata format after normalization");
@@ -537,6 +490,50 @@ pub async fn update_suggestions_timestamp(
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
+
+/// Normalize & sanitize metadata: map `id` -> `youtube_id`, extract from
+/// `youtube_url`, and strip noisy fields.
+fn normalize_metadata(mut meta: serde_json::Value) -> serde_json::Value {
+    // 1) Map `id` -> `youtube_id` if missing
+    if meta.get("youtube_id").is_none() {
+        if let Some(id) = meta.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+            if let Some(obj) = meta.as_object_mut() {
+                obj.insert("youtube_id".to_string(), serde_json::Value::String(id));
+            }
+        }
+    }
+
+    // 2) Extract from youtube_url if still missing
+    if meta.get("youtube_id").is_none() {
+        if let Some(url) = meta.get("youtube_url").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+            if let Some(id) = extract_youtube_id(&url) {
+                if let Some(obj) = meta.as_object_mut() {
+                    obj.insert("youtube_id".to_string(), serde_json::Value::String(id));
+                }
+            }
+        }
+    }
+
+    // 3) Remove noisy fields
+    if let Some(obj) = meta.as_object_mut() {
+        for key in [
+            "description",
+            "uploader_url",
+            "uploader",
+            "uploader_id",
+            "webpage_url",
+            "extractor",
+            "extractor_key",
+            "upload_date",
+            "categories",
+            "tags",
+        ] {
+            obj.remove(key);
+        }
+    }
+
+    meta
+}
 
 /// Extract the YouTube video id from common URL formats:
 /// - https://www.youtube.com/watch?v=ID

@@ -156,7 +156,6 @@ pub struct Relation {
 /// Database record for relation
 #[derive(Debug, Clone, Deserialize)]
 pub struct RelationRecord {
-    pub id: Thing,
     #[serde(rename = "in")]
     pub from: Thing,
     #[serde(rename = "out")]
@@ -248,4 +247,66 @@ pub struct GraphStats {
     pub total_memories: usize,
     pub total_relations: usize,
     pub memories_by_type: std::collections::HashMap<String, usize>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn sample_memory() -> Memory {
+        Memory {
+            id: Uuid::new_v4(),
+            content: "hello".to_string(),
+            memory_type: MemoryType::Fact,
+            vector: vec![0.1, 0.2],
+            metadata: MemoryMetadata::default(),
+            importance_score: 0.8,
+            access_count: 0,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn memory_serde_roundtrip() {
+        let m = sample_memory();
+        let json = serde_json::to_string(&m).unwrap();
+        let back: Memory = serde_json::from_str(&json).unwrap();
+        assert_eq!(m.id, back.id);
+        assert_eq!(m.memory_type, back.memory_type);
+        assert_eq!(m.importance_score, back.importance_score);
+    }
+
+    #[test]
+    fn memory_type_from_str_and_display() {
+        let t: MemoryType = "preference".parse().unwrap();
+        assert_eq!(t, MemoryType::Preference);
+        assert_eq!(MemoryType::Fact.to_string(), "fact");
+        assert!("bad".parse::<MemoryType>().is_err());
+    }
+
+    #[test]
+    fn memory_type_serde_snake_case() {
+        let json = serde_json::to_string(&MemoryType::Episodic).unwrap();
+        assert_eq!(json, "\"episodic\"");
+        let back: MemoryType = serde_json::from_str("\"semantic\"").unwrap();
+        assert_eq!(back, MemoryType::Semantic);
+    }
+
+    #[test]
+    fn relation_record_defaults_deserialize() {
+        let json = r#"{"in":{"tb":"m","id":{"String":"00000000-0000-0000-0000-000000000000"}},"out":{"tb":"m","id":{"String":"00000000-0000-0000-0000-000000000000"}},"created_at":"2024-01-01T00:00:00Z"}"#;
+        let rec: RelationRecord = serde_json::from_str(json).unwrap();
+        assert_eq!(rec.relation_type, "related_to");
+        assert_eq!(rec.confidence, 1.0);
+    }
+
+    #[test]
+    fn memory_metadata_default() {
+        let m = MemoryMetadata::default();
+        assert!(m.tags.is_empty());
+        assert!(m.source.is_none());
+        assert_eq!(m.custom, serde_json::Value::Null);
+    }
 }

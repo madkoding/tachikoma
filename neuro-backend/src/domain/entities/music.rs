@@ -163,3 +163,73 @@ impl Default for EqualizerSettings {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_repeat_mode_default() {
+        assert_eq!(RepeatMode::default(), RepeatMode::Off);
+    }
+
+    #[test]
+    fn test_repeat_mode_from_str_valid() {
+        assert_eq!("off".parse::<RepeatMode>().unwrap(), RepeatMode::Off);
+        assert_eq!("one".parse::<RepeatMode>().unwrap(), RepeatMode::One);
+        assert_eq!("all".parse::<RepeatMode>().unwrap(), RepeatMode::All);
+    }
+
+    #[test]
+    fn test_repeat_mode_from_str_case_insensitive() {
+        assert_eq!("OFF".parse::<RepeatMode>().unwrap(), RepeatMode::Off);
+        assert_eq!("One".parse::<RepeatMode>().unwrap(), RepeatMode::One);
+    }
+
+    #[test]
+    fn test_repeat_mode_from_str_invalid() {
+        assert!("invalid".parse::<RepeatMode>().is_err());
+    }
+
+    #[test]
+    fn test_repeat_mode_display() {
+        assert_eq!(RepeatMode::Off.to_string(), "off");
+        assert_eq!(RepeatMode::One.to_string(), "one");
+        assert_eq!(RepeatMode::All.to_string(), "all");
+    }
+
+    #[test]
+    fn test_equalizer_default() {
+        let eq = EqualizerSettings::default();
+        assert!(eq.enabled);
+        assert!(eq.preset.is_none());
+        assert_eq!(eq.bands.len(), 16);
+        assert!(eq.bands.iter().all(|b| *b == 0.0));
+    }
+
+    #[test]
+    fn test_equalizer_serde_roundtrip() {
+        let eq = EqualizerSettings {
+            enabled: false,
+            preset: Some("rock".to_string()),
+            bands: vec![5.0; 16],
+        };
+        let json = serde_json::to_string(&eq).unwrap();
+        let decoded: EqualizerSettings = serde_json::from_str(&json).unwrap();
+        assert!(!decoded.enabled);
+        assert_eq!(decoded.preset, Some("rock".to_string()));
+    }
+
+    #[test]
+    fn test_create_playlist_defaults() {
+        let req = CreatePlaylist {
+            name: "My Playlist".to_string(),
+            description: None,
+            cover_url: None,
+            is_favorites: false,
+            is_suggestions: false,
+        };
+        assert_eq!(req.name, "My Playlist");
+        assert!(!req.is_favorites);
+    }
+}

@@ -17,7 +17,8 @@
 		"test": "vitest",
 		"test:run": "vitest run",
 		"test:coverage": "vitest run --coverage",
-		"type-check": "tsc --noEmit"
+		"type-check": "tsc --noEmit",
+		"gen:types": "openapi-typescript ../openapi.json -o src/api/types.generated.ts"
 	},
 	"dependencies": {
 		"@tanstack/react-query": "^5.51.23",
@@ -25,7 +26,6 @@
 		"clsx": "^2.1.1",
 		"i18next": "^23.12.2",
 		"i18next-browser-languagedetector": "^8.0.0",
-		"i18next-http-backend": "^2.5.2",
 		"lucide-react": "^0.460.0",
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1",
@@ -39,6 +39,7 @@
 		"@tauri-apps/cli": "^1.6.0",
 		"@testing-library/jest-dom": "^6.4.0",
 		"@testing-library/react": "^14.2.0",
+		"@testing-library/user-event": "^14.6.1",
 		"@types/node": "^20.11.0",
 		"@types/react": "^18.3.3",
 		"@types/react-dom": "^18.3.0",
@@ -50,6 +51,8 @@
 		"eslint-plugin-react-hooks": "^4.6.2",
 		"eslint-plugin-react-refresh": "^0.4.9",
 		"jsdom": "^24.0.0",
+		"msw": "^2.15.0",
+		"openapi-typescript": "^7.13.0",
 		"postcss": "^8.4.41",
 		"tailwindcss": "^3.4.10",
 		"typescript": "^5.5.4",

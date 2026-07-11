@@ -9,11 +9,11 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use crate::AppState;
-use crate::searxng::{SearchRequest, SearchResponse, SearchResult};
-use crate::executor::{ExecuteRequest, ExecuteResult};
+use crate::searxng::{SearchRequest, SearchResult};
+use crate::executor::ExecuteRequest;
 
 // =============================================================================
 // Health Check

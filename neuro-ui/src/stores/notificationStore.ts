@@ -33,11 +33,8 @@ export interface NotificationState {
   
   // Actions
   notifySection: (section: string) => void;
-  notifyFromTool: (toolName: string) => void;
   notifyFromTools: (toolNames: string[]) => void;
   clearNotification: (section: string) => void;
-  clearAllNotifications: () => void;
-  hasNotification: (section: string) => boolean;
 }
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
@@ -62,13 +59,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }, NOTIFICATION_DURATION);
   },
 
-  notifyFromTool: (toolName: string) => {
-    const section = TOOL_TO_SECTION[toolName];
-    if (section) {
-      get().notifySection(section);
-    }
-  },
-
   notifyFromTools: (toolNames: string[]) => {
     // Use Set to avoid duplicate notifications for same section
     const sections = new Set<string>();
@@ -91,13 +81,5 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       const { [section]: _, ...rest } = state.activeNotifications;
       return { activeNotifications: rest };
     });
-  },
-
-  clearAllNotifications: () => {
-    set({ activeNotifications: {} });
-  },
-
-  hasNotification: (section: string) => {
-    return !!get().activeNotifications[section];
   },
 }));

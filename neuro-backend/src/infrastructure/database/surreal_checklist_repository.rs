@@ -4,8 +4,7 @@
 
 use async_trait::async_trait;
 use serde::Deserialize;
-use surrealdb::sql::{Datetime, Thing};
-use tracing::{debug, error};
+use surrealdb::sql::Thing;
 use uuid::Uuid;
 
 use crate::domain::entities::checklist::{

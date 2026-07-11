@@ -1,11 +1,8 @@
-//! =============================================================================
-//! Tachikoma-Music Microservice
-//! =============================================================================
-//! Music streaming service with YouTube integration, equalizer, and playlists.
-//! Uses tachikoma-backend as data layer via HTTP client.
-//! =============================================================================
+use std::sync::Arc;
+use tracing::info;
 
-mod audio_dsp;
+use neuro_common::{init_tracing, serve};
+
 mod backend_client;
 mod config;
 mod cover_art;
@@ -17,10 +14,6 @@ mod models;
 mod routes;
 mod youtube;
 
-use std::sync::Arc;
-use tracing::info;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
 use crate::backend_client::BackendClient;
 use crate::config::Config;
 use crate::cover_art::CoverArtService;
@@ -29,7 +22,6 @@ use crate::events::MusicEventBroadcaster;
 use crate::metadata_enricher::MetadataEnricher;
 use crate::youtube::YouTubeService;
 
-/// Application state shared across handlers
 pub struct AppState {
     pub client: BackendClient,
     pub config: Config,
@@ -42,58 +34,27 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Debug: print to stderr immediately
-    eprintln!("🎵 tachikoma-music starting...");
-    
-    // Initialize tracing
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "tachikoma_music=info,tower_http=debug".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    init_tracing("tachikoma_music=info,tower_http=debug");
 
-    eprintln!("🔧 Tracing initialized");
-
-    // Load configuration
     let config = Config::from_env();
-    eprintln!("📦 Config loaded: port={}", config.port);
-    
-    info!("🎵 Tachikoma-Music Microservice");
-    info!("============================");
-    info!("Port: {}", config.port);
-    info!("Backend URL: {}", config.backend_url);
-    info!("yt-dlp: {}", config.ytdlp_path);
-    info!("ffmpeg: {}", config.ffmpeg_path);
+    info!("Music service | port={} backend={}", config.port, config.backend_url);
 
-    // Check dependencies
     check_dependencies(&config).await?;
 
-    // Create backend client
     let client = BackendClient::new(&config);
-    info!("✅ Backend client initialized");
-
-    // Create services
     let youtube = Arc::new(YouTubeService::new(&config));
     let cover_art = CoverArtService::new(&config);
     let downloader = Arc::new(Downloader::new(config.clone(), youtube.clone()));
     let metadata_enricher = MetadataEnricher::new(&config);
 
-    // Ensure downloads directory exists
     if let Err(e) = downloader.ensure_downloads_dir().await {
-        info!("⚠️ Could not create downloads directory: {}", e);
-    } else {
-        info!("✅ Downloads directory: {}", config.downloads_path);
+        info!("Could not create downloads directory: {}", e);
     }
 
-    // Create event broadcaster for SSE
     let event_broadcaster = Arc::new(MusicEventBroadcaster::new());
-    info!("✅ Event broadcaster initialized");
 
-    // Create app state
-    let state = Arc::new(AppState { 
-        client, 
+    let state = Arc::new(AppState {
+        client,
         config: config.clone(),
         youtube,
         cover_art,
@@ -102,60 +63,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         event_broadcaster,
     });
 
-    // Build router
     let app = routes::create_router(state);
 
-    // Start server
     let addr = format!("0.0.0.0:{}", config.port);
-    let listener = tokio::net::TcpListener::bind(&addr).await?;
-    
-    info!("🚀 Server listening on {}", addr);
-    info!("  ▸ Health: GET /health");
-    info!("  ▸ Playlists: /api/music/playlists/*");
-    info!("  ▸ Streaming: /api/music/stream/:song_id");
-    info!("  ▸ YouTube: /api/music/youtube/*");
-    info!("  ▸ Equalizer: /api/music/equalizer");
-    info!("  ▸ Events SSE: /api/music/events");
-
-    axum::serve(listener, app).await?;
-
+    serve(&addr, app, "Music").await?;
     Ok(())
 }
 
 async fn check_dependencies(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     use tokio::process::Command;
 
-    // Check yt-dlp
-    let ytdlp_check = Command::new(&config.ytdlp_path)
-        .arg("--version")
-        .output()
-        .await;
-
+    let ytdlp_check = Command::new(&config.ytdlp_path).arg("--version").output().await;
     match ytdlp_check {
         Ok(output) if output.status.success() => {
             let version = String::from_utf8_lossy(&output.stdout);
-            info!("✅ yt-dlp version: {}", version.trim());
+            info!("yt-dlp version: {}", version.trim());
         }
-        _ => {
-            return Err("yt-dlp not found. Install with: pip install yt-dlp".into());
-        }
+        _ => return Err("yt-dlp not found. Install with: pip install yt-dlp".into()),
     }
 
-    // Check ffmpeg
-    let ffmpeg_check = Command::new(&config.ffmpeg_path)
-        .arg("-version")
-        .output()
-        .await;
-
+    let ffmpeg_check = Command::new(&config.ffmpeg_path).arg("-version").output().await;
     match ffmpeg_check {
         Ok(output) if output.status.success() => {
             let version = String::from_utf8_lossy(&output.stdout);
             let first_line = version.lines().next().unwrap_or("unknown");
-            info!("✅ ffmpeg: {}", first_line);
+            info!("ffmpeg: {}", first_line);
         }
-        _ => {
-            return Err("ffmpeg not found. Install with: apt install ffmpeg".into());
-        }
+        _ => return Err("ffmpeg not found. Install with: apt install ffmpeg".into()),
     }
 
     Ok(())

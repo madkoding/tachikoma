@@ -5,7 +5,7 @@ import { usePerformanceSettings } from '../../stores/performanceStore';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SpectrumAnalyzer } from './SpectrumAnalyzer';
 import { EqualizerModal } from './EqualizerModal';
-import { AnimatedLedDigits } from '../common';
+import AnimatedLedDigits from '../common/AnimatedLedDigits';
 
 interface MiniPlayerProps {
   onClose?: () => void;

@@ -12,6 +12,7 @@ use axum::{
 };
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use std::{convert::Infallible, sync::Arc};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
@@ -26,12 +27,12 @@ use crate::AppState;
 // Request/Response DTOs
 // =============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct EmbedRequest {
     pub text: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct EmbedResponse {
     pub embedding: Vec<f32>,
     pub dimensions: usize,
@@ -49,7 +50,7 @@ pub struct EmbedBatchResponse {
     pub dimensions: usize,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ChatRequest {
     pub messages: Vec<ChatMessage>,
     pub model: Option<String>,
@@ -72,14 +73,13 @@ pub struct SpeculativeStreamRequest {
     pub lookahead: Option<usize>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct GenerateRequest {
     pub prompt: String,
     pub model: Option<String>,
-    pub num_tokens: Option<i32>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct GenerateResponse {
     pub content: String,
     pub model: String,
@@ -93,6 +93,14 @@ pub struct GenerateResponse {
 
 /// GET /api/llm/health
 /// Returns detailed health status of the LLM provider (Ollama)
+#[utoipa::path(
+    get,
+    path = "/api/llm/health",
+    tag = "LLM Gateway",
+    responses(
+        (status = 200, description = "LLM provider health status", body = LlmHealthStatus),
+    )
+)]
 pub async fn llm_health(
     State(state): State<Arc<AppState>>,
 ) -> Json<LlmHealthStatus> {
@@ -115,6 +123,16 @@ pub async fn llm_health(
 
 /// POST /api/llm/embed
 /// Generate embedding for a single text
+#[utoipa::path(
+    post,
+    path = "/api/llm/embed",
+    tag = "LLM Gateway",
+    request_body = EmbedRequest,
+    responses(
+        (status = 200, description = "Embedding generated", body = EmbedResponse),
+        (status = 500, description = "Embedding error"),
+    )
+)]
 pub async fn llm_embed(
     State(state): State<Arc<AppState>>,
     Json(request): Json<EmbedRequest>,
@@ -159,6 +177,16 @@ pub async fn llm_embed_batch(
 
 /// POST /api/llm/chat
 /// Non-streaming chat completion with message history
+#[utoipa::path(
+    post,
+    path = "/api/llm/chat",
+    tag = "LLM Gateway",
+    request_body = ChatRequest,
+    responses(
+        (status = 200, description = "Chat completion", body = GenerateResponse),
+        (status = 500, description = "Chat error"),
+    )
+)]
 pub async fn llm_chat(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ChatRequest>,
@@ -249,6 +277,16 @@ pub async fn llm_speculative_stream(
 
 /// POST /api/llm/generate
 /// Raw text generation from a prompt
+#[utoipa::path(
+    post,
+    path = "/api/llm/generate",
+    tag = "LLM Gateway",
+    request_body = GenerateRequest,
+    responses(
+        (status = 200, description = "Text generated", body = GenerateResponse),
+        (status = 500, description = "Generation error"),
+    )
+)]
 pub async fn llm_generate(
     State(state): State<Arc<AppState>>,
     Json(request): Json<GenerateRequest>,

@@ -343,3 +343,61 @@ pub struct RecalledMemory {
     /// When the memory was created
     pub created_at: DateTime<Utc>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_web_search_task() {
+        let task = AgentTask::web_search("rust async".to_string());
+        assert_eq!(task.task_type, TaskType::WebSearch);
+        assert_eq!(task.status, TaskStatus::Pending);
+        assert!(task.result.is_none());
+    }
+
+    #[test]
+    fn test_execute_command_task() {
+        let task = AgentTask::execute_command("ls -la".to_string(), None);
+        assert_eq!(task.task_type, TaskType::ExecuteCommand);
+    }
+
+    #[test]
+    fn test_task_lifecycle() {
+        let mut task = AgentTask::web_search("test".to_string());
+        assert_eq!(task.status, TaskStatus::Pending);
+
+        task.start();
+        assert_eq!(task.status, TaskStatus::Running);
+
+        task.complete(TaskResult::Text { content: "done".to_string() });
+        assert_eq!(task.status, TaskStatus::Completed);
+        assert!(task.result.is_some());
+        assert!(task.completed_at.is_some());
+        assert!(task.duration_ms().is_some());
+    }
+
+    #[test]
+    fn test_task_fail() {
+        let mut task = AgentTask::web_search("test".to_string());
+        task.fail("network error".to_string());
+        assert_eq!(task.status, TaskStatus::Failed);
+        assert!(task.completed_at.is_some());
+    }
+
+    #[test]
+    fn test_requires_large_model() {
+        let simple = AgentTask::web_search("test".to_string());
+        assert!(!simple.requires_large_model());
+
+        let code = AgentTask::new(
+            TaskType::CodeGeneration,
+            TaskInput::CodeGeneration {
+                prompt: "write a function".to_string(),
+                language: "rust".to_string(),
+                context: None,
+            },
+        );
+        assert!(code.requires_large_model());
+    }
+}

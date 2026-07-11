@@ -53,8 +53,6 @@ export interface SystemHealth {
 export const graphApi = {
   getGraph: async (_limit?: number): Promise<GraphData> => {
     const response = await api.get('/admin/graph/export');
-    console.log('Graph API response:', response.data);
-    // Transform export format to GraphData format
     return {
       nodes: response.data.nodes,
       edges: response.data.edges.map((e: { from_id: string; to_id: string; relation: string; confidence: number }) => ({
@@ -74,28 +72,6 @@ export const graphApi = {
 
 // Memory API
 export const memoryApi = {
-  getAll: async (limit = 100, offset = 0): Promise<Memory[]> => {
-    const response = await api.get('/memories', { params: { limit, per_page: limit, page: Math.floor(offset / limit) + 1 } });
-    // Handle paginated response
-    return response.data.data || response.data;
-  },
-
-  getById: async (id: string): Promise<Memory> => {
-    const response = await api.get(`/memories/${id}`);
-    return response.data;
-  },
-
-  search: async (query: string, limit = 10): Promise<Memory[]> => {
-    const response = await api.post('/memories/search', { query, limit });
-    // Response is array of {memory, similarity}
-    return response.data.map((item: { memory: Memory }) => item.memory || item);
-  },
-
-  create: async (memory: Partial<Memory>): Promise<Memory> => {
-    const response = await api.post('/memories', memory);
-    return response.data;
-  },
-
   update: async (id: string, memory: Partial<Memory>): Promise<Memory> => {
     const response = await api.patch(`/memories/${id}`, memory);
     return response.data;
@@ -103,11 +79,6 @@ export const memoryApi = {
 
   delete: async (id: string): Promise<void> => {
     await api.delete(`/memories/${id}`);
-  },
-
-  getRelated: async (id: string): Promise<Memory[]> => {
-    const response = await api.get(`/memories/${id}/related`);
-    return response.data;
   },
 };
 
@@ -130,11 +101,6 @@ export const systemApi = {
 
   getModels: async (): Promise<ModelInfo[]> => {
     const response = await api.get('/models');
-    return response.data;
-  },
-
-  getVram: async (): Promise<{ total_mb: number; used_mb: number; free_mb: number }> => {
-    const response = await api.get('/system/vram');
     return response.data;
   },
 };

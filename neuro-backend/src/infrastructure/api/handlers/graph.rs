@@ -48,6 +48,15 @@ fn default_direction() -> String {
 /// =============================================================================
 /// GET /api/admin/graph/stats
 /// =============================================================================
+#[utoipa::path(
+    get,
+    path = "/api/admin/graph/stats",
+    tag = "Graph",
+    responses(
+        (status = 200, description = "Graph statistics", body = GraphStatsDto),
+        (status = 500, description = "Database error", body = ErrorResponse),
+    )
+)]
 #[instrument(skip(state))]
 pub async fn get_graph_stats(
     State(state): State<Arc<AppState>>,
@@ -77,6 +86,15 @@ pub async fn get_graph_stats(
 /// =============================================================================
 /// GET /api/admin/graph/export
 /// =============================================================================
+#[utoipa::path(
+    get,
+    path = "/api/admin/graph/export",
+    tag = "Graph",
+    responses(
+        (status = 200, description = "Full graph export", body = GraphExportDto),
+        (status = 500, description = "Export error", body = ErrorResponse),
+    )
+)]
 #[instrument(skip(state))]
 pub async fn export_graph(
     State(state): State<Arc<AppState>>,

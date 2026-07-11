@@ -374,3 +374,55 @@ pub struct ChatResponse {
     /// Processing time in milliseconds
     pub processing_time_ms: u64,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_chat_message_user() {
+        let conv_id = Uuid::new_v4();
+        let msg = ChatMessage::user(conv_id, "Hello".to_string());
+        assert_eq!(msg.role, MessageRole::User);
+        assert_eq!(msg.content, "Hello");
+        assert_eq!(msg.conversation_id, conv_id);
+    }
+
+    #[test]
+    fn test_chat_message_assistant() {
+        let conv_id = Uuid::new_v4();
+        let msg = ChatMessage::assistant(conv_id, "Hi there".to_string());
+        assert_eq!(msg.role, MessageRole::Assistant);
+    }
+
+    #[test]
+    fn test_conversation_add_message() {
+        let conv_id = Uuid::new_v4();
+        let mut conv = Conversation::with_title("Test".to_string());
+        assert_eq!(conv.messages.len(), 0);
+
+        conv.add_message(ChatMessage::user(conv_id, "Hello".to_string()));
+        assert_eq!(conv.messages.len(), 1);
+    }
+
+    #[test]
+    fn test_conversation_last_messages() {
+        let conv_id = Uuid::new_v4();
+        let mut conv = Conversation::new();
+        for i in 0..5 {
+            conv.add_message(ChatMessage::user(conv_id, format!("msg {}", i)));
+        }
+        let last = conv.last_messages(2);
+        assert_eq!(last.len(), 2);
+        assert_eq!(last[1].content, "msg 4");
+    }
+
+    #[test]
+    fn test_tool_call_lifecycle() {
+        let mut tc = ToolCall::new("web_search".to_string(), serde_json::json!({"q": "rust"}));
+        assert!(!tc.success);
+        tc = tc.complete("results".to_string(), 150);
+        assert!(tc.success);
+        assert_eq!(tc.execution_time_ms, Some(150));
+    }
+}

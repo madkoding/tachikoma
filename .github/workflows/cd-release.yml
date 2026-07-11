@@ -14,32 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service:
-          - tachikoma-backend
-          - tachikoma-chat
-          - tachikoma-memory
-          - tachikoma-agent
-          - tachikoma-voice
-          - tachikoma-music
-      
+        service: [neuro-backend, neuro-chat, neuro-memory, neuro-agent, neuro-voice, neuro-music]
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
-      
-      - name: Build release
-        working-directory: ${{ matrix.service }}
-        run: cargo build --release
-      
-      - name: Create artifacts directory
-        run: mkdir -p artifacts
-      
-      - name: Copy binary
-        run: cp ${{ matrix.service }}/target/release/${{ matrix.service }} artifacts/
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: dtolnay/rust-action@stable
+      - run: cargo build --release -p ${{ matrix.service }}
+      - run: mkdir -p artifacts && cp target/release/${{ matrix.service }} artifacts/
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.service }}-${{ github.ref_name }}
           path: artifacts/${{ matrix.service }}
@@ -52,59 +33,40 @@ jobs:
     permissions:
       packages: write
       contents: read
-    
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Extract version from tag
-        id: version
+      - id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-      
-      - name: Build and push - Backend
-        uses: docker/build-push-action@v5
+      - uses: docker/build-push-action@v5
         with:
           context: .
-          file: tachikoma-backend/Dockerfile
+          file: neuro-backend/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/tachikoma-backend:${{ steps.version.outputs.version }}
-            ghcr.io/${{ github.repository }}/tachikoma-backend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      
-      - name: Build and push - Chat
-        uses: docker/build-push-action@v5
+            ghcr.io/${{ github.repository }}/neuro-backend:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}/neuro-backend:latest
+      - uses: docker/build-push-action@v5
         with:
           context: .
-          file: tachikoma-chat/Dockerfile
+          file: neuro-chat/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/tachikoma-chat:${{ steps.version.outputs.version }}
-            ghcr.io/${{ github.repository }}/tachikoma-chat:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      
-      - name: Build and push - Memory
-        uses: docker/build-push-action@v5
+            ghcr.io/${{ github.repository }}/neuro-chat:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}/neuro-chat:latest
+      - uses: docker/build-push-action@v5
         with:
           context: .
-          file: tachikoma-memory/Dockerfile
+          file: neuro-memory/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/tachikoma-memory:${{ steps.version.outputs.version }}
-            ghcr.io/${{ github.repository }}/tachikoma-memory:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ghcr.io/${{ github.repository }}/neuro-memory:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}/neuro-memory:latest
 
   create-release:
     name: Create GitHub Release
@@ -112,26 +74,19 @@ jobs:
     needs: [release-rust-services, docker-publish]
     permissions:
       contents: write
-    
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
-      
-      - name: Create release archives
-        run: |
+      - run: |
           cd artifacts
           for dir in */; do
             cd "$dir"
             zip -r ../${dir%/}.zip .
             cd ..
           done
-      
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - uses: softprops/action-gh-release@v1
         with:
           files: artifacts/*.zip
           generate_release_notes: true

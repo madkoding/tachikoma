@@ -14,6 +14,16 @@ use crate::infrastructure::api::dto::{
 use crate::AppState;
 
 /// POST /api/agent/search
+#[utoipa::path(
+    post,
+    path = "/api/agent/search",
+    tag = "Agent",
+    request_body = WebSearchRequest,
+    responses(
+        (status = 200, description = "Search results", body = [WebSearchResultDto]),
+        (status = 503, description = "Search error", body = ErrorResponse),
+    )
+)]
 #[instrument(skip(state, request))]
 pub async fn web_search(
     State(state): State<Arc<AppState>>,
@@ -48,6 +58,18 @@ pub async fn web_search(
 }
 
 /// POST /api/agent/execute
+#[utoipa::path(
+    post,
+    path = "/api/agent/execute",
+    tag = "Agent",
+    request_body = CommandExecuteRequest,
+    responses(
+        (status = 200, description = "Command executed", body = CommandResultDto),
+        (status = 403, description = "Command not allowed", body = ErrorResponse),
+        (status = 400, description = "Execution error", body = ErrorResponse),
+        (status = 500, description = "Check error", body = ErrorResponse),
+    )
+)]
 #[instrument(skip(state, request))]
 pub async fn execute_command(
     State(state): State<Arc<AppState>>,

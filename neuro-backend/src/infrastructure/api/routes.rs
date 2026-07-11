@@ -16,8 +16,9 @@ use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
+use crate::infrastructure::api::dto;
 use crate::infrastructure::api::handlers;
-use crate::infrastructure::api::middleware::{logging_middleware, request_id_middleware};
+use crate::infrastructure::api::middleware::request_id_middleware;
 use crate::AppState;
 
 #[derive(OpenApi)]
@@ -40,6 +41,60 @@ use crate::AppState;
         (name = "LLM Gateway", description = "LLM inference gateway to Ollama"),
         (name = "Data Layer", description = "Direct database access for microservices"),
     ),
+    paths(
+        handlers::system::health_check,
+        handlers::system::list_models,
+        handlers::system::system_info,
+        handlers::memory::list_memories,
+        handlers::memory::create_memory,
+        handlers::memory::get_memory,
+        handlers::memory::update_memory,
+        handlers::memory::delete_memory,
+        handlers::memory::search_memories,
+        handlers::chat::send_message,
+        handlers::chat::list_conversations,
+        handlers::llm::llm_health,
+        handlers::llm::llm_embed,
+        handlers::llm::llm_chat,
+        handlers::llm::llm_generate,
+        handlers::agent::web_search,
+        handlers::agent::execute_command,
+        handlers::graph::get_graph_stats,
+        handlers::graph::export_graph,
+    ),
+    components(schemas(
+        dto::ChatMessageRequest,
+        dto::ChatMessageResponse,
+        dto::ConversationDto,
+        dto::ConversationWithMessagesDto,
+        dto::ChatMessageDto,
+        dto::MemoryDto,
+        dto::CreateMemoryRequest,
+        dto::UpdateMemoryRequest,
+        dto::SemanticSearchRequest,
+        dto::SearchResultDto,
+        dto::GraphEdgeDto,
+        dto::CreateRelationRequest,
+        dto::GraphStatsDto,
+        dto::GraphExportDto,
+        dto::WebSearchRequest,
+        dto::WebSearchResultDto,
+        dto::CommandExecuteRequest,
+        dto::CommandResultDto,
+        dto::HealthResponse,
+        dto::BuildInfoDto,
+        dto::ServiceStatusDto,
+        dto::ModelInfoDto,
+        dto::ErrorResponse,
+        handlers::system::SystemInfoDto,
+        crate::domain::ports::llm_provider::LlmHealthStatus,
+        crate::domain::ports::llm_provider::ChatMessage,
+        handlers::llm::EmbedRequest,
+        handlers::llm::EmbedResponse,
+        handlers::llm::ChatRequest,
+        handlers::llm::GenerateRequest,
+        handlers::llm::GenerateResponse,
+    )),
 )]
 pub struct ApiDoc;
 
@@ -269,7 +324,6 @@ pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()
         .nest("/api", api_routes)
         .layer(middleware::from_fn(request_id_middleware))
-        .layer(middleware::from_fn(logging_middleware))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state)

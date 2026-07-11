@@ -9,21 +9,17 @@ import { GRAPH_CONFIG } from '../constants/graphConfig';
 import type { GraphNode, GraphLink } from '../types/graph';
 import MemoryModal from '../components/MemoryModal';
 
-import { useGraphForces } from '../hooks/useGraphForces';
 import { useGraphData } from '../hooks/useGraphData';
 import { useTooltip } from '../hooks/useTooltip';
 import { useDimensions } from '../hooks/useDimensions';
 import { useNodeRenderer } from '../hooks/useNodeRenderer';
-import { useHoverState } from '../hooks/useHoverState';
 import { useGraphEvents, MemoryEventData, RelationEventData } from '../hooks/useGraphEvents';
 
-import {
-  GraphHeader,
-  GraphControls,
-  GraphLegend,
-  GraphBackground,
-  GraphTooltip,
-} from '../components/graph';
+import GraphHeader from '../components/graph/GraphHeader';
+import GraphControls from '../components/graph/GraphControls';
+import GraphLegend from '../components/graph/GraphLegend';
+import GraphBackground from '../components/graph/GraphBackground';
+import GraphTooltip from '../components/graph/GraphTooltip';
 
 export default function GraphPage() {
   const { t } = useTranslation();
@@ -31,7 +27,7 @@ export default function GraphPage() {
   const graphRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const savedCameraRef = useRef<{ position: {x: number, y: number, z: number}, rotation: number } | null>(null);
-  const resumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const resumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeInStartTimeRef = useRef<number | null>(null);
   const currentAngleRef = useRef<number>(0); // Ángulo actual de rotación
   const currentDistanceRef = useRef<number>(GRAPH_CONFIG.camera.initialDistance); // Distancia actual de la cámara
@@ -53,15 +49,11 @@ export default function GraphPage() {
   // Subscribe to real-time graph events via SSE
   const { status: sseStatus } = useGraphEvents({
     onMemoryCreated: useCallback((eventData: MemoryEventData) => {
-      console.log('[GraphPage] SSE: Memory created', eventData);
-      // Add new memory to the cache optimistically
       queryClient.setQueryData<{ nodes: Memory[]; edges: any[] }>(['graph-data'], (oldData) => {
         if (!oldData) return oldData;
         
-        // Check if node already exists
         const exists = oldData.nodes.some(n => n.id === eventData.id);
         if (exists) {
-          console.log('[GraphPage] Node already exists, skipping');
           return oldData;
         }
         
@@ -76,8 +68,6 @@ export default function GraphPage() {
           created_at: eventData.created_at,
           updated_at: eventData.created_at,
         };
-        
-        console.log('[GraphPage] Adding new node to graph:', newMemory);
         return {
           ...oldData,
           nodes: [...oldData.nodes, newMemory],
@@ -85,17 +75,11 @@ export default function GraphPage() {
       });
     }, [queryClient]),
     
-    onMemoryUpdated: useCallback((eventData: MemoryEventData) => {
-      console.log('[GraphPage] SSE: Memory updated', eventData);
-      // Instead of manually updating the cache (which can break ForceGraph3D's node references),
-      // we invalidate the query to trigger a refetch. The useGraphData hook will then
-      // properly detect the content change and trigger the update animation.
+    onMemoryUpdated: useCallback((_eventData: MemoryEventData) => {
       queryClient.invalidateQueries({ queryKey: ['graph-data'] });
     }, [queryClient]),
     
     onMemoryDeleted: useCallback((id: string) => {
-      console.log('[GraphPage] SSE: Memory deleted', id);
-      // Remove memory from cache
       queryClient.setQueryData<{ nodes: Memory[]; edges: any[] }>(['graph-data'], (oldData) => {
         if (!oldData) return oldData;
         
@@ -108,8 +92,6 @@ export default function GraphPage() {
     }, [queryClient]),
     
     onRelationCreated: useCallback((relationData: RelationEventData) => {
-      console.log('[GraphPage] SSE: Relation created', relationData);
-      // Add new relation to cache
       queryClient.setQueryData<{ nodes: Memory[]; edges: any[] }>(['graph-data'], (oldData) => {
         if (!oldData) return oldData;
         
@@ -129,14 +111,42 @@ export default function GraphPage() {
     searchQuery,
   });
 
-  useGraphForces(graphRef, graphData);
+  // Inlined force configuration
+  useEffect(() => {
+    const fg = graphRef.current;
+    if (!fg || !graphData) return;
+
+    const { link, charge, center } = GRAPH_CONFIG.forces;
+
+    const linkForce = fg.d3Force('link');
+    if (linkForce) {
+      linkForce.distance(() => link.distance).strength(() => link.strength);
+    }
+
+    const chargeForce = fg.d3Force('charge');
+    if (chargeForce) {
+      chargeForce.strength(charge.strength).distanceMax(charge.distanceMax);
+    }
+
+    const centerForce = fg.d3Force('center');
+    if (centerForce) {
+      centerForce.strength(center.strength);
+    }
+
+    fg.d3ReheatSimulation();
+    const timer = setTimeout(() => fg.d3ReheatSimulation(), 50);
+    return () => clearTimeout(timer);
+  }, [graphData]);
 
   const { tooltip, displayedText, tooltipFading, showTooltip, hideTooltip } = useTooltip({
     graphRef,
     containerRef,
   });
 
-  const { hoveredNodeId, handleNodeHover } = useHoverState();
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const handleNodeHover = useCallback((node: { id: string } | null) => {
+    setHoveredNodeId(node?.id ?? null);
+  }, []);
 
   const nodeThreeObject = useNodeRenderer({
     hoveredNodeId,
@@ -258,9 +268,6 @@ export default function GraphPage() {
   // Cancela timeout anterior, pausa inmediatamente, y reanuda suavemente después de 5s
   // Captura el ángulo actual de la cámara AL REANUDAR para continuar desde donde el usuario dejó la vista
   const pauseRotation = useCallback(() => {
-    console.log('[GraphPage] pauseRotation called, isRotationPaused:', isRotationPaused);
-    
-    // Cancelar cualquier timeout de reanudación pendiente
     if (resumeTimeoutRef.current) {
       clearTimeout(resumeTimeoutRef.current);
       resumeTimeoutRef.current = null;
@@ -272,10 +279,6 @@ export default function GraphPage() {
     // Programar reanudación después de 5 segundos
     resumeTimeoutRef.current = setTimeout(() => {
       if (!modalNode && graphRef.current) {
-        console.log('[GraphPage] Resuming rotation after timeout');
-        
-        // Capturar posición ACTUAL de la cámara justo antes de reanudar
-        // para continuar desde donde el usuario dejó la vista
         const camPos = graphRef.current.cameraPosition();
         const dx = camPos.x - nodesCenter.x;
         const dz = camPos.z - nodesCenter.z;
@@ -285,15 +288,12 @@ export default function GraphPage() {
         currentDistanceRef.current = Math.hypot(dx, dz);
         currentHeightRef.current = camPos.y;
         
-        console.log('[GraphPage] Captured camera state - angle:', currentAngleRef.current, 'distance:', currentDistanceRef.current, 'height:', currentHeightRef.current);
-        
-        // Iniciar fade-in suave
         fadeInStartTimeRef.current = Date.now();
         setIsRotationPaused(false);
       }
       resumeTimeoutRef.current = null;
     }, GRAPH_CONFIG.camera.resumeDelay);
-  }, [modalNode, nodesCenter, isRotationPaused]);
+  }, [modalNode, nodesCenter]);
 
   // Limpiar timeout al desmontar
   useEffect(() => {
@@ -308,14 +308,12 @@ export default function GraphPage() {
   // Usar dimensions como dependencia porque se actualiza cuando el container está montado
   useEffect(() => {
     const container = containerRef.current;
-    console.log('[GraphPage] Setting up event listeners, container:', !!container, 'dimensions:', !!dimensions);
     if (!container) return;
 
     // Usar capture: true para interceptar eventos antes de que lleguen al canvas de ForceGraph3D
     const options = { capture: true, passive: true };
     
-    const handleInteraction = (e: Event) => {
-      console.log('[GraphPage] Interaction detected:', e.type);
+    const handleInteraction = (_e: Event) => {
       pauseRotation();
     };
     
@@ -445,8 +443,6 @@ export default function GraphPage() {
     );
   }
 
-  const { simulation } = GRAPH_CONFIG;
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <GraphHeader nodeCount={nodes.length} linkCount={links.length} connectionStatus={sseStatus} />
@@ -487,11 +483,11 @@ export default function GraphPage() {
               linkDirectionalParticleWidth={3}
               linkDirectionalParticleSpeed={0.004}
               linkDirectionalParticleColor={() => '#00f5ff'}
-              d3AlphaDecay={simulation.alphaDecay}
-              d3VelocityDecay={simulation.velocityDecay}
-              warmupTicks={simulation.warmupTicks}
-              cooldownTicks={simulation.cooldownTicks}
-              cooldownTime={simulation.cooldownTime}
+              d3AlphaDecay={0.1}
+              d3VelocityDecay={0.5}
+              warmupTicks={10}
+              cooldownTicks={10}
+              cooldownTime={0}
               onNodeClick={handleNodeClick}
               onNodeHover={onNodeHover}
               onBackgroundClick={handleBackgroundClick}

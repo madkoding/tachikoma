@@ -37,13 +37,14 @@
 use anyhow::Result;
 use std::sync::Arc;
 use std::io::{self, Write};
+use utoipa::OpenApi;
 
 mod application;
 mod domain;
 mod infrastructure;
 
 use crate::application::services::{
-    AgentOrchestrator, ChatService, MemoryService, ModelManager,
+    AgentOrchestrator, ChatService, MemoryService,
 };
 use crate::domain::ports::{
     command_executor::CommandExecutor,
@@ -150,8 +151,6 @@ pub struct AppState {
     pub memory_service: Arc<MemoryService>,
     /// Chat service
     pub chat_service: Arc<ChatService>,
-    /// Model manager
-    pub model_manager: Arc<ModelManager>,
     /// Voice engine for TTS synthesis
     pub voice_engine: Arc<VoiceEngine>,
     /// Event broadcaster for SSE
@@ -183,6 +182,14 @@ pub struct AppState {
 /// =============================================================================
 #[tokio::main]
 async fn main() -> Result<()> {
+    // --openapi: print OpenAPI JSON and exit
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--openapi") {
+        let json = crate::infrastructure::api::ApiDoc::openapi().to_pretty_json().unwrap();
+        println!("{}", json);
+        return Ok(());
+    }
+
     // -------------------------------------------------------------------------
     // Initialize start time for uptime tracking
     // -------------------------------------------------------------------------
@@ -282,8 +289,6 @@ async fn main() -> Result<()> {
     // -------------------------------------------------------------------------
     print_step(7, TOTAL_STEPS, "Creating application services...");
     
-    let model_manager = Arc::new(ModelManager::new(llm_provider.clone()));
-
     let memory_service = Arc::new(MemoryService::with_broadcaster(
         memory_repository,
         llm_provider.clone(),
@@ -292,7 +297,6 @@ async fn main() -> Result<()> {
 
     let agent_orchestrator = Arc::new(AgentOrchestrator::new(
         memory_service.clone(),
-        model_manager.clone(),
         llm_provider.clone(),
         search_provider.clone(),
         command_executor.clone(),
@@ -301,7 +305,6 @@ async fn main() -> Result<()> {
     let chat_service = Arc::new(ChatService::new(
         agent_orchestrator,
         memory_service.clone(),
-        model_manager.clone(),
         llm_provider.clone(),
         surreal_repository.clone(),
     ));
@@ -334,7 +337,6 @@ async fn main() -> Result<()> {
         command_executor,
         memory_service,
         chat_service,
-        model_manager,
         voice_engine,
         event_broadcaster,
         microservices_config: config.microservices.clone(),

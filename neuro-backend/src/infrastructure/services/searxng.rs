@@ -115,3 +115,146 @@ impl SearchProvider for SearxngClient {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{method, path, query_param};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn test_config(url: String) -> SearxngConfig {
+        SearxngConfig {
+            url,
+            timeout_secs: 5,
+            max_results: 5,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_search_returns_results() {
+        let server = MockServer::start().await;
+        let config = test_config(server.uri());
+        let client = SearxngClient::new(config);
+
+        Mock::given(method("GET"))
+            .and(path("/search"))
+            .and(query_param("q", "rust async"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "query": "rust async",
+                "results": [
+                    {"title": "Rust Async", "url": "https://rust-lang.org", "content": "Async in Rust", "engine": "google"},
+                    {"title": "Tokio", "url": "https://tokio.rs", "content": "Tokio runtime", "engine": "duckduckgo"}
+                ],
+                "number_of_results": 2
+            })))
+            .mount(&server)
+            .await;
+
+        let results = client.search("rust async", None).await.unwrap();
+        assert_eq!(results.query, "rust async");
+        assert_eq!(results.results.len(), 2);
+        assert_eq!(results.results[0].title, "Rust Async");
+    }
+
+    #[tokio::test]
+    async fn test_search_empty_results() {
+        let server = MockServer::start().await;
+        let config = test_config(server.uri());
+        let client = SearxngClient::new(config);
+
+        Mock::given(method("GET"))
+            .and(path("/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "query": "nonexistent",
+                "results": [],
+                "number_of_results": 0
+            })))
+            .mount(&server)
+            .await;
+
+        let results = client.search("nonexistent", None).await.unwrap();
+        assert_eq!(results.results.len(), 0);
+        assert_eq!(results.total_results, Some(0));
+    }
+
+    #[tokio::test]
+    async fn test_search_http_error() {
+        let server = MockServer::start().await;
+        let config = test_config(server.uri());
+        let client = SearxngClient::new(config);
+
+        Mock::given(method("GET"))
+            .and(path("/search"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let result = client.search("test", None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_search_max_results_truncation() {
+        let server = MockServer::start().await;
+        let config = test_config(server.uri());
+        let client = SearxngClient::new(config);
+
+        Mock::given(method("GET"))
+            .and(path("/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "query": "test",
+                "results": [
+                    {"title": "1", "url": "u1", "content": "c1", "engine": "e"},
+                    {"title": "2", "url": "u2", "content": "c2", "engine": "e"},
+                    {"title": "3", "url": "u3", "content": "c3", "engine": "e"}
+                ],
+                "number_of_results": 3
+            })))
+            .mount(&server)
+            .await;
+
+        let results = client.search("test", Some(SearchOptions::with_limit(2))).await.unwrap();
+        assert_eq!(results.results.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_is_healthy_ok() {
+        let server = MockServer::start().await;
+        let config = test_config(server.uri());
+        let client = SearxngClient::new(config);
+
+        Mock::given(method("GET"))
+            .and(path("/healthz"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        assert!(client.is_healthy().await);
+    }
+
+    #[tokio::test]
+    async fn test_is_healthy_down() {
+        let config = test_config("http://127.0.0.1:1".to_string());
+        let client = SearxngClient::new(config);
+        assert!(!client.is_healthy().await);
+    }
+
+    #[test]
+    fn test_search_results_as_context() {
+        let results = SearchResults {
+            query: "rust".to_string(),
+            results: vec![
+                SearchResultItem {
+                    title: "Rust".to_string(),
+                    url: "https://rust-lang.org".to_string(),
+                    snippet: "A language".to_string(),
+                    engine: None,
+                },
+            ],
+            total_results: Some(1),
+        };
+        let context = results.as_context(5);
+        assert!(context.contains("Rust"));
+        assert!(context.contains("rust-lang.org"));
+    }
+}

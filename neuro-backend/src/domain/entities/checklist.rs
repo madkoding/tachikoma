@@ -106,3 +106,81 @@ pub struct PaginatedChecklists {
     pub per_page: usize,
     pub total_pages: usize,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_checklist_default_priority() {
+        let req = CreateChecklist {
+            title: "My List".to_string(),
+            description: None,
+            priority: None,
+            due_date: None,
+            items: vec![],
+        };
+        assert_eq!(req.title, "My List");
+        assert!(req.priority.is_none());
+    }
+
+    #[test]
+    fn test_create_checklist_with_items() {
+        let req = CreateChecklist {
+            title: "Shopping".to_string(),
+            description: Some("Groceries".to_string()),
+            priority: Some(5),
+            due_date: None,
+            items: vec![
+                CreateChecklistItem { content: "Milk".to_string(), order: Some(0) },
+                CreateChecklistItem { content: "Bread".to_string(), order: Some(1) },
+            ],
+        };
+        assert_eq!(req.items.len(), 2);
+        assert_eq!(req.priority, Some(5));
+    }
+
+    #[test]
+    fn test_update_checklist_partial() {
+        let req = UpdateChecklist {
+            title: Some("Updated".to_string()),
+            description: None,
+            priority: Some(3),
+            due_date: None,
+            notification_interval: None,
+            is_archived: None,
+        };
+        assert_eq!(req.title, Some("Updated".to_string()));
+        assert!(req.description.is_none());
+    }
+
+    #[test]
+    fn test_update_checklist_item_toggle() {
+        let req = UpdateChecklistItem {
+            content: None,
+            is_completed: Some(true),
+            order: None,
+        };
+        assert_eq!(req.is_completed, Some(true));
+    }
+
+    #[test]
+    fn test_checklist_serde_roundtrip() {
+        let checklist = Checklist {
+            id: Uuid::new_v4(),
+            title: "Test".to_string(),
+            description: Some("Desc".to_string()),
+            priority: 1,
+            due_date: None,
+            notification_interval: None,
+            last_reminded: None,
+            is_archived: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        let json = serde_json::to_string(&checklist).unwrap();
+        let decoded: Checklist = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.title, "Test");
+        assert_eq!(decoded.priority, 1);
+    }
+}

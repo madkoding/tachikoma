@@ -3,48 +3,29 @@ name = "tachikoma-music"
 version = "0.1.0"
 edition = "2021"
 description = "Music streaming microservice for Tachikoma-OS with YouTube integration"
-authors = ["Tachikoma-OS Team"]
 
 [dependencies]
-# Web framework
-axum = { version = "0.7", features = ["macros"] }
+neuro-common = { path = "../neuro-common" }
+axum = { workspace = true }
 tokio = { version = "1", features = ["full", "process"] }
 tokio-util = { version = "0.7", features = ["io"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
-
-# Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-
-# HTTP client for backend data layer and cover art
+tokio-stream = { version = "0.1", features = ["sync", "time"] }
+tower-http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 reqwest = { version = "0.11", features = ["json", "stream"] }
-
-# Audio processing DSP
-rubato = "0.14"  # Resampling
-rustfft = "6"     # FFT for equalizer and spectrum
-
-# Utilities
-uuid = { version = "1", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-thiserror = "1"
+rustfft = "6"
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 regex = "1"
 futures = "0.3"
-bytes = "1"
-async-stream = "0.3"
-tokio-stream = { version = "0.1", features = ["sync", "time"] }
 urlencoding = "2"
-
-# Cache for metadata
 moka = { version = "0.12", features = ["future"] }
 
-# SSE support
-axum-extra = { version = "0.9", features = ["typed-header"] }
-
-[profile.release]
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = true
+[dev-dependencies]
+axum-test = { workspace = true }
+wiremock = { workspace = true }
+tokio-test = { workspace = true }
+tower = { workspace = true }

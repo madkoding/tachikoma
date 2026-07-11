@@ -10,14 +10,12 @@ use crate::models::YouTubeMetadata;
 
 pub struct YouTubeService {
     ytdlp_path: String,
-    ffmpeg_path: String,
 }
 
 impl YouTubeService {
     pub fn new(config: &Config) -> Self {
         Self {
             ytdlp_path: config.ytdlp_path.clone(),
-            ffmpeg_path: config.ffmpeg_path.clone(),
         }
     }
 

@@ -19,7 +19,6 @@ export function useDimensions({ containerRef }: UseDimensionsProps) {
 
   useEffect(() => {
     let rafId: number;
-    const timeoutIds: ReturnType<typeof setTimeout>[] = [];
     let mounted = true;
 
     const calculateDimensions = () => {
@@ -45,17 +44,10 @@ export function useDimensions({ containerRef }: UseDimensionsProps) {
       });
     };
 
-    const scheduleUpdates = () => {
-      updateDimensions();
-      [50, 100, 200, 300, 500, 750, 1000, 1500, 2000].forEach(delay => {
-        timeoutIds.push(setTimeout(updateDimensions, delay));
-      });
-    };
-
     if (document.readyState === 'complete') {
-      scheduleUpdates();
+      updateDimensions();
     } else {
-      window.addEventListener('load', scheduleUpdates, { once: true });
+      window.addEventListener('load', updateDimensions, { once: true });
     }
 
     const resizeObserver = new ResizeObserver(updateDimensions);
@@ -68,7 +60,6 @@ export function useDimensions({ containerRef }: UseDimensionsProps) {
     return () => {
       mounted = false;
       if (rafId) cancelAnimationFrame(rafId);
-      timeoutIds.forEach(id => clearTimeout(id));
       resizeObserver.disconnect();
       window.removeEventListener('resize', updateDimensions);
     };

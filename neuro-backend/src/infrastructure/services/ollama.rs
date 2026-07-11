@@ -21,9 +21,11 @@ use crate::domain::{
         ChatMessage, GenerationResult, LlmHealthStatus, LlmProvider, ModelInfo,
         SpeculativeChunk, SpeculativeStats, StreamChunk,
     },
-    value_objects::model_tier::ModelTier,
 };
 use crate::infrastructure::config::OllamaConfig;
+
+const DEFAULT_DRAFT_MODEL: &str = "qwen3:0.6b";
+const DEFAULT_TARGET_MODEL: &str = "qwen3:0.6b";
 
 /// =============================================================================
 /// OllamaClient - HTTP client for Ollama API
@@ -125,8 +127,6 @@ struct OllamaGenerateOptions {
 #[derive(Debug, Deserialize)]
 struct OllamaGenerateResponse {
     response: String,
-    #[serde(default)]
-    done: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -561,8 +561,8 @@ impl LlmProvider for OllamaClient {
         tx: mpsc::Sender<SpeculativeChunk>,
     ) {
         // Use ModelTier defaults if not specified
-        let draft = draft_model.unwrap_or(ModelTier::Light.default_model());
-        let target = target_model.unwrap_or(ModelTier::Standard.default_model());
+        let draft = draft_model.unwrap_or(DEFAULT_DRAFT_MODEL);
+        let target = target_model.unwrap_or(DEFAULT_TARGET_MODEL);
         let lookahead_tokens = lookahead.unwrap_or(5);
 
         // Send start event
@@ -715,17 +715,6 @@ impl LlmProvider for OllamaClient {
         let _ = tx.send(SpeculativeChunk::Done { stats }).await;
     }
 
-    /// Generate specific number of tokens
-    #[instrument(skip(self, prompt))]
-    async fn generate_tokens(
-        &self,
-        prompt: &str,
-        model: &str,
-        num_tokens: i32,
-    ) -> Result<String, DomainError> {
-        self.generate_raw(prompt, model, Some(num_tokens)).await
-    }
-
     // =========================================================================
     // Embeddings
     // =========================================================================
@@ -802,15 +791,6 @@ impl LlmProvider for OllamaClient {
     // =========================================================================
     // Model Management
     // =========================================================================
-
-    /// Check if a model is available
-    #[instrument(skip(self))]
-    async fn is_model_available(&self, model_name: &str) -> bool {
-        match self.list_models().await {
-            Ok(models) => models.iter().any(|m| m.name == model_name || m.name.starts_with(model_name)),
-            Err(_) => false,
-        }
-    }
 
     /// List available models
     #[instrument(skip(self))]
@@ -955,5 +935,200 @@ impl LlmProvider for OllamaClient {
                 })
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn test_config(url: String) -> OllamaConfig {
+        OllamaConfig {
+            url,
+            timeout_secs: 10,
+            default_model: "test-model".to_string(),
+            embedding_model: "test-embed".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_extract_parameters() {
+        assert_eq!(OllamaClient::extract_parameters("llama3:70b"), Some(70_000_000_000));
+        assert_eq!(OllamaClient::extract_parameters("qwen3:7b"), Some(7_000_000_000));
+        assert_eq!(OllamaClient::extract_parameters("unknown"), None);
+    }
+
+    #[test]
+    fn test_keep_alive_light_model() {
+        let ka = OllamaClient::get_keep_alive_for_model("qwen3:3b");
+        assert_eq!(ka, serde_json::json!(-1));
+    }
+
+    #[test]
+    fn test_keep_alive_heavy_model() {
+        let ka = OllamaClient::get_keep_alive_for_model("llama3:70b");
+        assert_eq!(ka, serde_json::json!("5m"));
+    }
+
+    #[test]
+    fn test_keep_alive_embed_model() {
+        let ka = OllamaClient::get_keep_alive_for_model("nomic-embed-text");
+        assert_eq!(ka, serde_json::json!(-1));
+    }
+
+    #[test]
+    fn test_messages_to_prompt() {
+        let messages = vec![
+            ChatMessage { role: "system".to_string(), content: "You are helpful".to_string() },
+            ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+        ];
+        let prompt = OllamaClient::messages_to_prompt(&messages);
+        assert!(prompt.contains("System: You are helpful"));
+        assert!(prompt.contains("User: Hello"));
+        assert!(prompt.ends_with("Assistant: "));
+    }
+
+    #[tokio::test]
+    async fn test_generate_success() {
+        let server = MockServer::start().await;
+        let client = OllamaClient::new(test_config(server.uri()));
+
+        Mock::given(method("POST"))
+            .and(path("api/chat"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "model": "test-model",
+                "message": {"content": "Hello!"},
+                "done": true,
+                "prompt_eval_count": 5,
+                "eval_count": 3
+            })))
+            .mount(&server)
+            .await;
+
+        let result = client.generate("Hi", None).await.unwrap();
+        assert_eq!(result.content, "Hello!");
+        assert_eq!(result.model, "test-model");
+        assert_eq!(result.prompt_tokens, 5);
+        assert_eq!(result.completion_tokens, 3);
+    }
+
+    #[tokio::test]
+    async fn test_generate_http_error() {
+        let server = MockServer::start().await;
+        let client = OllamaClient::new(test_config(server.uri()));
+
+        Mock::given(method("POST"))
+            .and(path("api/chat"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let result = client.generate("Hi", None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_chat_success() {
+        let server = MockServer::start().await;
+        let client = OllamaClient::new(test_config(server.uri()));
+
+        Mock::given(method("POST"))
+            .and(path("api/chat"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "model": "test-model",
+                "message": {"content": "Response"},
+                "done": true,
+                "prompt_eval_count": 10,
+                "eval_count": 5
+            })))
+            .mount(&server)
+            .await;
+
+        let messages = vec![ChatMessage {
+            role: "user".to_string(),
+            content: "Hello".to_string(),
+        }];
+        let result = client.chat(messages, None).await.unwrap();
+        assert_eq!(result.content, "Response");
+    }
+
+    #[tokio::test]
+    async fn test_embed_success() {
+        let server = MockServer::start().await;
+        let client = OllamaClient::new(test_config(server.uri()));
+
+        Mock::given(method("POST"))
+            .and(path("api/embed"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "embeddings": [[0.1, 0.2, 0.3]]
+            })))
+            .mount(&server)
+            .await;
+
+        let result = client.embed("test").await.unwrap();
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], 0.1);
+    }
+
+    #[tokio::test]
+    async fn test_embed_batch_success() {
+        let server = MockServer::start().await;
+        let client = OllamaClient::new(test_config(server.uri()));
+
+        Mock::given(method("POST"))
+            .and(path("api/embed"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "embeddings": [[0.1, 0.2], [0.3, 0.4]]
+            })))
+            .mount(&server)
+            .await;
+
+        let texts = vec!["hello".to_string(), "world".to_string()];
+        let result = client.embed_batch(&texts).await.unwrap();
+        assert_eq!(result.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_list_models() {
+        let server = MockServer::start().await;
+        let client = OllamaClient::new(test_config(server.uri()));
+
+        Mock::given(method("GET"))
+            .and(path("api/tags"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "models": [
+                    {"name": "llama3:8b", "size": serde_json::Number::from(4000000000_u64), "modified_at": "2024-01-01"},
+                    {"name": "nomic-embed-text", "size": 137000000, "modified_at": "2024-01-01"}
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let models = client.list_models().await.unwrap();
+        assert_eq!(models.len(), 2);
+        assert_eq!(models[0].name, "llama3:8b");
+        assert!(models[1].is_embedding);
+    }
+
+    #[tokio::test]
+    async fn test_health_check_ok() {
+        let server = MockServer::start().await;
+        let client = OllamaClient::new(test_config(server.uri()));
+
+        Mock::given(method("GET"))
+            .and(path("api/tags"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        assert!(client.health_check().await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_health_check_down() {
+        let client = OllamaClient::new(test_config("http://127.0.0.1:1".to_string()));
+        assert!(!client.health_check().await.unwrap());
     }
 }

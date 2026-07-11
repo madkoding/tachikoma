@@ -15,24 +15,18 @@ use tracing::{instrument, warn};
 
 use crate::infrastructure::api::dto::{BuildInfoDto, ErrorResponse, HealthResponse, ModelInfoDto, ServiceStatusDto};
 use crate::AppState;
+use utoipa::ToSchema;
 
-/// Application start time for uptime calculation
-static mut START_TIME: Option<Instant> = None;
+use std::sync::OnceLock;
 
-/// Initialize start time (call once at application startup)
+static START_TIME: OnceLock<Instant> = OnceLock::new();
+
 pub fn init_start_time() {
-    unsafe {
-        START_TIME = Some(Instant::now());
-    }
+    let _ = START_TIME.set(Instant::now());
 }
 
-/// Get uptime in seconds
 fn get_uptime_seconds() -> u64 {
-    unsafe {
-        START_TIME
-            .map(|start| start.elapsed().as_secs())
-            .unwrap_or(0)
-    }
+    START_TIME.get().map(|start| start.elapsed().as_secs()).unwrap_or(0)
 }
 
 /// =============================================================================
@@ -40,6 +34,15 @@ fn get_uptime_seconds() -> u64 {
 /// =============================================================================
 /// GET /api/health
 /// =============================================================================
+#[utoipa::path(
+    get,
+    path = "/api/health",
+    tag = "Health",
+    responses(
+        (status = 200, description = "Service health status", body = HealthResponse),
+        (status = 500, description = "Internal error", body = ErrorResponse),
+    )
+)]
 #[instrument(skip(state))]
 pub async fn health_check(
     State(state): State<Arc<AppState>>,
@@ -129,6 +132,15 @@ pub async fn liveness_check() -> StatusCode {
 /// =============================================================================
 /// GET /api/models
 /// =============================================================================
+#[utoipa::path(
+    get,
+    path = "/api/models",
+    tag = "LLM Gateway",
+    responses(
+        (status = 200, description = "List of available models", body = [ModelInfoDto]),
+        (status = 503, description = "LLM provider unavailable", body = ErrorResponse),
+    )
+)]
 #[instrument(skip(state))]
 pub async fn list_models(
     State(state): State<Arc<AppState>>,
@@ -163,6 +175,15 @@ pub async fn list_models(
 /// =============================================================================
 /// GET /api/system/info
 /// =============================================================================
+#[utoipa::path(
+    get,
+    path = "/api/system/info",
+    tag = "Health",
+    responses(
+        (status = 200, description = "System information", body = SystemInfoDto),
+        (status = 500, description = "Internal error", body = ErrorResponse),
+    )
+)]
 #[instrument(skip(state))]
 pub async fn system_info(
     State(state): State<Arc<AppState>>,
@@ -182,7 +203,7 @@ pub async fn system_info(
     }))
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, ToSchema)]
 pub struct SystemInfoDto {
     pub version: String,
     pub uptime_seconds: u64,

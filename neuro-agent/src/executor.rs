@@ -4,7 +4,6 @@
 
 use std::process::Stdio;
 use tokio::process::Command;
-use tokio::io::AsyncReadExt;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn, error};
 
@@ -237,5 +236,63 @@ impl CommandExecutor {
 impl Default for CommandExecutor {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blocked_command_rejected() {
+        let exec = CommandExecutor::new();
+        let err = exec.is_command_allowed("rm", &[], &[]).unwrap_err();
+        assert!(err.contains("blocked"));
+    }
+
+    #[test]
+    fn blocked_command_with_path_rejected() {
+        let exec = CommandExecutor::new();
+        let err = exec.is_command_allowed("/usr/bin/rm", &[], &[]).unwrap_err();
+        assert!(err.contains("blocked"));
+    }
+
+    #[test]
+    fn allowed_command_passes() {
+        let exec = CommandExecutor::new();
+        exec.is_command_allowed("ls", &[], &[]).expect("ls should be allowed");
+    }
+
+    #[test]
+    fn allowed_list_enforced() {
+        let exec = CommandExecutor::new();
+        let allowed = vec!["ls".to_string(), "cat".to_string()];
+        exec.is_command_allowed("ls", &[], &allowed).unwrap();
+        let err = exec.is_command_allowed("echo", &[], &allowed).unwrap_err();
+        assert!(err.contains("not in the allowed list"));
+    }
+
+    #[test]
+    fn dangerous_pattern_in_arg_rejected() {
+        let exec = CommandExecutor::new();
+        let args = vec!["file; rm -rf /".to_string()];
+        let err = exec.is_command_allowed("cat", &args, &[]).unwrap_err();
+        assert!(err.contains("dangerous pattern"));
+    }
+
+    #[test]
+    fn dangerous_pattern_in_command_rejected() {
+        let exec = CommandExecutor::new();
+        let err = exec.is_command_allowed("ls$(whoami)", &[], &[]).unwrap_err();
+        assert!(err.contains("dangerous pattern"));
+    }
+
+    #[test]
+    fn execute_request_deserialize_defaults() {
+        let json = r#"{"command":"ls"}"#;
+        let req: ExecuteRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.command, "ls");
+        assert!(req.args.is_empty());
+        assert!(req.working_dir.is_none());
     }
 }

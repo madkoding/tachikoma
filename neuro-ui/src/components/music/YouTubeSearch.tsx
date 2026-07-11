@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Search, Plus, Loader2, Music, ExternalLink, Sparkles, Database } from 'lucide-react';
 import { useSearchState, formatDuration } from '../../stores/musicStore';
 import { EnrichedSearchResultDto, CreateSongRequest } from '../../api/client';
-import { AnimatedLedDigits } from '../common';
+import AnimatedLedDigits from '../common/AnimatedLedDigits';
 
 interface YouTubeSearchProps {
   playlistId: string;

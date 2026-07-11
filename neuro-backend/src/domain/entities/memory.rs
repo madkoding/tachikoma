@@ -464,6 +464,16 @@ impl MemoryQuery {
         self.min_similarity = Some(min_similarity.clamp(0.0, 1.0));
         self
     }
+
+    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+        self.tags = tags;
+        self
+    }
+
+    pub fn with_memory_types(mut self, memory_types: Vec<MemoryType>) -> Self {
+        self.memory_types = memory_types;
+        self
+    }
 }
 
 #[cfg(test)]
@@ -510,7 +520,7 @@ mod tests {
     #[test]
     fn test_memory_access_count_increment() {
         let mut memory =
-            MemoryNode::new("Test content".to_string(), vec![0.1, 0.2], MemoryType::Note);
+            MemoryNode::new("Test content".to_string(), vec![0.1, 0.2], MemoryType::Context);
 
         for i in 1..=5 {
             memory.record_access();
@@ -526,8 +536,8 @@ mod tests {
         memory.record_access();
         let after = Utc::now();
 
-        assert!(memory.last_access >= before);
-        assert!(memory.last_access <= after);
+        assert!(memory.updated_at >= before);
+        assert!(memory.updated_at <= after);
     }
 
     #[test]
@@ -535,13 +545,13 @@ mod tests {
         let types = vec![
             MemoryType::General,
             MemoryType::Fact,
-            MemoryType::Note,
+            MemoryType::Context,
             MemoryType::Event,
             MemoryType::Task,
         ];
 
         for mem_type in types {
-            let memory = MemoryNode::new("Test".to_string(), vec![0.5], mem_type);
+            let memory = MemoryNode::new("Test".to_string(), vec![0.5], mem_type.clone());
             assert_eq!(memory.memory_type, mem_type);
         }
     }
@@ -567,11 +577,11 @@ mod tests {
     #[test]
     fn test_memory_query_with_memory_types() {
         let query =
-            MemoryQuery::default().with_memory_types(vec![MemoryType::Fact, MemoryType::Note]);
+            MemoryQuery::default().with_memory_types(vec![MemoryType::Fact, MemoryType::Context]);
 
         assert_eq!(query.memory_types.len(), 2);
         assert!(query.memory_types.contains(&MemoryType::Fact));
-        assert!(query.memory_types.contains(&MemoryType::Note));
+        assert!(query.memory_types.contains(&MemoryType::Context));
     }
 
     #[test]
@@ -612,8 +622,8 @@ mod tests {
     #[test]
     fn test_memory_equality() {
         let vector = vec![0.1, 0.2, 0.3];
-        let memory1 = MemoryNode::new("Same".to_string(), vector.clone(), MemoryType::Note);
-        let memory2 = MemoryNode::new("Same".to_string(), vector.clone(), MemoryType::Note);
+        let memory1 = MemoryNode::new("Same".to_string(), vector.clone(), MemoryType::Context);
+        let memory2 = MemoryNode::new("Same".to_string(), vector.clone(), MemoryType::Context);
 
         assert_eq!(memory1.content, memory2.content);
         assert_eq!(memory1.vector, memory2.vector);

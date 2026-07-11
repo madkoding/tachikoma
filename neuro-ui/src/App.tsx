@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Layout } from './components/layout';
+import Layout from './components/layout/Layout';
 import { NoConnectionScreen } from './components/NoConnectionScreen';
 import { useConnectionStatus } from './hooks/useConnectionStatus';
 import ChatPage from './pages/ChatPage';

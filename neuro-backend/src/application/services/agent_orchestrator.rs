@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tracing::{debug, info, instrument};
 use uuid::Uuid;
 
-use crate::application::services::{memory_service::MemoryService, model_manager::ModelManager};
+use crate::application::services::memory_service::MemoryService;
 use crate::domain::{
     entities::memory::MemoryType,
     errors::DomainError,
@@ -24,7 +24,6 @@ use crate::domain::{
 /// =============================================================================
 pub struct AgentOrchestrator {
     memory_service: Arc<MemoryService>,
-    model_manager: Arc<ModelManager>,
     llm_provider: Arc<dyn LlmProvider>,
     search_provider: Arc<dyn SearchProvider>,
     command_executor: Arc<dyn CommandExecutor>,
@@ -33,14 +32,12 @@ pub struct AgentOrchestrator {
 impl AgentOrchestrator {
     pub fn new(
         memory_service: Arc<MemoryService>,
-        model_manager: Arc<ModelManager>,
         llm_provider: Arc<dyn LlmProvider>,
         search_provider: Arc<dyn SearchProvider>,
         command_executor: Arc<dyn CommandExecutor>,
     ) -> Self {
         Self {
             memory_service,
-            model_manager,
             llm_provider,
             search_provider,
             command_executor,
@@ -138,10 +135,5 @@ impl AgentOrchestrator {
     /// Get memory service reference
     pub fn memory_service(&self) -> &Arc<MemoryService> {
         &self.memory_service
-    }
-
-    /// Get model manager reference
-    pub fn model_manager(&self) -> &Arc<ModelManager> {
-        &self.model_manager
     }
 }

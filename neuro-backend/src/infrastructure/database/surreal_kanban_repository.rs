@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use serde::Deserialize;
 use surrealdb::sql::Thing;
-use tracing::{debug, error};
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::domain::entities::kanban::{

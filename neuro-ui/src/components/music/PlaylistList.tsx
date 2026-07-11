@@ -15,7 +15,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useMusicStore, usePlaylists, formatDurationLong } from '../../stores/musicStore';
-import { AnimatedLedDigits } from '../common';
+import AnimatedLedDigits from '../common/AnimatedLedDigits';
 import { PlaylistDto } from '../../api/client';
 
 interface PlaylistListProps {

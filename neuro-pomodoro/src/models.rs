@@ -106,3 +106,67 @@ pub struct TimerState {
     pub settings: PomodoroSettings,
     pub completed_today: u32,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_session() -> PomodoroSession {
+        PomodoroSession {
+            id: Uuid::new_v4(),
+            session_type: SessionType::Work,
+            status: SessionStatus::Working,
+            duration_minutes: 25,
+            elapsed_seconds: 0,
+            started_at: Some(Utc::now()),
+            completed_at: None,
+            task_description: Some("coding".to_string()),
+            created_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn pomodoro_session_serde_roundtrip() {
+        let s = sample_session();
+        let json = serde_json::to_string(&s).unwrap();
+        let back: PomodoroSession = serde_json::from_str(&json).unwrap();
+        assert_eq!(s.id, back.id);
+        assert_eq!(s.duration_minutes, back.duration_minutes);
+    }
+
+    #[test]
+    fn session_status_snake_case() {
+        let json = serde_json::to_string(&SessionStatus::ShortBreak).unwrap();
+        assert_eq!(json, "\"short_break\"");
+        let back: SessionStatus = serde_json::from_str("\"long_break\"").unwrap();
+        assert_eq!(back, SessionStatus::LongBreak);
+    }
+
+    #[test]
+    fn session_type_serde_roundtrip() {
+        let json = serde_json::to_string(&SessionType::Work).unwrap();
+        assert_eq!(json, "\"work\"");
+        let back: SessionType = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, SessionType::Work);
+    }
+
+    #[test]
+    fn pomodoro_settings_default() {
+        let s = PomodoroSettings::default();
+        assert_eq!(s.work_duration_minutes, 25);
+        assert_eq!(s.short_break_minutes, 5);
+        assert_eq!(s.long_break_minutes, 15);
+        assert_eq!(s.sessions_until_long_break, 4);
+        assert!(!s.auto_start_breaks);
+        assert!(!s.auto_start_work);
+    }
+
+    #[test]
+    fn pomodoro_settings_alias_deserialize() {
+        let json = r#"{"work_minutes":50,"short_break_minutes":10,"long_break_minutes":20,"pomodoros_before_long_break":3,"auto_start_breaks":true,"auto_start_pomodoros":true}"#;
+        let s: PomodoroSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(s.work_duration_minutes, 50);
+        assert_eq!(s.sessions_until_long_break, 3);
+        assert!(s.auto_start_work);
+    }
+}

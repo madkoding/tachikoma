@@ -178,3 +178,95 @@ impl Board {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_board() -> Board {
+        Board {
+            id: Uuid::new_v4(),
+            name: "Test Board".to_string(),
+            description: None,
+            color: None,
+            is_archived: false,
+            columns: vec![],
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn test_board_to_summary_empty() {
+        let board = make_board();
+        let summary = board.to_summary();
+        assert_eq!(summary.column_count, 0);
+        assert_eq!(summary.card_count, 0);
+        assert_eq!(summary.name, "Test Board");
+    }
+
+    #[test]
+    fn test_board_to_summary_with_cards() {
+        let mut board = make_board();
+        let col_id = Uuid::new_v4();
+        let card = Card {
+            id: Uuid::new_v4(),
+            column_id: col_id,
+            title: "Task".to_string(),
+            description: None,
+            color: None,
+            labels: vec![],
+            due_date: None,
+            order: 0,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        board.columns.push(Column {
+            id: col_id,
+            board_id: board.id,
+            name: "To Do".to_string(),
+            color: None,
+            wip_limit: None,
+            order: 0,
+            cards: vec![card],
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        });
+        let summary = board.to_summary();
+        assert_eq!(summary.column_count, 1);
+        assert_eq!(summary.card_count, 1);
+    }
+
+    #[test]
+    fn test_move_card_fields() {
+        let mv = MoveCard {
+            target_column_id: Uuid::new_v4(),
+            target_order: 2,
+        };
+        assert_eq!(mv.target_order, 2);
+    }
+
+    #[test]
+    fn test_create_board_with_defaults() {
+        let req = CreateBoard {
+            name: "Sprint".to_string(),
+            description: None,
+            color: Some("#ff0000".to_string()),
+            with_default_columns: Some(true),
+        };
+        assert_eq!(req.name, "Sprint");
+        assert_eq!(req.with_default_columns, Some(true));
+    }
+
+    #[test]
+    fn test_update_board_partial() {
+        let req = UpdateBoard {
+            name: None,
+            description: Some("Updated".to_string()),
+            color: None,
+            is_archived: Some(true),
+        };
+        assert_eq!(req.is_archived, Some(true));
+        assert!(req.name.is_none());
+    }
+}

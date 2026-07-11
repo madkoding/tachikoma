@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useMusicStore, useCurrentPlaylistDetail, formatDuration } from '../../stores/musicStore';
 import { EnrichedSearchResultDto, CreateSongRequest, musicApi } from '../../api/client';
-import { AnimatedLedDigits } from '../common';
+import AnimatedLedDigits from '../common/AnimatedLedDigits';
 
 interface AddSongsModalProps {
   playlistId: string;

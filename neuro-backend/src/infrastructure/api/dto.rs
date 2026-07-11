@@ -6,6 +6,7 @@
 //! =============================================================================
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// =============================================================================
@@ -13,7 +14,7 @@ use uuid::Uuid;
 /// =============================================================================
 
 /// Chat message request
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ChatMessageRequest {
     /// User message content
     pub message: String,
@@ -29,7 +30,7 @@ pub struct ChatMessageRequest {
 }
 
 /// Chat message response
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ChatMessageResponse {
     /// Response content
     pub content: String,
@@ -54,7 +55,7 @@ pub struct ChatMessageResponse {
 }
 
 /// Conversation summary
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConversationDto {
     /// Conversation ID
     pub id: Uuid,
@@ -69,7 +70,7 @@ pub struct ConversationDto {
 }
 
 /// Full conversation with messages
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConversationWithMessagesDto {
     /// Conversation ID
     pub id: Uuid,
@@ -84,7 +85,7 @@ pub struct ConversationWithMessagesDto {
 }
 
 /// Chat message DTO
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ChatMessageDto {
     /// Message ID
     pub id: Uuid,
@@ -110,7 +111,7 @@ pub struct ChatMessageDto {
 /// =============================================================================
 
 /// Memory node response
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct MemoryDto {
     /// Unique identifier
     pub id: Uuid,
@@ -132,7 +133,7 @@ pub struct MemoryDto {
 }
 
 /// Create memory request
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateMemoryRequest {
     /// Memory content
     pub content: String,
@@ -152,7 +153,7 @@ fn default_memory_type() -> String {
 }
 
 /// Update memory request
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UpdateMemoryRequest {
     /// New content (optional)
     #[serde(default)]
@@ -166,7 +167,7 @@ pub struct UpdateMemoryRequest {
 }
 
 /// Semantic search request
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SemanticSearchRequest {
     /// Search query
     pub query: String,
@@ -190,7 +191,7 @@ fn default_min_similarity() -> f64 {
 }
 
 /// Search result
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SearchResultDto {
     /// Memory node
     pub memory: MemoryDto,
@@ -203,7 +204,7 @@ pub struct SearchResultDto {
 /// =============================================================================
 
 /// Graph edge response
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct GraphEdgeDto {
     /// Source memory ID
     pub from_id: Uuid,
@@ -218,7 +219,7 @@ pub struct GraphEdgeDto {
 }
 
 /// Create relation request
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateRelationRequest {
     /// Source memory ID
     pub from_id: Uuid,
@@ -236,7 +237,7 @@ fn default_confidence() -> f64 {
 }
 
 /// Graph statistics response
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct GraphStatsDto {
     /// Total number of nodes
     pub total_nodes: usize,
@@ -251,7 +252,7 @@ pub struct GraphStatsDto {
 }
 
 /// Full graph export response
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct GraphExportDto {
     /// All nodes
     pub nodes: Vec<MemoryDto>,
@@ -266,7 +267,7 @@ pub struct GraphExportDto {
 /// =============================================================================
 
 /// Web search request
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct WebSearchRequest {
     /// Search query
     pub query: String,
@@ -279,7 +280,7 @@ pub struct WebSearchRequest {
 }
 
 /// Web search result
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct WebSearchResultDto {
     /// Result title
     pub title: String,
@@ -295,7 +296,7 @@ pub struct WebSearchResultDto {
 }
 
 /// Command execution request
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CommandExecuteRequest {
     /// Command to execute
     pub command: String,
@@ -308,7 +309,7 @@ pub struct CommandExecuteRequest {
 }
 
 /// Command execution result
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CommandResultDto {
     /// Exit code
     pub exit_code: i32,
@@ -327,7 +328,7 @@ pub struct CommandResultDto {
 /// =============================================================================
 
 /// Health check response
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct HealthResponse {
     /// Overall status
     pub status: String,
@@ -342,7 +343,7 @@ pub struct HealthResponse {
 }
 
 /// Build information for identifying compiled binary
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct BuildInfoDto {
     /// Git commit hash (short)
     pub git_hash: String,
@@ -353,7 +354,7 @@ pub struct BuildInfoDto {
 }
 
 /// Service status details
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ServiceStatusDto {
     /// Database status
     pub database: String,
@@ -364,7 +365,7 @@ pub struct ServiceStatusDto {
 }
 
 /// Model info response
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ModelInfoDto {
     /// Model identifier
     pub id: String,
@@ -388,7 +389,7 @@ pub struct ModelInfoDto {
 /// =============================================================================
 
 /// Paginated response
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PaginatedResponse<T> {
     /// Response data
     pub data: Vec<T>,
@@ -403,7 +404,7 @@ pub struct PaginatedResponse<T> {
 }
 
 /// API error response
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ErrorResponse {
     /// Error code
     pub code: String,

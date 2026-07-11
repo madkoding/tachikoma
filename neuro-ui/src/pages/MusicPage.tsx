@@ -9,7 +9,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import TypewriterText from '../components/common/TypewriterText';
-import { AnimatedLedDigits } from '../components/common';
+import AnimatedLedDigits from '../components/common/AnimatedLedDigits';
 import { useMusicStore, usePlayerState, useCurrentPlaylistDetail, formatDurationLong } from '../stores/musicStore';
 import { PlaylistDto } from '../api/client';
 import {

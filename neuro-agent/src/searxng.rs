@@ -50,17 +50,11 @@ pub struct SearchResult {
 pub struct SearxngResponse {
     pub results: Vec<SearchResult>,
     #[serde(default)]
-    pub query: String,
-    #[serde(default)]
     pub number_of_results: u64,
     #[serde(default)]
     pub suggestions: Vec<String>,
     #[serde(default)]
     pub answers: Vec<String>,
-    #[serde(default)]
-    pub corrections: Vec<String>,
-    #[serde(default)]
-    pub infoboxes: Vec<serde_json::Value>,
 }
 
 /// API response format
@@ -152,5 +146,60 @@ impl SearxngClient {
             suggestions: searxng_response.suggestions,
             answers: searxng_response.answers,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn search_result_serde_roundtrip() {
+        let r = SearchResult {
+            title: "Rust".to_string(),
+            url: "https://rust-lang.org".to_string(),
+            content: Some("desc".to_string()),
+            engine: Some("google".to_string()),
+            score: Some(1.5),
+            category: Some("it".to_string()),
+            thumbnail: None,
+        };
+        let json = serde_json::to_string(&r).unwrap();
+        let back: SearchResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.title, "Rust");
+        assert_eq!(back.score, Some(1.5));
+    }
+
+    #[test]
+    fn search_result_minimal_defaults() {
+        let json = r#"{"title":"T","url":"U"}"#;
+        let r: SearchResult = serde_json::from_str(json).unwrap();
+        assert_eq!(r.title, "T");
+        assert!(r.content.is_none());
+        assert!(r.engine.is_none());
+        assert!(r.score.is_none());
+    }
+
+    #[test]
+    fn searxng_response_deserialize_defaults() {
+        let json = r#"{"results":[]}"#;
+        let resp: SearxngResponse = serde_json::from_str(json).unwrap();
+        assert!(resp.results.is_empty());
+        assert_eq!(resp.number_of_results, 0);
+        assert!(resp.suggestions.is_empty());
+        assert!(resp.answers.is_empty());
+    }
+
+    #[test]
+    fn search_response_serialize() {
+        let resp = SearchResponse {
+            results: vec![],
+            total: 42,
+            suggestions: vec!["rust".to_string()],
+            answers: vec![],
+        };
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains("\"total\":42"));
+        assert!(json.contains("\"suggestions\":[\"rust\"]"));
     }
 }

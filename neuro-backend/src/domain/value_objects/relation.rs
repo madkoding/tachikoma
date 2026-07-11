@@ -240,78 +240,6 @@ impl Relation {
     /// 
     /// # Returns
     /// 
-    /// The inverse relation type
-    /// =========================================================================
-    pub fn inverse(&self) -> Self {
-        match self {
-            Relation::RelatedTo => Relation::RelatedTo,     // Symmetric
-            Relation::Causes => Relation::DerivedFrom,       // A causes B → B derived from A
-            Relation::PartOf => Relation::PartOf,            // Inverse is "Contains"
-            Relation::Follows => Relation::Follows,          // Inverse is "Precedes"
-            Relation::Contradicts => Relation::Contradicts,  // Symmetric
-            Relation::Supports => Relation::DerivedFrom,     // A supports B → B derived from A
-            Relation::DerivedFrom => Relation::Causes,       // A derived from B → B causes A
-            Relation::SameAs => Relation::SameAs,            // Symmetric
-            Relation::ContextOf => Relation::RelatedTo,      // Inverse is generic
-            Relation::References => Relation::References,    // Inverse is "ReferencedBy"
-            Relation::Supersedes => Relation::Supersedes,    // Inverse is "SupersededBy"
-            Relation::HasProperty => Relation::HasProperty,  // Inverse is "PropertyOf"
-            Relation::UsedFor => Relation::UsedFor,          // Inverse is "Uses"
-            Relation::CapableOf => Relation::CapableOf,      // Inverse is "CapabilityOf"
-            Relation::LocatedIn => Relation::LocatedIn,      // Inverse is "Contains"
-            Relation::CreatedBy => Relation::CreatedBy,      // Inverse is "Created"
-            Relation::SimilarTo => Relation::SimilarTo,      // Symmetric
-        }
-    }
-
-    /// =========================================================================
-    /// Check if the relation is symmetric
-    /// =========================================================================
-    /// Symmetric relations have the same meaning in both directions.
-    /// 
-    /// # Returns
-    /// 
-    /// `true` if the relation is symmetric
-    /// =========================================================================
-    pub fn is_symmetric(&self) -> bool {
-        matches!(
-            self,
-            Relation::RelatedTo | Relation::Contradicts | Relation::SameAs | Relation::SimilarTo
-        )
-    }
-
-    /// =========================================================================
-    /// Get the relation weight for graph algorithms
-    /// =========================================================================
-    /// Returns a weight value used in graph traversal algorithms.
-    /// Higher weights indicate stronger relationships.
-    /// 
-    /// # Returns
-    /// 
-    /// A weight value between 0.0 and 1.0
-    /// =========================================================================
-    pub fn weight(&self) -> f64 {
-        match self {
-            Relation::SameAs => 1.0,         // Strongest
-            Relation::PartOf => 0.9,
-            Relation::Causes => 0.8,
-            Relation::DerivedFrom => 0.8,
-            Relation::CreatedBy => 0.8,
-            Relation::Supports => 0.7,
-            Relation::Supersedes => 0.7,
-            Relation::HasProperty => 0.7,
-            Relation::LocatedIn => 0.7,
-            Relation::CapableOf => 0.6,
-            Relation::UsedFor => 0.6,
-            Relation::ContextOf => 0.6,
-            Relation::SimilarTo => 0.5,
-            Relation::Follows => 0.5,
-            Relation::References => 0.4,
-            Relation::RelatedTo => 0.3,
-            Relation::Contradicts => 0.2,    // Weakest (but important for consistency)
-        }
-    }
-
     /// =========================================================================
     /// Get all relation types as a list
     /// =========================================================================
@@ -442,22 +370,44 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_relation_inverse() {
-        assert_eq!(Relation::Causes.inverse(), Relation::DerivedFrom);
-        assert_eq!(Relation::RelatedTo.inverse(), Relation::RelatedTo);
-        assert_eq!(Relation::SameAs.inverse(), Relation::SameAs);
+    fn test_all_types() {
+        let types = Relation::all_types();
+        assert!(!types.is_empty());
+        assert!(types.contains(&Relation::RelatedTo));
     }
 
     #[test]
-    fn test_relation_symmetry() {
-        assert!(Relation::RelatedTo.is_symmetric());
-        assert!(Relation::SameAs.is_symmetric());
-        assert!(!Relation::Causes.is_symmetric());
+    fn test_to_table_name() {
+        assert_eq!(Relation::RelatedTo.to_table_name(), "related_to");
+        assert_eq!(Relation::Causes.to_table_name(), "causes");
+        assert_eq!(Relation::PartOf.to_table_name(), "part_of");
+        assert_eq!(Relation::SimilarTo.to_table_name(), "similar_to");
     }
 
     #[test]
-    fn test_relation_weights() {
-        assert!(Relation::SameAs.weight() > Relation::RelatedTo.weight());
-        assert!(Relation::Causes.weight() > Relation::Contradicts.weight());
+    fn test_display_matches_table_name() {
+        assert_eq!(Relation::Causes.to_string(), "causes");
+        assert_eq!(Relation::Supports.to_string(), "supports");
+    }
+
+    #[test]
+    fn test_graph_edge_new() {
+        let from = uuid::Uuid::new_v4();
+        let to = uuid::Uuid::new_v4();
+        let edge = GraphEdge::new(from, to, Relation::Causes);
+        assert_eq!(edge.from_id, from);
+        assert_eq!(edge.to_id, to);
+        assert_eq!(edge.confidence, 1.0);
+    }
+
+    #[test]
+    fn test_graph_edge_with_confidence_clamped() {
+        let from = uuid::Uuid::new_v4();
+        let to = uuid::Uuid::new_v4();
+        let edge = GraphEdge::with_confidence(from, to, Relation::Supports, 1.5);
+        assert_eq!(edge.confidence, 1.0);
+
+        let edge_low = GraphEdge::with_confidence(from, to, Relation::Supports, -0.5);
+        assert_eq!(edge_low.confidence, 0.0);
     }
 }

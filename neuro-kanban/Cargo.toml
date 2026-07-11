@@ -5,24 +5,21 @@ edition = "2021"
 description = "Kanban board microservice for TACHIKOMA-OS"
 
 [dependencies]
-# Web framework
-axum = { version = "0.7", features = ["macros"] }
-tokio = { version = "1", features = ["full"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+neuro-common = { path = "../neuro-common" }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tower-http = { workspace = true }
+reqwest = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+dotenvy = { workspace = true }
 
-# Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-
-# HTTP client
-reqwest = { version = "0.11", features = ["json"] }
-
-# Utilities
-uuid = { version = "1", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# Environment
-dotenvy = "0.15"
+[dev-dependencies]
+axum-test = { workspace = true }
+wiremock = { workspace = true }
+tokio-test = { workspace = true }
+tower = { workspace = true }

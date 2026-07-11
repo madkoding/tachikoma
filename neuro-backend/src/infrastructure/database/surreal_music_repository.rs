@@ -5,12 +5,11 @@
 use async_trait::async_trait;
 use serde::Deserialize;
 use surrealdb::sql::Thing;
-use tracing::debug;
 use uuid::Uuid;
 
 use crate::domain::entities::music::{
     CreatePlaylist, CreateSong, EqualizerSettings, ListeningEntry, Playlist,
-    PlaylistWithSongs, RepeatMode, Song, UpdatePlaylist, UpdateSong, YouTubeMetadata,
+    PlaylistWithSongs, Song, UpdatePlaylist, UpdateSong, YouTubeMetadata,
 };
 use crate::domain::errors::DomainError;
 use crate::domain::ports::music_repository::MusicRepository;
@@ -472,10 +471,12 @@ impl MusicRepository for SurrealMusicRepository {
 
     async fn reorder_songs(&self, playlist_id: Uuid, song_ids: Vec<Uuid>) -> Result<(), DomainError> {
         for (index, song_id) in song_ids.iter().enumerate() {
-            let query = format!("UPDATE song:`{}` SET song_order = $order", song_id);
+            let query = "UPDATE song SET song_order = $order WHERE id = type::thing(\"song\", $song_id) AND playlist_id = $playlist_id";
             self.pool.client()
-                .query(&query)
+                .query(query)
                 .bind(("order", index as i32))
+                .bind(("song_id", song_id.to_string()))
+                .bind(("playlist_id", playlist_id.to_string()))
                 .await
                 .map_err(|e| DomainError::database(e.to_string()))?;
         }

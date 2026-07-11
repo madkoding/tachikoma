@@ -3,7 +3,6 @@
 use reqwest::Client;
 use uuid::Uuid;
 
-use crate::config::Config;
 use crate::models::{
     Checklist, ChecklistItem, ChecklistWithItems, CreateChecklist, CreateChecklistItem,
     PaginatedChecklists, UpdateChecklist, UpdateChecklistItem,
@@ -15,7 +14,7 @@ pub struct BackendClient {
 }
 
 impl BackendClient {
-    pub fn new(config: &Config) -> Self {
+    pub fn new(config: &crate::config::Config) -> Self {
         Self {
             client: Client::new(),
             base_url: format!("{}/api/data", config.backend_url),

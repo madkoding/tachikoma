@@ -14,16 +14,16 @@ use crate::application::services::{
     agent_orchestrator::AgentOrchestrator,
     knowledge_extractor::KnowledgeExtractor,
     memory_service::MemoryService,
-    model_manager::ModelManager,
 };
 use crate::domain::{
     entities::chat::{ChatMessage, ChatRequest, ChatResponse, Conversation, MessageMetadata},
     entities::memory::MemoryType,
     errors::DomainError,
     ports::llm_provider::LlmProvider,
-    value_objects::model_tier::ModelTier,
 };
 use crate::infrastructure::database::SurrealDbRepository;
+
+const DEFAULT_MODEL: &str = "qwen3:0.6b";
 
 /// LLM-classified user intent
 #[derive(Debug, Deserialize)]
@@ -46,8 +46,6 @@ pub struct ChatService {
     #[allow(dead_code)]
     agent_orchestrator: Arc<AgentOrchestrator>,
     memory_service: Arc<MemoryService>,
-    #[allow(dead_code)]
-    model_manager: Arc<ModelManager>,
     llm_provider: Arc<dyn LlmProvider>,
     repository: Arc<SurrealDbRepository>,
     /// Intelligent knowledge extractor for auto-learning
@@ -63,24 +61,20 @@ impl ChatService {
     pub fn new(
         agent_orchestrator: Arc<AgentOrchestrator>,
         memory_service: Arc<MemoryService>,
-        model_manager: Arc<ModelManager>,
         llm_provider: Arc<dyn LlmProvider>,
         repository: Arc<SurrealDbRepository>,
     ) -> Self {
-        // Create the knowledge extractor for intelligent auto-learning
         let knowledge_extractor = Arc::new(KnowledgeExtractor::new(
             llm_provider.clone(),
             memory_service.clone(),
         ));
 
-        // Get music service URL from environment
         let music_service_url = std::env::var("MUSIC_SERVICE_URL")
             .unwrap_or_else(|_| "http://localhost:3002".to_string());
 
         Self {
             agent_orchestrator,
             memory_service,
-            model_manager,
             llm_provider,
             repository,
             knowledge_extractor,
@@ -410,7 +404,7 @@ Responde SOLO con la categoría, una sola palabra:"#,
         );
 
         // Use Light model (ministral:3b) for fast classification - it's a simple task
-        let light_model = ModelTier::Light.default_model();
+        let light_model = DEFAULT_MODEL;
         let result = self.llm_provider.generate(&classification_prompt, Some(light_model)).await?;
         
         // Parse the simple response
@@ -627,60 +621,8 @@ Responde SOLO con la categoría, una sola palabra:"#,
     }
 
     /// =========================================================================
-    /// Auto-select model based on task analysis
-    /// =========================================================================
-    /// Analyzes the user message to determine the appropriate model tier:
-    /// - Light (qwen3:0.6b): Default for most tasks, quick questions
-    /// - Standard (qwen3:0.6b): Complex reasoning, analysis
-    /// - Heavy (qwen3:0.6b): Code generation, deep technical tasks
-    /// =========================================================================
-    pub fn select_model_for_task(&self, message: &str) -> String {
-        let msg_lower = message.to_lowercase();
-        let msg_len = message.len();
-
-        // Detect code-related keywords - ONLY these trigger heavy model
-        let code_keywords = [
-            "code", "function", "implement", "class", "struct", "enum",
-            "bug", "fix", "error", "debug", "refactor", "optimize",
-            "algorithm", "data structure", "api", "database", "sql",
-            "rust", "python", "javascript", "typescript", "java", "c++",
-            "async", "await", "thread", "mutex", "memory", "performance",
-            "test", "unit test", "integration", "arquitectura", "design pattern",
-            "código", "función", "implementar", "corregir", "arreglar",
-        ];
-
-        // Detect complex reasoning keywords - these trigger standard model
-        let reasoning_keywords = [
-            "explain in detail", "analyze deeply", "compare and contrast",
-            "pros and cons", "best practice", "architecture design",
-            "explica en detalle", "analiza profundamente",
-        ];
-
-        let is_code_task = code_keywords.iter().any(|k| msg_lower.contains(k));
-        let is_complex = reasoning_keywords.iter().any(|k| msg_lower.contains(k)) 
-            || msg_len > 500; // Only very long messages trigger complex
-
-        // Determine tier - DEFAULT TO LIGHT
-        let tier = if is_code_task && (is_complex || msg_len > 300) {
-            ModelTier::Heavy
-        } else if is_code_task {
-            ModelTier::Standard
-        } else if is_complex {
-            ModelTier::Standard
-        } else {
-            // DEFAULT: Use Light model for most conversations
-            ModelTier::Light
-        };
-
-        debug!(
-            message_len = msg_len,
-            is_code_task = is_code_task,
-            is_complex = is_complex,
-            tier = %tier,
-            "Task analysis complete"
-        );
-
-        tier.default_model().to_string()
+    pub fn select_model_for_task(&self, _message: &str) -> String {
+        DEFAULT_MODEL.to_string()
     }
 
     /// =========================================================================
@@ -1328,7 +1270,7 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
         );
         
         // Use Light model for this simple task
-        let light_model = ModelTier::Light.default_model();
+        let light_model = DEFAULT_MODEL;
         let response = self.llm_provider.generate(&prompt, Some(light_model)).await
             .map_err(|e| format!("Error generando metadata de checklist: {}", e))?;
         

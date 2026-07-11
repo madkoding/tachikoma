@@ -211,3 +211,119 @@ impl CommandExecutor for SafeCommandExecutor {
             .unwrap_or(false)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_validate_allowed_command() {
+        let executor = SafeCommandExecutor::new();
+        assert!(executor.validate("ls -la").await.unwrap());
+        assert!(executor.validate("cat file.txt").await.unwrap());
+        assert!(executor.validate("git status").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_validate_blocked_rm_rf() {
+        let executor = SafeCommandExecutor::new();
+        assert!(!executor.validate("rm -rf /").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_validate_blocked_sudo() {
+        let executor = SafeCommandExecutor::new();
+        assert!(!executor.validate("sudo apt update").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_validate_blocked_mkfs() {
+        let executor = SafeCommandExecutor::new();
+        assert!(!executor.validate("mkfs.ext4 /dev/sda").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_validate_unknown_command() {
+        let executor = SafeCommandExecutor::new();
+        assert!(!executor.validate("malicious_binary arg1").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_validate_empty_command() {
+        let executor = SafeCommandExecutor::new();
+        assert!(executor.validate("").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_validate_git_safe_subcommands() {
+        let executor = SafeCommandExecutor::new();
+        assert!(executor.validate("git log").await.unwrap());
+        assert!(executor.validate("git diff").await.unwrap());
+        assert!(executor.validate("git status").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_validate_git_unsafe_subcommands() {
+        let executor = SafeCommandExecutor::new();
+        assert!(!executor.validate("git push --force").await.unwrap());
+        assert!(!executor.validate("git rebase").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_validate_blocked_patterns() {
+        let executor = SafeCommandExecutor::new();
+        assert!(!executor.validate("chmod 777 /etc").await.unwrap());
+        assert!(!executor.validate("dd if=/dev/zero of=/dev/sda").await.unwrap());
+        assert!(!executor.validate("shutdown -h now").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_execute_echo() {
+        let executor = SafeCommandExecutor::new();
+        let result = executor.execute("echo hello", None).await.unwrap();
+        assert!(result.success());
+        assert!(result.stdout.contains("hello"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_blocked_command_returns_error() {
+        let executor = SafeCommandExecutor::new();
+        let result = executor.execute("rm -rf /tmp/test", None).await;
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_command_output_success() {
+        let output = CommandOutput {
+            stdout: "ok".to_string(),
+            stderr: "".to_string(),
+            exit_code: 0,
+            execution_time_ms: 10,
+            timed_out: false,
+        };
+        assert!(output.success());
+        assert_eq!(output.combined_output(), "ok");
+    }
+
+    #[test]
+    fn test_command_output_with_stderr() {
+        let output = CommandOutput {
+            stdout: "out".to_string(),
+            stderr: "err".to_string(),
+            exit_code: 1,
+            execution_time_ms: 10,
+            timed_out: false,
+        };
+        assert!(!output.success());
+        assert!(output.combined_output().contains("err"));
+    }
+
+    #[test]
+    fn test_execution_options_builders() {
+        let opts = ExecutionOptions::with_timeout(60);
+        assert_eq!(opts.timeout_secs, Some(60));
+
+        let opts = ExecutionOptions::with_working_dir("/tmp");
+        assert_eq!(opts.working_dir, Some("/tmp".to_string()));
+    }
+}

@@ -3,41 +3,28 @@ name = "tachikoma-chat"
 version = "0.1.0"
 edition = "2021"
 description = "Chat and LLM interaction microservice for TACHIKOMA-OS"
-authors = ["TACHIKOMA-OS Team"]
 
 [dependencies]
-# Web framework
-axum = { version = "0.7", features = ["macros"] }
-tokio = { version = "1", features = ["full"] }
+neuro-common = { path = "../neuro-common" }
+axum = { workspace = true }
+tokio = { workspace = true }
 tokio-stream = "0.1"
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
-
-# Database
+tower-http = { workspace = true }
 surrealdb = { version = "1.5", features = ["kv-mem"] }
-
-# Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-
-# Async utilities
+serde = { workspace = true }
+serde_json = { workspace = true }
 futures = "0.3"
-async-trait = "0.1"
 async-stream = "0.3"
-
-# Logging
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# Error handling
-anyhow = "1"
-thiserror = "1"
-
-# Utilities
-uuid = { version = "1", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
-regex = "1"
-
-# HTTP client
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
 reqwest = { version = "0.12", features = ["json", "stream"] }
 reqwest-eventsource = "0.6"
+
+[dev-dependencies]
+axum-test = { workspace = true }
+wiremock = { workspace = true }
+tokio-test = { workspace = true }
+tower = { workspace = true }

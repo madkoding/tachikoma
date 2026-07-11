@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { filterNodes, createRealLinks, buildVirtualLinks } from '../utils/graphTransform';
+import { filterNodes, createRealLinks } from '../utils/graphTransform';
 import { GRAPH_CONFIG } from '../constants/graphConfig';
 import type { GraphNode, GraphLink } from '../types/graph';
 import type { Memory } from '../api/client';
@@ -105,7 +105,6 @@ export function useGraphData({ graphData, filterType, searchQuery }: UseGraphDat
 
     const nodeIds = new Set(filteredNodes.map(n => n.id));
     const realLinks = createRealLinks(graphData.edges, nodeIds);
-    const virtualLinks = buildVirtualLinks(filteredNodes, realLinks);
 
     const now = Date.now();
 
@@ -156,11 +155,6 @@ export function useGraphData({ graphData, filterType, searchQuery }: UseGraphDat
         // Check if content has actually changed (for update animation)
         const previousHash = nodeContentHashes.get(n.id);
         
-        console.log('[useGraphData] Checking node:', n.id.substring(0, 8), 
-          'prevHash:', previousHash?.substring(0, 30), 
-          'currHash:', currentHash.substring(0, 30),
-          'changed:', previousHash !== currentHash);
-        
         if (previousHash && currentHash !== previousHash) {
           // Content changed! Set update time for animation
           const updateTime = now;
@@ -168,7 +162,6 @@ export function useGraphData({ graphData, filterType, searchQuery }: UseGraphDat
           nodeContentHashes.set(n.id, currentHash);
           // Update the cached node's update time
           cachedNode.__updateTime = updateTime;
-          console.log('[useGraphData] 🎆 Node updated, triggering animation:', n.id, 'updateTime:', updateTime);
         }
         
         // Update mutable properties on the existing object
@@ -205,7 +198,7 @@ export function useGraphData({ graphData, filterType, searchQuery }: UseGraphDat
     });
 
     // Update links intelligently - preserve ForceGraph3D's internal node references
-    const allNewLinks = [...realLinks, ...virtualLinks];
+    const allNewLinks = [...realLinks];
     
     // Create a key for each link to identify it
     const getLinkKey = (link: GraphLink): string => {

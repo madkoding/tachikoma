@@ -116,16 +116,10 @@ export function useGraphEvents({
     setStatus('connecting');
     const endpoint = getSSEEndpoint();
     
-    // Only log on first attempt
-    if (retryCountRef.current === 0) {
-      console.log(`[SSE] Connecting to graph events via ${endpoint}...`);
-    }
-    
     const eventSource = new EventSource(endpoint);
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
-      console.log('[SSE] Connected to graph events');
       setStatus('connected');
       retryCountRef.current = 0; // Reset retry count on successful connection
       hasLoggedDisabledRef.current = false;
@@ -142,19 +136,15 @@ export function useGraphEvents({
         
         switch (parsed.type) {
           case 'Created':
-            console.log('[SSE] Memory created:', parsed.data);
             onMemoryCreated?.(parsed.data);
             break;
           case 'Updated':
-            console.log('[SSE] Memory updated:', parsed.data);
             onMemoryUpdated?.(parsed.data);
             break;
           case 'Deleted':
-            console.log('[SSE] Memory deleted:', parsed.data.id);
             onMemoryDeleted?.(parsed.data.id);
             break;
           case 'RelationCreated':
-            console.log('[SSE] Relation created:', parsed.data);
             onRelationCreated?.(parsed.data);
             break;
           case 'Heartbeat':

@@ -28,8 +28,6 @@ pub enum MemoryEvent {
     Updated(MemoryEventData),
     /// A memory was deleted
     Deleted { id: String },
-    /// A new relation was created
-    RelationCreated(RelationEventData),
     /// Heartbeat to keep connection alive
     Heartbeat,
 }
@@ -41,14 +39,6 @@ pub struct MemoryEventData {
     pub content: String,
     pub memory_type: String,
     pub created_at: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct RelationEventData {
-    pub source: String,
-    pub target: String,
-    pub relation: String,
-    pub weight: f32,
 }
 
 /// =============================================================================

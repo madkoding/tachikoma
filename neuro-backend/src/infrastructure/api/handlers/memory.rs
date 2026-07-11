@@ -34,6 +34,19 @@ fn default_page() -> usize { 1 }
 fn default_per_page() -> usize { 20 }
 
 /// GET /api/memories
+#[utoipa::path(
+    get,
+    path = "/api/memories",
+    tag = "Memory",
+    params(
+        ("page" = Option<usize>, Query, description = "Page number (1-based)"),
+        ("per_page" = Option<usize>, Query, description = "Items per page"),
+    ),
+    responses(
+        (status = 200, description = "Paginated list of memories", body = Vec<MemoryDto>),
+        (status = 500, description = "Database error", body = ErrorResponse),
+    )
+)]
 #[instrument(skip(state))]
 pub async fn list_memories(
     State(state): State<Arc<AppState>>,
@@ -67,6 +80,19 @@ pub async fn list_memories(
 }
 
 /// GET /api/memories/:id
+#[utoipa::path(
+    get,
+    path = "/api/memories/{id}",
+    tag = "Memory",
+    params(
+        ("id" = Uuid, Path, description = "Memory ID"),
+    ),
+    responses(
+        (status = 200, description = "Memory found", body = MemoryDto),
+        (status = 404, description = "Memory not found", body = ErrorResponse),
+        (status = 500, description = "Database error", body = ErrorResponse),
+    )
+)]
 #[instrument(skip(state))]
 pub async fn get_memory(
     State(state): State<Arc<AppState>>,
@@ -92,6 +118,16 @@ pub async fn get_memory(
 }
 
 /// POST /api/memories
+#[utoipa::path(
+    post,
+    path = "/api/memories",
+    tag = "Memory",
+    request_body = CreateMemoryRequest,
+    responses(
+        (status = 201, description = "Memory created", body = MemoryDto),
+        (status = 500, description = "Create error", body = ErrorResponse),
+    )
+)]
 #[instrument(skip(state, request))]
 pub async fn create_memory(
     State(state): State<Arc<AppState>>,
@@ -117,6 +153,20 @@ pub async fn create_memory(
 }
 
 /// PATCH /api/memories/:id
+#[utoipa::path(
+    patch,
+    path = "/api/memories/{id}",
+    tag = "Memory",
+    params(
+        ("id" = Uuid, Path, description = "Memory ID"),
+    ),
+    request_body = UpdateMemoryRequest,
+    responses(
+        (status = 200, description = "Memory updated", body = MemoryDto),
+        (status = 404, description = "Memory not found", body = ErrorResponse),
+        (status = 500, description = "Update error", body = ErrorResponse),
+    )
+)]
 #[instrument(skip(state, request))]
 pub async fn update_memory(
     State(state): State<Arc<AppState>>,
@@ -146,6 +196,19 @@ pub async fn update_memory(
 }
 
 /// DELETE /api/memories/:id
+#[utoipa::path(
+    delete,
+    path = "/api/memories/{id}",
+    tag = "Memory",
+    params(
+        ("id" = Uuid, Path, description = "Memory ID"),
+    ),
+    responses(
+        (status = 204, description = "Memory deleted"),
+        (status = 404, description = "Memory not found", body = ErrorResponse),
+        (status = 500, description = "Delete error", body = ErrorResponse),
+    )
+)]
 #[instrument(skip(state))]
 pub async fn delete_memory(
     State(state): State<Arc<AppState>>,
@@ -171,6 +234,16 @@ pub async fn delete_memory(
 }
 
 /// POST /api/memories/search
+#[utoipa::path(
+    post,
+    path = "/api/memories/search",
+    tag = "Memory",
+    request_body = SemanticSearchRequest,
+    responses(
+        (status = 200, description = "Search results", body = [SearchResultDto]),
+        (status = 500, description = "Search error", body = ErrorResponse),
+    )
+)]
 #[instrument(skip(state, request))]
 pub async fn search_memories(
     State(state): State<Arc<AppState>>,

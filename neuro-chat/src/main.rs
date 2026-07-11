@@ -1,19 +1,11 @@
-//! =============================================================================
-//! TACHIKOMA-OS Chat Service - Main Entry Point
-//! =============================================================================
-//! Microservice for chat interactions with LLM, streaming responses,
-//! and conversation management.
-//! 
-//! This service uses tachikoma-backend as the ONLY gateway to Ollama.
-//! All LLM operations go through the backend's /api/llm/* endpoints.
-//! =============================================================================
-
 use std::sync::Arc;
 use anyhow::Result;
 use axum::http::header;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
+
+use neuro_common::{init_tracing, serve};
 
 mod config;
 mod db;
@@ -28,7 +20,6 @@ pub use db::Database;
 pub use backend_client::BackendLlmClient;
 pub use memory_client::MemoryClient;
 
-/// Application state shared across handlers
 pub struct AppState {
     pub db: Database,
     pub llm_client: BackendLlmClient,
@@ -38,35 +29,19 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,tachikoma_chat=debug".into()),
-        )
-        .init();
+    init_tracing("info,tachikoma_chat=debug");
 
-    info!("💬 Starting TACHIKOMA-OS Chat Service...");
+    info!("Starting Chat service...");
 
-    // Load configuration
     let config = Config::from_env();
-    info!("Configuration loaded");
-    info!("  Backend URL: {}", config.backend_url);
-    info!("  Speculative decoding: {}", if config.speculative_enabled { "enabled" } else { "disabled" });
+    info!("Backend URL: {}", config.backend_url);
 
-    // Connect to database
     let db = Database::connect(&config).await?;
-    info!("✅ Connected to SurrealDB");
-
-    // Initialize schema
     db.initialize_schema().await?;
-    info!("✅ Database schema initialized");
 
-    // Create clients
     let llm_client = BackendLlmClient::new(&config.backend_url);
     let memory_client = MemoryClient::new(&config.memory_service_url);
 
-    // Create app state
     let state = Arc::new(AppState {
         db,
         llm_client,
@@ -74,7 +49,6 @@ async fn main() -> Result<()> {
         config: config.clone(),
     });
 
-    // CORS configuration
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
@@ -85,17 +59,11 @@ async fn main() -> Result<()> {
             header::CONNECTION,
         ]);
 
-    // Build router
     let app = routes::create_router(state)
         .layer(TraceLayer::new_for_http())
         .layer(cors);
 
-    // Start server
     let addr = format!("{}:{}", config.host, config.port);
-    let listener = tokio::net::TcpListener::bind(&addr).await?;
-    info!("🚀 Chat service listening on http://{}", addr);
-
-    axum::serve(listener, app).await?;
-
+    serve(&addr, app, "Chat").await?;
     Ok(())
 }

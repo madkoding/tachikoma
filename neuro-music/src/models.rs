@@ -163,35 +163,6 @@ impl From<YtDlpMetadata> for YouTubeMetadata {
 }
 
 // =============================================================================
-// Playback State
-// =============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PlaybackState {
-    pub current_song_id: Option<Uuid>,
-    pub current_playlist_id: Option<Uuid>,
-    pub is_playing: bool,
-    pub position: f64,
-    pub volume: f32,
-    pub shuffle: bool,
-    pub repeat_mode: RepeatMode,
-}
-
-impl Default for PlaybackState {
-    fn default() -> Self {
-        Self {
-            current_song_id: None,
-            current_playlist_id: None,
-            is_playing: false,
-            position: 0.0,
-            volume: 0.8,
-            shuffle: false,
-            repeat_mode: RepeatMode::Off,
-        }
-    }
-}
-
-// =============================================================================
 // Equalizer Settings
 // =============================================================================
 
@@ -280,31 +251,6 @@ pub struct ListeningEntry {
 }
 
 // =============================================================================
-// Search & Suggestions
-// =============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct YouTubeSearchResult {
-    pub youtube_id: String,
-    pub title: String,
-    pub channel: String,
-    pub duration: i64,
-    pub thumbnail: String,
-    pub view_count: Option<i64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SongSuggestion {
-    pub youtube_id: String,
-    pub title: String,
-    pub artist: Option<String>,
-    pub thumbnail: String,
-    pub duration: i64,
-    pub reason: String,
-    pub confidence: f32,
-}
-
-// =============================================================================
 // API Response Types
 // =============================================================================
 
@@ -317,10 +263,97 @@ pub struct StreamInfo {
     pub sample_rate: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CoverArtSearchResult {
-    pub source: String,
-    pub url: String,
-    pub width: Option<i32>,
-    pub height: Option<i32>,
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn sample_playlist() -> Playlist {
+        Playlist {
+            id: Uuid::new_v4(),
+            name: "My Mix".to_string(),
+            description: None,
+            cover_url: None,
+            is_suggestions: false,
+            is_favorites: false,
+            last_suggestions_update: None,
+            shuffle: false,
+            repeat_mode: RepeatMode::Off,
+            song_count: 0,
+            total_duration: 0,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    fn sample_song(playlist_id: Uuid) -> Song {
+        Song {
+            id: Uuid::new_v4(),
+            playlist_id,
+            youtube_id: "dQw4w9WgXcQ".to_string(),
+            youtube_url: "https://youtu.be/dQw4w9WgXcQ".to_string(),
+            title: "Test".to_string(),
+            artist: None,
+            album: None,
+            duration: 200,
+            cover_url: None,
+            thumbnail_url: None,
+            song_order: 0,
+            play_count: 0,
+            is_liked: false,
+            last_played: None,
+            created_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn playlist_serde_roundtrip() {
+        let p = sample_playlist();
+        let json = serde_json::to_string(&p).unwrap();
+        let back: Playlist = serde_json::from_str(&json).unwrap();
+        assert_eq!(p.id, back.id);
+        assert_eq!(format!("{}", p.repeat_mode), format!("{}", back.repeat_mode));
+    }
+
+    #[test]
+    fn song_serde_roundtrip() {
+        let s = sample_song(Uuid::new_v4());
+        let json = serde_json::to_string(&s).unwrap();
+        let back: Song = serde_json::from_str(&json).unwrap();
+        assert_eq!(s.youtube_id, back.youtube_id);
+        assert_eq!(s.duration, back.duration);
+    }
+
+    #[test]
+    fn repeat_mode_default_and_from_str() {
+        assert!(matches!(RepeatMode::default(), RepeatMode::Off));
+        let mode: RepeatMode = "one".parse().unwrap();
+        assert!(matches!(mode, RepeatMode::One));
+        assert!("bad".parse::<RepeatMode>().is_err());
+    }
+
+    #[test]
+    fn repeat_mode_serde_snake_case() {
+        let json = serde_json::to_string(&RepeatMode::All).unwrap();
+        assert_eq!(json, "\"all\"");
+        let back: RepeatMode = serde_json::from_str("\"one\"").unwrap();
+        assert!(matches!(back, RepeatMode::One));
+    }
+
+    #[test]
+    fn equalizer_settings_default_and_presets() {
+        let def = EqualizerSettings::default();
+        assert!(def.enabled);
+        assert!(def.preset.is_none());
+        assert_eq!(def.bands, [0.0; 16]);
+
+        let bass = EqualizerSettings::preset_bass_boost();
+        assert_eq!(bass.preset.as_deref(), Some("bass_boost"));
+        assert_eq!(bass.bands[0], 8.0);
+
+        let flat = EqualizerSettings::preset_flat();
+        assert!(flat.preset.is_none());
+    }
 }
+
+
