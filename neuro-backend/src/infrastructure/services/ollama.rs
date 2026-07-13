@@ -758,6 +758,17 @@ impl LlmProvider for OllamaClient {
     /// Generate embeddings for multiple texts
     #[instrument(skip(self, texts))]
     async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, DomainError> {
+        if texts.len() > 100 {
+            return Err(DomainError::llm_error(format!(
+                "Batch too large: {} texts (max 100)", texts.len()
+            )));
+        }
+        let total_chars: usize = texts.iter().map(|t| t.len()).sum();
+        if total_chars > 1_000_000 {
+            return Err(DomainError::llm_error(format!(
+                "Batch too large: {} total chars (max 1,000,000)", total_chars
+            )));
+        }
         let request = OllamaEmbeddingRequest {
             model: self.config.embedding_model.clone(),
             input: texts.to_vec(),

@@ -153,9 +153,9 @@ impl MemoryService {
         }
 
         // Generate embedding
-        info!("Generating embedding for content: {}...", &content[..content.len().min(50)]);
+        debug!("Generating embedding for content: {}...", &content[..content.len().min(50)]);
         let vector = self.llm_provider.embed(&content).await?;
-        info!("Embedding generated with {} dimensions", vector.len());
+        debug!("Embedding generated with {} dimensions", vector.len());
 
         // Search for similar existing memories (low threshold to find candidates)
         let similar_memories = self.repository

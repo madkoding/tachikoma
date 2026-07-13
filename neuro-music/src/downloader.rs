@@ -84,7 +84,9 @@ impl Downloader {
 
         if !status.success() {
             // Clean up temp file
-            let _ = fs::remove_file(&temp_path).await;
+            if let Err(e) = fs::remove_file(&temp_path).await {
+                warn!(error = %e, "Failed to clean up temp file after ffmpeg failure");
+            }
             return Err(format!("ffmpeg failed with status: {}", status));
         }
 

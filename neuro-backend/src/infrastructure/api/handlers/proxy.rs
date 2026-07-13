@@ -45,8 +45,14 @@ async fn proxy_to_service(
         }
     };
 
-    // Create HTTP client request
-    let client = reqwest::Client::new();
+    // Create HTTP client request with timeout
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| {
+            error!(error = %e, service = %service_name, "Failed to create HTTP client");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     let mut req_builder = client.request(method, &target_url);
 
     // Copy headers (except host)

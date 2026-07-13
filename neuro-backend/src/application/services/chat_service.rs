@@ -198,7 +198,7 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
     pub async fn detect_and_execute_tools(&self, message: &str) -> Vec<(String, String)> {
         let mut tools_used = Vec::new();
         
-        info!("🔍 Starting tool detection for message: {}", message);
+        debug!("Starting tool detection for message: {}", message);
 
         // STEP 1: Try fast keyword detection first (instant)
         let keyword_intent = self.fallback_keyword_detection(message);
@@ -409,7 +409,7 @@ Responde SOLO con la categoría, una sola palabra:"#,
         
         // Parse the simple response
         let content = result.content.trim().to_lowercase();
-        info!("🤖 LLM classification response: {}", content);
+        debug!("LLM classification response: {}", content);
         
         // Extract tool from response
         let tool = if content.contains("create_playlist") || content.contains("playlist") {
@@ -634,7 +634,7 @@ Responde SOLO con la categoría, una sola palabra:"#,
     #[instrument(skip(self, user_message), fields(message_len = user_message.len()))]
     pub async fn extract_and_store_memories(&self, user_message: &str) {
         // Use the intelligent knowledge extractor
-        info!("🧠 Starting intelligent knowledge extraction for: {}...", &user_message[..user_message.len().min(50)]);
+        debug!("Starting intelligent knowledge extraction for: {}...", &user_message[..user_message.len().min(50)]);
         
         match self.knowledge_extractor.learn_from_message(user_message).await {
             Ok(knowledge) => {
@@ -697,9 +697,9 @@ Responde SOLO con la categoría, una sola palabra:"#,
         // Check preferences
         for keyword in preference_keywords {
             if msg_lower.contains(keyword) {
-                info!("📝 Pattern matched preference keyword: '{}'", keyword);
+                debug!("Pattern matched preference keyword: '{}'", keyword);
                 if let Some(content) = self.extract_simple_content(user_message) {
-                    info!("💾 Storing preference via pattern: {}", content);
+                    debug!("Storing preference via pattern: {}", content);
                     let stored = self.store_memory(&content, MemoryType::Preference).await;
                     if stored {
                         info!("✅ Preference stored successfully via pattern fallback");

@@ -145,7 +145,7 @@ impl KnowledgeExtractor {
             return Ok(ExtractedKnowledge::default());
         }
 
-        info!("🧠 Starting knowledge extraction for: {}...", &message[..message.len().min(50)]);
+        debug!("Starting knowledge extraction for: {}...", &message[..message.len().min(50)]);
 
         // Extract knowledge using LLM
         let knowledge = self.extract_knowledge(message).await?;

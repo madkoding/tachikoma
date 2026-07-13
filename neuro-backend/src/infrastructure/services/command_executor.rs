@@ -111,9 +111,14 @@ impl CommandExecutor for SafeCommandExecutor {
 
         let start = std::time::Instant::now();
 
-        let mut cmd = Command::new("sh");
-        cmd.arg("-c")
-            .arg(command)
+        let parts: Vec<&str> = command.split_whitespace().collect();
+        if parts.is_empty() {
+            return Err(DomainError::command_error("Empty command"));
+        }
+        let program = parts[0];
+        let args = &parts[1..];
+        let mut cmd = Command::new(program);
+        cmd.args(args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 

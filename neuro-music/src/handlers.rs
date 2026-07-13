@@ -14,7 +14,7 @@ use std::{convert::Infallible, sync::Arc, time::Duration};
 use tokio::process::Command;
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 use tokio_util::io::ReaderStream;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::events::{MusicEvent, PlaylistEventData, SongEventData};
@@ -363,7 +363,9 @@ pub async fn stream_song(
         let body = Body::from_stream(stream);
 
         // Update play count
-        let _ = state.client.increment_play_count(song_id).await;
+        if let Err(e) = state.client.increment_play_count(song_id).await {
+            warn!(error = %e, "Failed to increment play count");
+        }
 
         return Ok(Response::builder()
             .status(StatusCode::OK)
@@ -412,7 +414,9 @@ pub async fn stream_song(
     let body = Body::from_stream(stream);
 
     // Update play count
-    let _ = state.client.increment_play_count(song_id).await;
+    if let Err(e) = state.client.increment_play_count(song_id).await {
+        warn!(error = %e, "Failed to increment play count");
+    }
 
     Ok(Response::builder()
         .status(StatusCode::OK)
@@ -804,7 +808,9 @@ pub async fn toggle_song_like(
                 thumbnail_url: updated_song.thumbnail_url.clone(),
             };
             
-            let _ = state.client.create_song(favorites.id, create_data, metadata).await;
+            if let Err(e) = state.client.create_song(favorites.id, create_data, metadata).await {
+                warn!(error = %e, "Failed to add song to favorites");
+            }
             info!(song_id = %song_id, "Added song to favorites");
         }
 
@@ -821,7 +827,9 @@ pub async fn toggle_song_like(
             .unwrap_or_default();
         
         if let Some(fav_song) = favorites_songs.iter().find(|s| s.youtube_id == updated_song.youtube_id) {
-            let _ = state.client.delete_song(fav_song.id).await;
+            if let Err(e) = state.client.delete_song(fav_song.id).await {
+                warn!(error = %e, "Failed to remove song from favorites");
+            }
             info!(song_id = %song_id, "Removed song from favorites");
         }
 
@@ -905,7 +913,9 @@ pub async fn refresh_suggestions(
     }
     
     // Clear current suggestions
-    let _ = state.client.clear_playlist_songs(suggestions.id).await;
+    if let Err(e) = state.client.clear_playlist_songs(suggestions.id).await {
+        warn!(error = %e, "Failed to clear suggestions playlist");
+    }
     
     // Build search queries based on top songs
     let mut added_youtube_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -969,7 +979,9 @@ pub async fn refresh_suggestions(
     }
     
     // Update suggestions timestamp
-    let _ = state.client.update_suggestions_timestamp(suggestions.id).await;
+    if let Err(e) = state.client.update_suggestions_timestamp(suggestions.id).await {
+        warn!(error = %e, "Failed to update suggestions timestamp");
+    }
     
     // Return updated playlist
     let updated_playlist = state.client.get_playlist_with_songs(suggestions.id).await

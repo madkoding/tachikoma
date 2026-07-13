@@ -25,7 +25,6 @@ Thumbs.db
 logs/
 
 # Rust
-Cargo.lock
 **/*.rs.bk
 
 # Debug

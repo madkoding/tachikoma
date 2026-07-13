@@ -18,7 +18,7 @@ use serde_json::json;
 use std::{convert::Infallible, sync::Arc, time::Duration};
 use surrealdb::sql::Datetime;
 use tokio::sync::mpsc;
-use tracing::error;
+use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -125,8 +125,12 @@ pub async fn send_message(
             let message_id = Uuid::new_v4();
             
             // Save messages to database
-            let _ = save_message(&state, conversation_id, MessageRole::User, &request.message).await;
-            let _ = save_message(&state, conversation_id, MessageRole::Assistant, &response.content).await;
+            if let Err(e) = save_message(&state, conversation_id, MessageRole::User, &request.message).await {
+                warn!(error = %e, "Failed to save user message");
+            }
+            if let Err(e) = save_message(&state, conversation_id, MessageRole::Assistant, &response.content).await {
+                warn!(error = %e, "Failed to save assistant message");
+            }
 
             let resp = SendMessageResponse {
                 content: response.content,
@@ -272,8 +276,12 @@ pub async fn stream_message(
         }
 
         // Save messages
-        let _ = save_message(&state_clone, conversation_id, MessageRole::User, &user_message).await;
-        let _ = save_message(&state_clone, conversation_id, MessageRole::Assistant, &full_content).await;
+        if let Err(e) = save_message(&state_clone, conversation_id, MessageRole::User, &user_message).await {
+            warn!(error = %e, "Failed to save user message during stream");
+        }
+        if let Err(e) = save_message(&state_clone, conversation_id, MessageRole::Assistant, &full_content).await {
+            warn!(error = %e, "Failed to save assistant message during stream");
+        }
 
         // Send done event
         yield Ok(Event::default()
@@ -574,8 +582,12 @@ pub async fn speculative_stream(
                 }
                 SpeculativeChunk::Done { stats } => {
                     // Save messages
-                    let _ = save_message(&state_clone, conversation_id, MessageRole::User, &user_message).await;
-                    let _ = save_message(&state_clone, conversation_id, MessageRole::Assistant, &full_content).await;
+                    if let Err(e) = save_message(&state_clone, conversation_id, MessageRole::User, &user_message).await {
+                        warn!(error = %e, "Failed to save user message during speculative stream");
+                    }
+                    if let Err(e) = save_message(&state_clone, conversation_id, MessageRole::Assistant, &full_content).await {
+                        warn!(error = %e, "Failed to save assistant message during speculative stream");
+                    }
 
                     // Send done event with stats
                     yield Ok(Event::default()

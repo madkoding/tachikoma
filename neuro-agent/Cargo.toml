@@ -7,7 +7,7 @@ description = "Agent tools microservice for TACHIKOMA-OS (search, commands)"
 [dependencies]
 neuro-common = { path = "../neuro-common" }
 axum = { workspace = true }
-tokio = { version = "1", features = ["full", "process"] }
+tokio = { workspace = true, features = ["process"] }
 tower-http = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

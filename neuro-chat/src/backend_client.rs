@@ -5,7 +5,6 @@
 //! All LLM operations go through the backend, which is the only gateway to Ollama.
 //! =============================================================================
 
-use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::mpsc;
@@ -216,52 +215,22 @@ impl BackendLlmClient {
             return;
         }
 
-        let mut stream = response.bytes_stream();
-        let mut buffer = String::new();
+        let (inner_tx, mut inner_rx) = mpsc::channel::<StreamChunk>(100);
+        let tx_clone = tx.clone();
+        tokio::spawn(async move {
+            if let Err(e) = neuro_common::sse::parse_sse_stream(response, inner_tx).await {
+                let _ = tx_clone.send(Err(e)).await;
+            }
+        });
 
-        while let Some(chunk_result) = stream.next().await {
-            match chunk_result {
-                Ok(bytes) => {
-                    buffer.push_str(&String::from_utf8_lossy(&bytes));
-                    
-                    // Process SSE lines
-                    while let Some(pos) = buffer.find("\n\n") {
-                        let event_block = buffer[..pos].to_string();
-                        buffer = buffer[pos + 2..].to_string();
-                        
-                        // Parse SSE event
-                        for line in event_block.lines() {
-                            if let Some(data) = line.strip_prefix("data:") {
-                                let data = data.trim();
-                                if data.is_empty() {
-                                    continue;
-                                }
-                                
-                                match serde_json::from_str::<StreamChunk>(data) {
-                                    Ok(chunk) => {
-                                        let is_done = matches!(&chunk, StreamChunk::Done { .. });
-                                        let is_error = matches!(&chunk, StreamChunk::Error { .. });
-                                        
-                                        if tx.send(Ok(chunk)).await.is_err() {
-                                            return;
-                                        }
-                                        
-                                        if is_done || is_error {
-                                            return;
-                                        }
-                                    }
-                                    Err(e) => {
-                                        debug!("Failed to parse stream chunk: {} - {}", e, data);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    let _ = tx.send(Err(e.to_string())).await;
-                    return;
-                }
+        while let Some(chunk) = inner_rx.recv().await {
+            let is_done = matches!(&chunk, StreamChunk::Done { .. });
+            let is_error = matches!(&chunk, StreamChunk::Error { .. });
+            if tx.send(Ok(chunk)).await.is_err() {
+                return;
+            }
+            if is_done || is_error {
+                return;
             }
         }
     }
@@ -311,53 +280,9 @@ impl BackendLlmClient {
             return;
         }
 
-        let mut stream = response.bytes_stream();
-        let mut buffer = String::new();
-
-        while let Some(chunk_result) = stream.next().await {
-            match chunk_result {
-                Ok(bytes) => {
-                    buffer.push_str(&String::from_utf8_lossy(&bytes));
-                    
-                    // Process SSE lines
-                    while let Some(pos) = buffer.find("\n\n") {
-                        let event_block = buffer[..pos].to_string();
-                        buffer = buffer[pos + 2..].to_string();
-                        
-                        // Parse SSE event
-                        for line in event_block.lines() {
-                            if let Some(data) = line.strip_prefix("data:") {
-                                let data = data.trim();
-                                if data.is_empty() {
-                                    continue;
-                                }
-                                
-                                match serde_json::from_str::<SpeculativeChunk>(data) {
-                                    Ok(chunk) => {
-                                        let is_done = matches!(&chunk, SpeculativeChunk::Done { .. });
-                                        let is_error = matches!(&chunk, SpeculativeChunk::Error { .. });
-                                        
-                                        if tx.send(chunk).await.is_err() {
-                                            return;
-                                        }
-                                        
-                                        if is_done || is_error {
-                                            return;
-                                        }
-                                    }
-                                    Err(e) => {
-                                        debug!("Failed to parse speculative chunk: {} - {}", e, data);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    let _ = tx.send(SpeculativeChunk::Error { message: e.to_string() }).await;
-                    return;
-                }
-            }
+        let tx_err = tx.clone();
+        if let Err(e) = neuro_common::sse::parse_sse_stream(response, tx).await {
+            let _ = tx_err.send(SpeculativeChunk::Error { message: e }).await;
         }
     }
 

@@ -5,16 +5,14 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
-use neuro_common::{init_tracing, serve};
+use neuro_common::{init_tracing, serve, db::Database};
 
 mod config;
-mod db;
 mod handlers;
 mod models;
 mod routes;
 
 pub use config::Config;
-pub use db::Database;
 
 pub struct AppState {
     pub db: Database,
@@ -29,8 +27,36 @@ async fn main() -> Result<()> {
 
     let config = Config::from_env();
 
-    let db = Database::connect(&config).await?;
-    db.initialize_schema().await?;
+    let db = Database::connect(
+        &config.database_url,
+        &config.database_user,
+        &config.database_pass,
+        &config.database_ns,
+        &config.database_db,
+    ).await?;
+
+    let schema = vec![
+        "DEFINE TABLE memory SCHEMAFULL",
+        "DEFINE FIELD content ON memory TYPE string",
+        "DEFINE FIELD vector ON memory TYPE array<float>",
+        "DEFINE FIELD memory_type ON memory TYPE string",
+        "DEFINE FIELD metadata ON memory TYPE object",
+        "DEFINE FIELD created_at ON memory TYPE datetime",
+        "DEFINE FIELD updated_at ON memory TYPE datetime",
+        "DEFINE FIELD access_count ON memory TYPE int DEFAULT 0",
+        "DEFINE FIELD importance_score ON memory TYPE float DEFAULT 0.5",
+        "DEFINE INDEX memory_type_idx ON memory FIELDS memory_type",
+        "DEFINE INDEX memory_created_idx ON memory FIELDS created_at",
+        "DEFINE INDEX memory_importance_idx ON memory FIELDS importance_score",
+        "DEFINE TABLE related_to SCHEMAFULL",
+        "DEFINE FIELD in ON related_to TYPE record<memory>",
+        "DEFINE FIELD out ON related_to TYPE record<memory>",
+        "DEFINE FIELD relation_type ON related_to TYPE string",
+        "DEFINE FIELD confidence ON related_to TYPE float DEFAULT 1.0",
+        "DEFINE FIELD created_at ON related_to TYPE datetime",
+        "DEFINE FIELD metadata ON related_to TYPE object",
+    ];
+    db.initialize_schema(&schema).await?;
 
     let state = Arc::new(AppState {
         db,
