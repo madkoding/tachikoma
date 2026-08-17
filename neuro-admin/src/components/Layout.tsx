@@ -1,12 +1,21 @@
 import { Outlet, NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useState } from 'react';
 import clsx from 'clsx';
+import { getMode, changeMode, UIMode } from '../mode';
 
 export default function Layout() {
   const { t, i18n } = useTranslation();
+  const [mode, setMode] = useState<UIMode>(getMode());
 
   const toggleLanguage = () => {
     i18n.changeLanguage(i18n.language === 'en' ? 'es' : 'en');
+  };
+
+  const toggleMode = () => {
+    const next: UIMode = mode === 'simple' ? 'advanced' : 'simple';
+    changeMode(next);
+    setMode(next);
   };
 
   return (
@@ -29,7 +38,15 @@ export default function Layout() {
           <NavItem to="/graph" icon={<GraphIcon />} label={t('nav.graph')} />
         </nav>
 
-        <div className="absolute bottom-4 left-1 right-1">
+        <div className="absolute bottom-4 left-1 right-1 space-y-1">
+          {/* Mode toggle */}
+          <button
+            onClick={toggleMode}
+            className="w-full flex items-center justify-center px-2 py-2 text-sm text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all border border-transparent hover:border-cyber-cyan/30 font-mono"
+            title={mode === 'simple' ? t('mode.advancedHint') : t('mode.simpleHint')}
+          >
+            {mode === 'simple' ? <AdvancedIcon /> : <SimpleIcon />}
+          </button>
           <button
             onClick={toggleLanguage}
             className="w-full flex items-center justify-center px-2 py-2 text-sm text-cyber-cyan/70 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded-lg transition-all border border-transparent hover:border-cyber-cyan/30 font-mono"
@@ -119,6 +136,25 @@ function LanguageIcon() {
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
             d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+    </svg>
+  );
+}
+
+// Simple mode icon (grid) — shows when currently in simple, click to go advanced
+function AdvancedIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+}
+
+// Advanced mode icon (sliders) — shows when in advanced, click to go simple
+function SimpleIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
     </svg>
   );
 }

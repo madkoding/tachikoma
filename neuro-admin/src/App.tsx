@@ -2,6 +2,8 @@ import { Routes, Route } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import Layout from './components/Layout';
 import DashboardPage from './pages/DashboardPage';
+import SimpleDashboard from './pages/SimpleDashboard';
+import { getMode } from './mode';
 
 const GraphPage = lazy(() => import('./pages/GraphPage'));
 
@@ -14,10 +16,13 @@ function GraphPageLoader() {
 }
 
 export default function App() {
+  // Simple mode is default; advanced (full admin) only when toggled.
+  const simple = getMode() === 'simple';
+
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
-        <Route index element={<DashboardPage />} />
+        <Route index element={simple ? <SimpleDashboard /> : <DashboardPage />} />
         <Route path="graph" element={
           <Suspense fallback={<GraphPageLoader />}>
             <GraphPage />

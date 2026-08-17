@@ -1,5 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import MainSidebar from './MainSidebar';
+import ToastContainer from '../common/ToastContainer';
+import StatusBar from '../common/StatusBar';
 
 export default function Layout() {
   return (
@@ -9,8 +11,14 @@ export default function Layout() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
-        <Outlet />
+        <div className="flex-1 overflow-hidden">
+          <Outlet />
+        </div>
+        <StatusBar />
       </main>
+
+      {/* Global toast notifications */}
+      <ToastContainer />
     </div>
   );
 }
