@@ -43,6 +43,8 @@ export default api;
 
 export * from './chat';
 export * from './health';
+export * from './system';
+export * from './models';
 export * from './checklists';
 export * from './music';
 export * from './pomodoro';
