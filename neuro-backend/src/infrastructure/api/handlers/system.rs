@@ -216,3 +216,83 @@ fn rustc_version() -> String {
     // This would be set at compile time in a real implementation
     "1.75.0".to_string()
 }
+
+/// =============================================================================
+/// Hardware detection (Fase 1.2)
+/// =============================================================================
+/// GET /api/system/hardware
+/// Detects CPU, RAM, free disk, and GPU (NVIDIA via nvidia-smi) for the
+/// onboarding wizard. `ponytail:` naive detection — AMD/Apple Metal deferred
+/// until a GPU is actually reported.
+/// =============================================================================
+#[derive(Debug, serde::Serialize, ToSchema)]
+pub struct HardwareProfileDto {
+    pub cpu_cores: usize,
+    pub ram_gb: f64,
+    pub disk_free_gb: f64,
+    pub gpu_vendor: String,
+    pub gpu_model: String,
+    pub vram_gb: f64,
+    pub recommended_model_size: String,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/system/hardware",
+    tag = "Health",
+    responses(
+        (status = 200, description = "Detected hardware profile", body = HardwareProfileDto),
+    )
+)]
+pub async fn hardware_profile() -> Json<HardwareProfileDto> {
+    use sysinfo::{Disks, System};
+
+    let mut sys = System::new_all();
+    sys.refresh_all();
+    let cpu_cores = sys.cpus().len();
+    let ram_gb = sys.total_memory() as f64 / 1024.0 / 1024.0 / 1024.0;
+
+    let disks = Disks::new_with_refreshed_list();
+    let disk_free_gb = disks
+        .iter()
+        .map(|d| d.available_space() as f64 / 1024.0 / 1024.0 / 1024.0)
+        .fold(0.0, f64::max);
+
+    let (gpu_vendor, gpu_model, vram_gb) = detect_gpu();
+
+    let recommended_model_size = if vram_gb >= 8.0 {
+        "large".to_string()
+    } else if vram_gb >= 4.0 {
+        "medium".to_string()
+    } else {
+        "small".to_string()
+    };
+
+    Json(HardwareProfileDto {
+        cpu_cores,
+        ram_gb,
+        disk_free_gb,
+        gpu_vendor,
+        gpu_model,
+        vram_gb,
+        recommended_model_size,
+    })
+}
+
+fn detect_gpu() -> (String, String, f64) {
+    let out = std::process::Command::new("nvidia-smi")
+        .args(["--query-gpu=name,memory.total", "--format=csv,noheader,nounits"])
+        .output();
+    if let Ok(o) = out {
+        if o.status.success() {
+            let text = String::from_utf8_lossy(&o.stdout);
+            let line = text.lines().next().unwrap_or("");
+            let parts: Vec<&str> = line.split(',').map(str::trim).collect();
+            if parts.len() == 2 {
+                let vram = parts[1].parse::<f64>().unwrap_or(0.0) / 1024.0; // MiB -> GiB
+                return ("nvidia".into(), parts[0].to_string(), vram);
+            }
+        }
+    }
+    (String::new(), String::new(), 0.0)
+}

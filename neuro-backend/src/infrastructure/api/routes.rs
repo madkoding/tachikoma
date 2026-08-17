@@ -45,6 +45,7 @@ use crate::AppState;
         handlers::system::health_check,
         handlers::system::list_models,
         handlers::system::system_info,
+        handlers::system::hardware_profile,
         handlers::memory::list_memories,
         handlers::memory::create_memory,
         handlers::memory::get_memory,
@@ -57,6 +58,7 @@ use crate::AppState;
         handlers::llm::llm_embed,
         handlers::llm::llm_chat,
         handlers::llm::llm_generate,
+        handlers::llm::llm_pull_model,
         handlers::agent::web_search,
         handlers::agent::execute_command,
         handlers::graph::get_graph_stats,
@@ -87,6 +89,7 @@ use crate::AppState;
         dto::ModelInfoDto,
         dto::ErrorResponse,
         handlers::system::SystemInfoDto,
+        handlers::system::HardwareProfileDto,
         crate::domain::ports::llm_provider::LlmHealthStatus,
         crate::domain::ports::llm_provider::ChatMessage,
         handlers::llm::EmbedRequest,
@@ -94,6 +97,8 @@ use crate::AppState;
         handlers::llm::ChatRequest,
         handlers::llm::GenerateRequest,
         handlers::llm::GenerateResponse,
+        handlers::llm::PullModelRequest,
+        handlers::llm::PullModelResponse,
     )),
 )]
 pub struct ApiDoc;
@@ -124,6 +129,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/live", get(handlers::liveness_check))
         .route("/models", get(handlers::list_models))
         .route("/system/info", get(handlers::system_info))
+        .route("/system/hardware", get(handlers::hardware_profile))
         // Chat
         .route("/chat", post(handlers::send_message))
         .route("/chat/stream", post(handlers::stream_message))
@@ -182,6 +188,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
             post(handlers::llm_speculative_stream),
         )
         .route("/llm/generate", post(handlers::llm_generate))
+        .route("/llm/models/pull", post(handlers::llm_pull_model))
         // =====================================================================
         // Data Layer - Direct Database Access for Microservices
         // =====================================================================
