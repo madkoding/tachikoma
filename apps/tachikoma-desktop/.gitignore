@@ -1,0 +1,9 @@
+# Tauri build artifacts
+node_modules/
+src-tauri/target/
+src-tauri/binaries/
+src-tauri/gen/
+src-tauri/WixTools/
+
+# macOS
+.DS_Store

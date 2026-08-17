@@ -33,3 +33,6 @@ debug/
 # Local data
 data/
 *.db
+
+# Vendored sidecar binaries (downloaded, not committed)
+vendor/
