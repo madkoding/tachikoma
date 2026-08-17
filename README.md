@@ -71,6 +71,33 @@ Ollama runs independently in the [tachikoma-ollama](https://github.com/madkoding
 
 **Important**: All LLM operations (chat, embeddings, speculative decoding) go through tachikoma-backend's `/api/llm/*` endpoints. Microservices should NOT connect directly to Ollama.
 
+### LLM Provider
+
+The backend supports three LLM backends, selected via `LLM_PROVIDER`:
+
+- **`ollama`** (default): native Ollama API at `OLLAMA_URL` (default `http://localhost:11434`).
+- **`openai`**: any OpenAI-compatible API (OpenAI, Groq, Together, OpenRouter, LM Studio, vLLM, ...). Configure via `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_DEFAULT_MODEL`, `OPENAI_EMBEDDING_MODEL`.
+- **`ollama_cloud`**: Ollama Cloud (`https://ollama.com/v1`). Set `OPENAI_API_KEY` to your Ollama Cloud key.
+
+Example — use Ollama Cloud:
+```bash
+LLM_PROVIDER=ollama_cloud \
+OPENAI_API_KEY=ollama_xxxxxxxx \
+OPENAI_DEFAULT_MODEL=llama3.3:70b \
+OPENAI_EMBEDDING_MODEL=nomic-embed-text \
+cargo run -p tachikoma-backend
+```
+
+Example — use a local LM Studio server:
+```bash
+LLM_PROVIDER=openai \
+OPENAI_BASE_URL=http://localhost:1234/v1 \
+OPENAI_API_KEY= \
+OPENAI_DEFAULT_MODEL=local-model \
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small \
+cargo run -p tachikoma-backend
+```
+
 ### Planned Microservices
 
 | Service | Port | Description |
@@ -113,6 +140,11 @@ Ollama runs independently in the [tachikoma-ollama](https://github.com/madkoding
   - i18n support (English/Spanish)
   - Conversation history with grouping
   - Typing indicators and markdown rendering
+  - **Guided onboarding wizard** (hardware detection → model size → first agent)
+  - Toast notifications + live system status bar
+  - **Agent templates**: research, data analyst, code reviewer, support, writer
+  - **Model manager**: catalog, download with progress, activate, hardware filter
+  - **Plugin manager**: install/uninstall tools & connectors from a catalog
   - **Desktop build**: See [TACHIKOMA_DESKTOP_SETUP.md](TACHIKOMA_DESKTOP_SETUP.md)
 
 - **Admin UI**: Memory graph management dashboard
@@ -120,6 +152,7 @@ Ollama runs independently in the [tachikoma-ollama](https://github.com/madkoding
   - Statistics dashboard with charts
   - Memory CRUD operations
   - System health monitoring
+  - **Two modes**: Simple (default) and Advanced — toggle in the sidebar
 
 ### 🐚 Z-Brain CLI
 - Interactive shell for terminal-based interaction
@@ -137,6 +170,8 @@ kibo/
 ├── config/
 │   └── searxng/
 │       └── settings.yml        # Searxng configuration
+├── apps/
+│   └── tachikoma-desktop/      # Tauri v2 desktop shell + sidecar manager
 ├── tachikoma-backend/              # API Gateway (Rust/Axum)
 │   └── src/
 │       ├── domain/             # Entities, Value Objects
@@ -145,6 +180,7 @@ kibo/
 ├── tachikoma-checklists/           # Checklist microservice
 ├── tachikoma-music/                # Music streaming microservice
 ├── tachikoma-chat/                 # LLM chat microservice
+├── neuro-plugin/                   # Plugin registry crate (hot-reload, WASM behind feature)
 ├── tachikoma-memory/               # GraphRAG memory microservice
 ├── tachikoma-agent/                # Agent tools microservice
 ├── tachikoma-voice/                # TTS microservice
@@ -203,14 +239,18 @@ npm install
 npm run dev
 ```
 
-**Desktop version:**
+**Desktop version (Tauri v2):**
 ```bash
-cd tachikoma-ui
+cd apps/tachikoma-desktop
 npm install
-npm run tauri:dev  # Development with hot-reload
+./scripts/build-sidecars.sh   # build backend sidecars for host triple
+npm run tauri:dev             # development with hot-reload
 # Or for production build:
-npm run tauri:build  # Generates native executable
+npm run tauri:build           # generates .deb/.rpm/.AppImage (Linux)
 ```
+
+The desktop app bundles the Rust backend (SurrealDB + API gateway) as
+supervised sidecar processes. See [apps/tachikoma-desktop/README.md](apps/tachikoma-desktop/README.md).
 
 See [TACHIKOMA_DESKTOP_SETUP.md](TACHIKOMA_DESKTOP_SETUP.md) for complete desktop build guide.
 

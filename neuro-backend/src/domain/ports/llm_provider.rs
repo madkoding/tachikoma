@@ -95,6 +95,8 @@ pub struct LlmHealthStatus {
     pub models: Vec<String>,
     /// Provider URL
     pub provider_url: String,
+    /// Provider type: "ollama" | "openai"
+    pub provider: String,
     /// Error message if unhealthy
     pub error: Option<String>,
 }

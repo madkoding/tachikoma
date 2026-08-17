@@ -924,6 +924,7 @@ impl LlmProvider for OllamaClient {
                         models_count: models.len(),
                         models: model_names,
                         provider_url: self.config.url.clone(),
+                        provider: "ollama".to_string(),
                         error: None,
                     })
                 } else {
@@ -932,6 +933,7 @@ impl LlmProvider for OllamaClient {
                         models_count: 0,
                         models: vec![],
                         provider_url: self.config.url.clone(),
+                        provider: "ollama".to_string(),
                         error: Some(format!("HTTP {}", response.status())),
                     })
                 }
@@ -942,6 +944,7 @@ impl LlmProvider for OllamaClient {
                     models_count: 0,
                     models: vec![],
                     provider_url: self.config.url.clone(),
+                    provider: "ollama".to_string(),
                     error: Some(e.to_string()),
                 })
             }

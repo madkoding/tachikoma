@@ -59,7 +59,7 @@ use crate::infrastructure::{
     api::{create_router, handlers::system::init_start_time},
     config::Config,
     database::{DatabasePool, SurrealDbRepository, SurrealChecklistRepository, SurrealKanbanRepository, SurrealMusicRepository},
-    services::{OllamaClient, SafeCommandExecutor, SearxngClient, VoiceEngine, VoiceConfig},
+    services::{OllamaClient, OpenAiClient, SafeCommandExecutor, SearxngClient, VoiceEngine, VoiceConfig},
 };
 
 // ANSI color codes for terminal output
@@ -96,7 +96,7 @@ async fn warm_up_model(llm_provider: &Arc<dyn crate::domain::ports::llm_provider
     // Spawn warmup task
     let llm = llm_provider.clone();
     let warmup_handle = tokio::spawn(async move {
-        llm.generate("hi", Some("qwen3:0.6b")).await
+        llm.generate("hi", None).await
     });
     
     // Animate spinner while waiting
@@ -239,10 +239,32 @@ async fn main() -> Result<()> {
     // -------------------------------------------------------------------------
     // Initialize external service clients
     // -------------------------------------------------------------------------
-    print_step(2, TOTAL_STEPS, "Initializing Ollama client...");
-    let ollama_client = OllamaClient::new(config.ollama.clone());
-    let llm_provider: Arc<dyn LlmProvider + Send + Sync> = Arc::new(ollama_client);
-    print_done(2, TOTAL_STEPS, "Ollama client ready");
+    print_step(2, TOTAL_STEPS, "Initializing LLM client...");
+    let llm_provider: Arc<dyn LlmProvider + Send + Sync> = match config.llm_provider.as_str() {
+        "openai" => {
+            let client = OpenAiClient::new(config.openai.clone());
+            print_done(2, TOTAL_STEPS, "OpenAI-compatible client ready");
+            Arc::new(client)
+        }
+        "ollama_cloud" => {
+            // Ollama Cloud exposes an OpenAI-compatible /v1 API.
+            let mut cfg = config.openai.clone();
+            if cfg.base_url == "https://api.openai.com/v1" {
+                cfg.base_url = "https://ollama.com/v1".to_string();
+            }
+            if cfg.provider == "openai" {
+                cfg.provider = "ollama_cloud".to_string();
+            }
+            let client = OpenAiClient::new(cfg);
+            print_done(2, TOTAL_STEPS, "Ollama Cloud client ready");
+            Arc::new(client)
+        }
+        _ => {
+            let client = OllamaClient::new(config.ollama.clone());
+            print_done(2, TOTAL_STEPS, "Ollama client ready");
+            Arc::new(client)
+        }
+    };
     
     // Warm up the model (preload to GPU memory)
     print_step(3, TOTAL_STEPS, "Preloading LLM model to GPU...");

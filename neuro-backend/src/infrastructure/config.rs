@@ -18,9 +18,15 @@ pub struct Config {
     /// Database configuration
     pub database: DatabaseConfig,
     
+    /// LLM provider selection ("ollama" | "openai")
+    pub llm_provider: String,
+
     /// Ollama configuration
     pub ollama: OllamaConfig,
-    
+
+    /// OpenAI-compatible configuration
+    pub openai: OpenAiConfig,
+
     /// Searxng configuration
     pub searxng: SearxngConfig,
     
@@ -55,7 +61,10 @@ impl Config {
         Ok(Self {
             server: ServerConfig::from_env()?,
             database: DatabaseConfig::from_env()?,
+            llm_provider: std::env::var("LLM_PROVIDER")
+                .unwrap_or_else(|_| "ollama".to_string()),
             ollama: OllamaConfig::from_env()?,
+            openai: OpenAiConfig::from_env()?,
             searxng: SearxngConfig::from_env()?,
             microservices: MicroservicesConfig::from_env(),
         })
@@ -174,6 +183,47 @@ impl OllamaConfig {
                 .unwrap_or_else(|_| "qwen3:0.6b".to_string()),
             embedding_model: std::env::var("OLLAMA_EMBEDDING_MODEL")
                 .unwrap_or_else(|_| "nomic-embed-text".to_string()),
+        })
+    }
+}
+
+/// =============================================================================
+/// OpenAiConfig - OpenAI-compatible API configuration
+/// =============================================================================
+/// Any provider exposing the OpenAI Chat Completions API (OpenAI, Groq,
+/// Together, OpenRouter, LM Studio, vLLM, etc.) can be used.
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpenAiConfig {
+    /// Base URL of the OpenAI-compatible API (e.g. https://api.openai.com/v1)
+    pub base_url: String,
+    /// API key (empty for local providers like LM Studio / vLLM)
+    pub api_key: String,
+    /// Default chat model
+    pub default_model: String,
+    /// Embedding model
+    pub embedding_model: String,
+    /// Request timeout in seconds
+    pub timeout_secs: u64,
+    /// Provider label reported in health ("openai" | "ollama_cloud")
+    pub provider: String,
+}
+
+impl OpenAiConfig {
+    pub fn from_env() -> Result<Self> {
+        Ok(Self {
+            base_url: std::env::var("OPENAI_BASE_URL")
+                .unwrap_or_else(|_| "https://api.openai.com/v1".to_string()),
+            api_key: std::env::var("OPENAI_API_KEY").unwrap_or_default(),
+            default_model: std::env::var("OPENAI_DEFAULT_MODEL")
+                .unwrap_or_else(|_| "gpt-4o-mini".to_string()),
+            embedding_model: std::env::var("OPENAI_EMBEDDING_MODEL")
+                .unwrap_or_else(|_| "text-embedding-3-small".to_string()),
+            timeout_secs: std::env::var("OPENAI_TIMEOUT_SECS")
+                .unwrap_or_else(|_| "120".to_string())
+                .parse()
+                .unwrap_or(120),
+            provider: std::env::var("OPENAI_PROVIDER")
+                .unwrap_or_else(|_| "openai".to_string()),
         })
     }
 }

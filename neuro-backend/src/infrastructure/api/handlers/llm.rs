@@ -110,6 +110,7 @@ pub async fn llm_health(
             models_count: 0,
             models: vec![],
             provider_url: "unknown".to_string(),
+            provider: "unknown".to_string(),
             error: Some(e.to_string()),
         }
     });
@@ -301,5 +302,46 @@ pub async fn llm_generate(
         model: result.model,
         prompt_tokens: result.prompt_tokens,
         completion_tokens: result.completion_tokens,
+    }))
+}
+
+/// =============================================================================
+/// Pull (download) a model
+/// =============================================================================
+/// POST /api/llm/models/pull
+/// =============================================================================
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct PullModelRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PullModelResponse {
+    pub name: String,
+    pub status: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/llm/models/pull",
+    tag = "LLM Gateway",
+    request_body = PullModelRequest,
+    responses(
+        (status = 200, description = "Model pulled", body = PullModelResponse),
+        (status = 500, description = "Pull error"),
+    )
+)]
+pub async fn llm_pull_model(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<PullModelRequest>,
+) -> Result<Json<PullModelResponse>, (axum::http::StatusCode, String)> {
+    debug!("Pulling model: {}", request.name);
+
+    state.llm_provider.pull_model(&request.name).await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(PullModelResponse {
+        name: request.name,
+        status: "ok".to_string(),
     }))
 }
