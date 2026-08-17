@@ -12,6 +12,8 @@ import Sidebar from '../components/Sidebar';
 import TypingIndicator from '../components/TypingIndicator';
 import WelcomeScreen from '../components/WelcomeScreen';
 import { useVoiceStream } from '../hooks/useVoiceStream';
+import { getActiveTemplate } from '../stores/agentStore';
+import { useModelsStore } from '../stores/modelsStore';
 
 // Helper to detect complete sentences for progressive voice synthesis
 const SENTENCE_ENDINGS = /[.!?。！？]+\s*/g;
@@ -181,6 +183,8 @@ export default function ChatPage() {
         message: content,
         conversation_id: convId,
         stream: true,
+        system_prompt: getActiveTemplate()?.systemPrompt,
+        model: useModelsStore.getState().activeModel ?? undefined,
       },
       // On chunk - update message content AND progressively synthesize voice
       (chunk: string) => {

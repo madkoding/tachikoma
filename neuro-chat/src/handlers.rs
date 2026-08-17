@@ -70,6 +70,11 @@ pub async fn send_message(
     let start = std::time::Instant::now();
     // Model is optional - backend will use defaults if not specified
     let model = request.model.clone();
+    // Agent persona: use provided system_prompt or the default
+    let system_prompt = request
+        .system_prompt
+        .clone()
+        .unwrap_or_else(get_system_prompt);
     
     // Get or create conversation
     let conversation_id = match request.conversation_id {
@@ -83,7 +88,7 @@ pub async fn send_message(
     // Add system prompt
     messages.push(LlmMessage {
         role: "system".to_string(),
-        content: get_system_prompt(),
+        content: system_prompt.clone(),
     });
 
     // Add memory context if enabled
@@ -157,6 +162,11 @@ pub async fn stream_message(
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     // Model is optional - backend will use defaults if not specified
     let model = request.model.clone();
+    // Agent persona: use provided system_prompt or the default
+    let system_prompt = request
+        .system_prompt
+        .clone()
+        .unwrap_or_else(get_system_prompt);
     
     // Get or create conversation
     let conversation_id = match request.conversation_id {
@@ -169,7 +179,7 @@ pub async fn stream_message(
     
     messages.push(LlmMessage {
         role: "system".to_string(),
-        content: get_system_prompt(),
+        content: system_prompt.clone(),
     });
 
     // Add memory context
@@ -482,6 +492,10 @@ pub async fn speculative_stream(
     let target_model = request.target_model.clone();
     let lookahead = request.lookahead
         .unwrap_or(state.config.speculative_lookahead);
+    let system_prompt = request
+        .system_prompt
+        .clone()
+        .unwrap_or_else(get_system_prompt);
 
     // Get or create conversation
     let conversation_id = match request.conversation_id {
@@ -494,7 +508,7 @@ pub async fn speculative_stream(
     
     messages.push(LlmMessage {
         role: "system".to_string(),
-        content: get_system_prompt(),
+        content: system_prompt.clone(),
     });
 
     // Add memory context

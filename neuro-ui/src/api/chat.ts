@@ -4,6 +4,8 @@ export interface ChatMessageRequest {
   message: string;
   conversation_id?: string;
   stream?: boolean;
+  system_prompt?: string;
+  model?: string;
 }
 
 export interface ChatMessageResponse {

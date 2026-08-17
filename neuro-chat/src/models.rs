@@ -133,6 +133,8 @@ pub struct SendMessageRequest {
     pub message: String,
     pub conversation_id: Option<Uuid>,
     pub model: Option<String>,
+    /// Optional agent persona / system prompt. Falls back to the default when absent.
+    pub system_prompt: Option<String>,
     #[serde(default)]
     pub include_memories: bool,
 }
@@ -194,6 +196,8 @@ pub struct SpeculativeMessageRequest {
     pub conversation_id: Option<Uuid>,
     #[serde(default)]
     pub include_memories: bool,
+    /// Override the agent persona / system prompt.
+    pub system_prompt: Option<String>,
     /// Override draft model (small/fast) - defaults to Light tier
     pub draft_model: Option<String>,
     /// Override target model (large/accurate) - defaults to Standard tier

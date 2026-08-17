@@ -3,7 +3,12 @@ import { useEffect } from 'react';
 import Layout from './components/layout/Layout';
 import { NoConnectionScreen } from './components/NoConnectionScreen';
 import { useConnectionStatus } from './hooks/useConnectionStatus';
+import OnboardingWizard from './components/onboarding/OnboardingWizard';
+import { useOnboardingStore } from './stores/onboardingStore';
 import ChatPage from './pages/ChatPage';
+import AgentsPage from './pages/AgentsPage';
+import ModelsPage from './pages/ModelsPage';
+import PluginsPage from './pages/PluginsPage';
 import ChecklistsPage from './pages/ChecklistsPage';
 import KanbanPage from './pages/KanbanPage';
 import NotesPage from './pages/NotesPage';
@@ -18,6 +23,7 @@ import { useThemeStore } from './stores/themeStore';
 function App() {
   const { theme } = useThemeStore();
   const { isConnected, isChecking, error, retry } = useConnectionStatus();
+  const onboarded = useOnboardingStore((s) => s.onboarded);
 
   // Apply theme to document
   useEffect(() => {
@@ -37,9 +43,16 @@ function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+        {!onboarded ? (
+          <OnboardingWizard />
+        ) : (
+          <>
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<ChatPage />} />
+            <Route path="/agents" element={<AgentsPage />} />
+            <Route path="/models" element={<ModelsPage />} />
+            <Route path="/plugins" element={<PluginsPage />} />
             <Route path="/chat/:conversationId?" element={<ChatPage />} />
             <Route path="/checklists" element={<ChecklistsPage />} />
             <Route path="/kanban" element={<KanbanPage />} />
@@ -65,6 +78,8 @@ function App() {
             onRetry={retry}
             isChecking={isChecking}
           />
+        )}
+          </>
         )}
       </div>
     </BrowserRouter>
