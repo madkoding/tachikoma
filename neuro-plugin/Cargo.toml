@@ -1,0 +1,14 @@
+[package]
+name = "neuro-plugin"
+version = "0.1.0"
+edition = "2021"
+description = "Plugin system for TACHIKOMA-OS agents: tools, memory backends, model adapters"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

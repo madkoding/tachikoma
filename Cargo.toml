@@ -12,6 +12,7 @@ members = [
     "neuro-checklists",
     "neuro-pomodoro",
     "neuro-voice",
+    "neuro-plugin",
 ]
 exclude = ["zbrain"]
 
