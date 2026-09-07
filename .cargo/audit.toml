@@ -1,0 +1,16 @@
+# cargo-audit configuration
+#
+# Advisories ignorados: TODAS son transitivas de surrealdb 1.5.6 (la última 1.x).
+# El fix requiere surrealdb 2.x (breaking, API distinta) o no existe (rsa).
+# Mismo criterio que npm audit en CI: no fallar en findings que requieren
+# upgrades breaking de majors. Revisar al migrar a surrealdb 2.x.
+[advisories]
+ignore = [
+  "RUSTSEC-2026-0258", # h2 0.3.27 (via surrealdb 1.5.6 -> reqwest/hyper)
+  "RUSTSEC-2024-0358", # object_store 0.8.0 (via surrealdb-core 1.5.6)
+  "RUSTSEC-2025-0009", # ring 0.16.20 (via surrealdb-jsonwebtoken)
+  "RUSTSEC-2023-0071", # rsa 0.9.10 (via surrealdb-jsonwebtoken) - NO HAY FIX
+  "RUSTSEC-2026-0098", # rustls-webpki 0.101.7 (via rustls 0.21 de surrealdb)
+  "RUSTSEC-2026-0099", # rustls-webpki 0.101.7 (idem)
+  "RUSTSEC-2026-0104", # rustls-webpki 0.101.7 (idem)
+]
