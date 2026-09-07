@@ -54,6 +54,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: apps/tachikoma-desktop/package-lock.json
       - run: npm ci
+      - name: Build neuro-ui frontend (frontendDist requerido por tauri_build)
+        working-directory: neuro-ui
+        run: |
+          npm ci
+          npm run build
       - name: Prepare sidecar binaries
         run: |
           mkdir -p src-tauri/binaries
