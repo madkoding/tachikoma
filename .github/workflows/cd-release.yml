@@ -17,7 +17,7 @@ jobs:
         service: [neuro-backend, neuro-chat, neuro-memory, neuro-agent, neuro-voice, neuro-music]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-action@stable
+      - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --release -p ${{ matrix.service }}
       - run: mkdir -p artifacts && cp target/release/${{ matrix.service }} artifacts/
       - uses: actions/upload-artifact@v4
@@ -86,7 +86,7 @@ jobs:
         working-directory: apps/tachikoma-desktop
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-action@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
           components: rustfmt, clippy
