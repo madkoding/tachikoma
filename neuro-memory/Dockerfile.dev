@@ -2,7 +2,7 @@
 # Dockerfile.dev for tachikoma-memory (Development - Fast builds)
 # =============================================================================
 
-FROM rust:stable-slim AS chef
+FROM rust:1.98-slim AS chef
 RUN cargo install cargo-chef --locked
 RUN apt-get update && apt-get install -y pkg-config libssl-dev mold && rm -rf /var/lib/apt/lists/*
 WORKDIR /app

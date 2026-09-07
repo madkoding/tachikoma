@@ -2,7 +2,7 @@
 # Dockerfile for tachikoma-chat (Production)
 # =============================================================================
 
-FROM rust:stable-slim AS chef
+FROM rust:1.98-slim AS chef
 RUN cargo install cargo-chef --locked
 WORKDIR /app
 

@@ -8,7 +8,7 @@
 # - Recompiles on start if source changed
 # =============================================================================
 
-FROM rust:stable-slim
+FROM rust:1.98-slim
 
 # Install build dependencies + mold linker for faster linking
 RUN apt-get update && apt-get install -y \

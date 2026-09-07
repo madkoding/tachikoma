@@ -59,7 +59,7 @@ jobs:
           mkdir -p src-tauri/binaries
           # surrealdb: vendored release binary (tauri_build validates existence)
           curl -sL https://github.com/surrealdb/surrealdb/releases/download/v1.5.6/surreal-v1.5.6.linux-amd64.tgz | tar xz
-          cp surreal-v1.5.6.linux-amd64/surreal src-tauri/binaries/surrealdb-x86_64-unknown-linux-gnu
+          cp surreal src-tauri/binaries/surrealdb-x86_64-unknown-linux-gnu
           # workspace sidecars: debug build is enough for clippy/test validation
           cargo build --manifest-path "$GITHUB_WORKSPACE/Cargo.toml" --workspace --exclude tachikoma-voice
           for b in tachikoma-backend tachikoma-checklists tachikoma-music tachikoma-chat tachikoma-memory tachikoma-agent; do

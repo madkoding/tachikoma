@@ -7,7 +7,7 @@
 # - mold linker for faster linking
 # =============================================================================
 
-FROM rust:stable-slim
+FROM rust:1.98-slim
 
 # Install build dependencies + mold linker
 RUN apt-get update && apt-get install -y --no-install-recommends \

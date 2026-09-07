@@ -1,7 +1,7 @@
 # =============================================================================
 # FAST DEV BUILD - Sin optimizaciones, con mold linker
 # =============================================================================
-FROM rust:stable-slim AS builder
+FROM rust:1.98-slim AS builder
 
 # Install build dependencies + mold linker for faster linking
 RUN apt-get update && apt-get install -y \
