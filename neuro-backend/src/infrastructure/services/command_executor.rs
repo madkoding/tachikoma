@@ -68,10 +68,7 @@ impl SafeCommandExecutor {
     }
 
     fn extract_base_command(command: &str) -> Option<String> {
-        command
-            .split_whitespace()
-            .next()
-            .map(|s| s.to_string())
+        command.split_whitespace().next().map(|s| s.to_string())
     }
 
     #[inline]
