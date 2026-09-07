@@ -189,8 +189,8 @@ services:
   # ===========================================================================
   neuro-chat:
     build:
-      context: ./neuro-chat
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: neuro-chat/Dockerfile
     container_name: neuro-chat
     restart: unless-stopped
     extra_hosts:
@@ -231,8 +231,8 @@ services:
   # ===========================================================================
   neuro-memory:
     build:
-      context: ./neuro-memory
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: neuro-memory/Dockerfile
     container_name: neuro-memory
     restart: unless-stopped
     extra_hosts:
@@ -269,8 +269,8 @@ services:
   # ===========================================================================
   neuro-agent:
     build:
-      context: ./neuro-agent
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: neuro-agent/Dockerfile
     container_name: neuro-agent
     restart: unless-stopped
     environment:
