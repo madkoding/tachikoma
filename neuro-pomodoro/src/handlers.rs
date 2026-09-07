@@ -93,7 +93,7 @@ pub async fn start_session(
 
     let duration = request
         .duration_minutes
-        .unwrap_or_else(|| match request.session_type {
+        .unwrap_or(match request.session_type {
             SessionType::Work => settings.work_duration_minutes,
             SessionType::ShortBreak => settings.short_break_minutes,
             SessionType::LongBreak => settings.long_break_minutes,
@@ -289,7 +289,7 @@ pub async fn get_daily_stats(
         .unwrap_or_else(|_| Utc::now().date_naive());
 
     let stats = state.store.get_stats_range(date, date);
-    let day_stats = stats.into_iter().next().unwrap_or_else(|| DailyStats {
+    let day_stats = stats.into_iter().next().unwrap_or(DailyStats {
         date: date_str,
         total_sessions: 0,
         completed_sessions: 0,

@@ -65,7 +65,7 @@ pub async fn list_memories(
     {
         Ok(memories) => {
             let total = state.memory_service.count_memories().await.unwrap_or(0);
-            let total_pages = (total + params.per_page - 1) / params.per_page;
+            let total_pages = total.div_ceil(params.per_page);
 
             let data: Vec<MemoryDto> = memories.into_iter().map(memory_to_dto).collect();
 

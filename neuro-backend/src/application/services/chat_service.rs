@@ -579,7 +579,7 @@ Responde SOLO con la categoría, una sola palabra:"#,
             for (tool_name, result) in tools_used {
                 prompt.push_str(&format!("\n[{}]\n{}\n", tool_name.to_uppercase(), result));
             }
-            prompt.push_str("\n");
+            prompt.push('\n');
         }
 
         // Add memory context
@@ -588,7 +588,7 @@ Responde SOLO con la categoría, una sola palabra:"#,
             for (memory, score) in memories.iter().take(3) {
                 prompt.push_str(&format!("- [{:.2}] {}\n", score, memory.content));
             }
-            prompt.push_str("\n");
+            prompt.push('\n');
         }
 
         prompt.push_str("User: ");

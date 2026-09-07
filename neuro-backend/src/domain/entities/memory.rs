@@ -250,6 +250,7 @@ impl MemoryNode {
 /// =============================================================================
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum MemoryType {
     /// Factual information (e.g., "The capital of France is Paris")
     Fact,
@@ -303,14 +304,10 @@ pub enum MemoryType {
     Experience,
 
     /// Generic/uncategorized memory
+    #[default]
     General,
 }
 
-impl Default for MemoryType {
-    fn default() -> Self {
-        Self::General
-    }
-}
 
 /// =============================================================================
 /// MemoryMetadata - Additional Memory Attributes

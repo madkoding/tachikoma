@@ -349,7 +349,7 @@ pub async fn list_conversations(State(state): State<Arc<AppState>>) -> impl Into
         Ok(mut response) => {
             let records: Vec<ConversationRecord> = response.take(0).unwrap_or_default();
             let conversations: Vec<Conversation> =
-                records.into_iter().map(|r| r.to_conversation()).collect();
+                records.into_iter().map(|r| r.into_conversation()).collect();
             Json(json!({ "conversations": conversations })).into_response()
         }
         Err(e) => {
@@ -381,7 +381,7 @@ pub async fn get_conversation(
         Ok(mut response) => {
             let records: Vec<ConversationRecord> = response.take(0).unwrap_or_default();
             match records.into_iter().next() {
-                Some(r) => r.to_conversation(),
+                Some(r) => r.into_conversation(),
                 None => {
                     return (
                         StatusCode::NOT_FOUND,
@@ -496,7 +496,7 @@ async fn get_conversation_messages(
         .map_err(|e| e.to_string())?;
 
     let records: Vec<ChatMessageRecord> = response.take(0).unwrap_or_default();
-    Ok(records.into_iter().map(|r| r.to_message()).collect())
+    Ok(records.into_iter().map(|r| r.into_message()).collect())
 }
 
 async fn save_message(

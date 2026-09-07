@@ -7,7 +7,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Chef planner - analyze dependencies
 # -----------------------------------------------------------------------------
-FROM rust:1.86-slim AS chef
+FROM rust:stable-slim AS chef
 RUN cargo install cargo-chef --locked
 WORKDIR /app
 

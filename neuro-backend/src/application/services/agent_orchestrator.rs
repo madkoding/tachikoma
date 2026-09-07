@@ -67,11 +67,7 @@ impl AgentOrchestrator {
             return Err(DomainError::command_blocked(command, "Command not allowed"));
         }
 
-        let options = if let Some(dir) = working_dir {
-            Some(ExecutionOptions::with_working_dir(&dir))
-        } else {
-            None
-        };
+        let options = working_dir.map(|dir| ExecutionOptions::with_working_dir(&dir));
 
         self.command_executor.execute(command, options).await
     }

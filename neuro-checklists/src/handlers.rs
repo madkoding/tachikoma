@@ -416,8 +416,8 @@ fn parse_markdown_checklist(markdown: &str) -> (String, Vec<CreateChecklistItem>
         let trimmed = line.trim();
 
         // Check for title (# header)
-        if trimmed.starts_with("# ") {
-            title = trimmed[2..].trim().to_string();
+        if let Some(rest) = trimmed.strip_prefix("# ") {
+            title = rest.trim().to_string();
             continue;
         }
 
@@ -432,8 +432,8 @@ fn parse_markdown_checklist(markdown: &str) -> (String, Vec<CreateChecklistItem>
         ];
 
         for (pattern, _is_completed) in checkbox_patterns {
-            if trimmed.starts_with(pattern) {
-                let content = trimmed[pattern.len()..].trim().to_string();
+            if let Some(content) = trimmed.strip_prefix(pattern) {
+                let content = content.trim().to_string();
                 if !content.is_empty() {
                     items.push(CreateChecklistItem {
                         content,

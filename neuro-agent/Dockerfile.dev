@@ -5,7 +5,7 @@
 # ==============================================================================
 # Stage 1: Chef with mold linker
 # ==============================================================================
-FROM rust:1.85-slim AS chef
+FROM rust:stable-slim AS chef
 
 # Install mold linker and cargo-chef for faster builds
 RUN apt-get update && apt-get install -y \

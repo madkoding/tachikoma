@@ -118,7 +118,7 @@ fn default_importance() -> f64 {
 }
 
 impl MemoryRecord {
-    pub fn to_memory(self) -> Memory {
+    pub fn into_memory(self) -> Memory {
         let id = match &self.id.id {
             surrealdb::sql::Id::String(s) => Uuid::parse_str(s).unwrap_or_default(),
             _ => Uuid::new_v4(),
@@ -178,7 +178,7 @@ fn default_confidence() -> f64 {
 }
 
 impl RelationRecord {
-    pub fn to_relation(self) -> Relation {
+    pub fn into_relation(self) -> Relation {
         let from_id = match &self.from.id {
             surrealdb::sql::Id::String(s) => Uuid::parse_str(s).unwrap_or_default(),
             _ => Uuid::new_v4(),

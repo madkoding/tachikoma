@@ -173,7 +173,7 @@ pub async fn stream_voice(
     // Split text into sentences
     let sentences: Vec<String> = request
         .text
-        .split(|c| c == '.' || c == '!' || c == '?' || c == '\n')
+        .split(['.', '!', '?', '\n'])
         .filter(|s| !s.trim().is_empty())
         .map(|s| s.trim().to_string())
         .collect();

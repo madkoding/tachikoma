@@ -34,7 +34,7 @@ pub struct ConversationRecord {
 }
 
 impl ConversationRecord {
-    pub fn to_conversation(self) -> Conversation {
+    pub fn into_conversation(self) -> Conversation {
         let id = match &self.id.id {
             surrealdb::sql::Id::String(s) => Uuid::parse_str(s).unwrap_or_default(),
             _ => Uuid::new_v4(),
@@ -99,7 +99,7 @@ pub struct ChatMessageRecord {
 }
 
 impl ChatMessageRecord {
-    pub fn to_message(self) -> ChatMessage {
+    pub fn into_message(self) -> ChatMessage {
         let id = match &self.id.id {
             surrealdb::sql::Id::String(s) => Uuid::parse_str(s).unwrap_or_default(),
             _ => Uuid::new_v4(),

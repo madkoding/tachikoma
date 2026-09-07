@@ -1,7 +1,7 @@
 # =============================================================================
 # Stage 1: Chef - Install cargo-chef
 # =============================================================================
-FROM rust:1.83-slim AS chef
+FROM rust:stable-slim AS chef
 RUN cargo install cargo-chef --locked
 WORKDIR /app
 

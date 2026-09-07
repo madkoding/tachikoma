@@ -1,4 +1,5 @@
 [package]
+lints.workspace = true
 name = "tachikoma-backend"
 version = "0.1.0"
 edition = "2021"
@@ -6,6 +7,11 @@ authors = ["TACHIKOMA-OS Team"]
 description = "Central orchestrator for the TACHIKOMA-OS AI ecosystem"
 license = "MIT"
 readme = "README.md"
+
+[lints.clippy]
+result_large_err = "allow"
+doc_lazy_continuation = "allow"
+empty_line_after_doc_comments = "allow"
 
 [dependencies]
 axum = { version = "0.7", features = ["macros", "json"] }

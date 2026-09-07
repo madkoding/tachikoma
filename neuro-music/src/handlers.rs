@@ -1213,10 +1213,11 @@ pub async fn refresh_suggestions(
                         cover_url: None,
                     };
 
-                    if let Ok(_) = state
+                    if state
                         .client
                         .create_song(suggestions.id, create_data, metadata.clone())
                         .await
+                        .is_ok()
                     {
                         added_youtube_ids.insert(result.video_id.clone());
                         songs_added += 1;

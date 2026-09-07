@@ -95,7 +95,7 @@ async fn proxy_to_service(
     if stream_response {
         let stream = response
             .bytes_stream()
-            .map(|result| result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
+            .map(|result| result.map_err(std::io::Error::other));
         let body = Body::from_stream(stream);
 
         builder.body(body).map_err(|e| {

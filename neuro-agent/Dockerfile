@@ -1,7 +1,7 @@
 # ==============================================================================
 # Stage 1: Chef planner - Prepare dependency recipe
 # ==============================================================================
-FROM rust:1.85-slim AS chef
+FROM rust:stable-slim AS chef
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 RUN cargo install cargo-chef --locked
 WORKDIR /app

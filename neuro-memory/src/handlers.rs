@@ -50,7 +50,7 @@ pub async fn list_memories(State(state): State<Arc<AppState>>) -> impl IntoRespo
     match state.db.client().query(sql).await {
         Ok(mut response) => {
             let records: Vec<MemoryRecord> = response.take(0).unwrap_or_default();
-            let memories: Vec<Memory> = records.into_iter().map(|r| r.to_memory()).collect();
+            let memories: Vec<Memory> = records.into_iter().map(|r| r.into_memory()).collect();
             Json(json!({ "memories": memories, "count": memories.len() })).into_response()
         }
         Err(e) => {
@@ -81,7 +81,7 @@ pub async fn get_memory(
         Ok(mut response) => {
             let records: Vec<MemoryRecord> = response.take(0).unwrap_or_default();
             match records.into_iter().next() {
-                Some(record) => Json(record.to_memory()).into_response(),
+                Some(record) => Json(record.into_memory()).into_response(),
                 None => (
                     StatusCode::NOT_FOUND,
                     Json(json!({ "error": "Memory not found" })),
@@ -228,7 +228,7 @@ pub async fn update_memory(
         Ok(mut response) => {
             let records: Vec<MemoryRecord> = response.take(0).unwrap_or_default();
             match records.into_iter().next() {
-                Some(record) => Json(record.to_memory()).into_response(),
+                Some(record) => Json(record.into_memory()).into_response(),
                 None => (
                     StatusCode::NOT_FOUND,
                     Json(json!({ "error": "Memory not found" })),
@@ -350,7 +350,7 @@ pub async fn search_memories(
                     let similarity = cosine_similarity(&query_vector, &record.vector);
                     if similarity >= threshold {
                         Some(SearchResult {
-                            memory: record.to_memory(),
+                            memory: record.into_memory(),
                             similarity,
                         })
                     } else {
@@ -399,7 +399,7 @@ pub async fn get_memory_relations(
     {
         Ok(mut response) => {
             let records: Vec<RelationRecord> = response.take(0).unwrap_or_default();
-            let relations: Vec<Relation> = records.into_iter().map(|r| r.to_relation()).collect();
+            let relations: Vec<Relation> = records.into_iter().map(|r| r.into_relation()).collect();
             Json(json!({ "relations": relations, "count": relations.len() })).into_response()
         }
         Err(e) => {
@@ -432,7 +432,7 @@ pub async fn get_related_memories(
     {
         Ok(mut response) => {
             let records: Vec<MemoryRecord> = response.take(0).unwrap_or_default();
-            let memories: Vec<Memory> = records.into_iter().map(|r| r.to_memory()).collect();
+            let memories: Vec<Memory> = records.into_iter().map(|r| r.into_memory()).collect();
             Json(json!({ "memories": memories, "count": memories.len() })).into_response()
         }
         Err(e) => {
@@ -577,12 +577,12 @@ pub async fn export_graph(State(state): State<Arc<AppState>>) -> impl IntoRespon
 
     if let Ok(mut response) = state.db.client().query(memory_sql).await {
         let records: Vec<MemoryRecord> = response.take(0).unwrap_or_default();
-        memories = records.into_iter().map(|r| r.to_memory()).collect();
+        memories = records.into_iter().map(|r| r.into_memory()).collect();
     }
 
     if let Ok(mut response) = state.db.client().query(relation_sql).await {
         let records: Vec<RelationRecord> = response.take(0).unwrap_or_default();
-        relations = records.into_iter().map(|r| r.to_relation()).collect();
+        relations = records.into_iter().map(|r| r.into_relation()).collect();
     }
 
     Json(json!({

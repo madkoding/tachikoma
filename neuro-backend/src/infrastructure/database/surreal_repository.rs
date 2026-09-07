@@ -69,8 +69,8 @@ impl SurrealDbRepository {
         let metadata: MemoryMetadata = serde_json::from_value(record.metadata).unwrap_or_default();
 
         // Convert surrealdb::Datetime to chrono::DateTime<Utc>
-        let created_at: DateTime<Utc> = record.created_at.0.into();
-        let updated_at: DateTime<Utc> = record.updated_at.0.into();
+        let created_at: DateTime<Utc> = record.created_at.0;
+        let updated_at: DateTime<Utc> = record.updated_at.0;
 
         Ok(MemoryNode {
             id: Uuid::parse_str(&record.id)
@@ -609,8 +609,8 @@ impl SurrealDbRepository {
         let messages = self.get_messages_for_conversation(id).await?;
 
         use chrono::{DateTime, Utc};
-        let created_at: DateTime<Utc> = record.created_at.0.into();
-        let updated_at: DateTime<Utc> = record.updated_at.0.into();
+        let created_at: DateTime<Utc> = record.created_at.0;
+        let updated_at: DateTime<Utc> = record.updated_at.0;
 
         Ok(Some(Conversation {
             id: Uuid::parse_str(&record.id).map_err(|e| DomainError::database(e.to_string()))?,
@@ -649,7 +649,7 @@ impl SurrealDbRepository {
         let mut messages = Vec::new();
         for record in records {
             use chrono::{DateTime, Utc};
-            let created_at: DateTime<Utc> = record.created_at.0.into();
+            let created_at: DateTime<Utc> = record.created_at.0;
 
             let role = match record.role.as_str() {
                 "user" => MessageRole::User,
@@ -708,7 +708,7 @@ impl SurrealDbRepository {
         let mut result = Vec::new();
         for record in records {
             use chrono::{DateTime, Utc};
-            let updated_at: DateTime<Utc> = record.updated_at.0.into();
+            let updated_at: DateTime<Utc> = record.updated_at.0;
             // Skip records with invalid UUIDs (like test data)
             if let Ok(id) = Uuid::parse_str(&record.id) {
                 result.push((id, record.title, updated_at));

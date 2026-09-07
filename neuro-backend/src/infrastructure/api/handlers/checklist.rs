@@ -55,7 +55,7 @@ pub async fn list_checklists(
                 .count_checklists(params.include_archived)
                 .await
                 .unwrap_or(0);
-            let total_pages = (total + params.per_page - 1) / params.per_page;
+            let total_pages = total.div_ceil(params.per_page);
 
             Ok(Json(PaginatedChecklists {
                 data: checklists,
