@@ -5,18 +5,16 @@
 //! and memorable information from conversations.
 //! =============================================================================
 
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, error, instrument};
+use std::sync::Arc;
+use tracing::{debug, error, info, instrument};
 use uuid::Uuid;
 
+use crate::application::services::MemoryService;
 use crate::domain::{
-    entities::memory::MemoryType,
-    errors::DomainError,
-    ports::llm_provider::LlmProvider,
+    entities::memory::MemoryType, errors::DomainError, ports::llm_provider::LlmProvider,
     value_objects::relation::Relation,
 };
-use crate::application::services::MemoryService;
 
 /// =============================================================================
 /// Extracted Knowledge Structure
@@ -108,10 +106,7 @@ pub struct KnowledgeExtractor {
 }
 
 impl KnowledgeExtractor {
-    pub fn new(
-        llm_provider: Arc<dyn LlmProvider>,
-        memory_service: Arc<MemoryService>,
-    ) -> Self {
+    pub fn new(llm_provider: Arc<dyn LlmProvider>, memory_service: Arc<MemoryService>) -> Self {
         Self {
             llm_provider,
             memory_service,
@@ -125,7 +120,10 @@ impl KnowledgeExtractor {
     /// Main entry point - analyzes a message and stores any valuable knowledge
     /// =========================================================================
     #[instrument(skip(self, message), fields(message_len = message.len()))]
-    pub async fn learn_from_message(&self, message: &str) -> Result<ExtractedKnowledge, DomainError> {
+    pub async fn learn_from_message(
+        &self,
+        message: &str,
+    ) -> Result<ExtractedKnowledge, DomainError> {
         // Skip very short messages or simple greetings
         if message.len() < 10 || self.is_simple_greeting(message) {
             info!("⏭️ Skipping extraction: short/greeting message");
@@ -134,18 +132,21 @@ impl KnowledgeExtractor {
 
         // Skip pure questions (usually not information to store)
         let msg_lower = message.to_lowercase();
-        if message.trim().ends_with('?') 
-           && !msg_lower.contains("recuerda") 
-           && !msg_lower.contains("soy ")
-           && !msg_lower.contains("me llamo")
-           && !msg_lower.contains("trabajo")
-           && !msg_lower.contains("me gusta")
+        if message.trim().ends_with('?')
+            && !msg_lower.contains("recuerda")
+            && !msg_lower.contains("soy ")
+            && !msg_lower.contains("me llamo")
+            && !msg_lower.contains("trabajo")
+            && !msg_lower.contains("me gusta")
         {
             info!("⏭️ Skipping extraction: question without personal info");
             return Ok(ExtractedKnowledge::default());
         }
 
-        debug!("Starting knowledge extraction for: {}...", &message[..message.len().min(50)]);
+        debug!(
+            "Starting knowledge extraction for: {}...",
+            &message[..message.len().min(50)]
+        );
 
         // Extract knowledge using LLM
         let knowledge = self.extract_knowledge(message).await?;
@@ -167,7 +168,7 @@ impl KnowledgeExtractor {
         }
 
         info!("💾 Storing extracted knowledge...");
-        
+
         // Store extracted knowledge
         self.store_knowledge(&knowledge).await?;
 
@@ -190,18 +191,22 @@ impl KnowledgeExtractor {
     /// =========================================================================
     async fn extract_knowledge(&self, message: &str) -> Result<ExtractedKnowledge, DomainError> {
         let prompt = self.build_extraction_prompt(message);
-        
+
         info!(model = %self.extraction_model, "🧠 Calling LLM for knowledge extraction...");
-        
-        let result = self.llm_provider
+
+        let result = self
+            .llm_provider
             .generate(&prompt, Some(&self.extraction_model))
             .await?;
 
-        debug!(response_len = result.content.len(), "LLM extraction response received");
-        
+        debug!(
+            response_len = result.content.len(),
+            "LLM extraction response received"
+        );
+
         // Parse LLM response
         let knowledge = self.parse_extraction_response(&result.content)?;
-        
+
         info!(
             is_memorable = knowledge.is_memorable,
             importance = knowledge.importance,
@@ -209,7 +214,7 @@ impl KnowledgeExtractor {
             preferences = knowledge.preferences.len(),
             "🧠 Extraction parsed"
         );
-        
+
         Ok(knowledge)
     }
 
@@ -217,7 +222,8 @@ impl KnowledgeExtractor {
     /// Build the extraction prompt
     /// =========================================================================
     fn build_extraction_prompt(&self, message: &str) -> String {
-        format!(r#"Extrae información personal del mensaje. Responde SOLO JSON.
+        format!(
+            r#"Extrae información personal del mensaje. Responde SOLO JSON.
 
 MENSAJE: "{}"
 
@@ -255,7 +261,9 @@ Responde SOLO este JSON:
   "importance": 0.7,
   "is_memorable": true
 }}
-```"#, message)
+```"#,
+            message
+        )
     }
 
     /// =========================================================================
@@ -264,17 +272,20 @@ Responde SOLO este JSON:
     fn parse_extraction_response(&self, response: &str) -> Result<ExtractedKnowledge, DomainError> {
         // Try to find JSON in the response
         let json_str = self.extract_json_from_response(response);
-        
+
         info!("📄 Parsing JSON response (len={})", json_str.len());
-        
+
         match serde_json::from_str::<ExtractedKnowledge>(&json_str) {
             Ok(knowledge) => {
                 info!("✅ JSON parsed successfully");
                 Ok(knowledge)
-            },
+            }
             Err(e) => {
                 error!(error = %e, "❌ Failed to parse extraction response");
-                info!("Raw JSON attempted: {}", &json_str[..json_str.len().min(500)]);
+                info!(
+                    "Raw JSON attempted: {}",
+                    &json_str[..json_str.len().min(500)]
+                );
                 // Return default instead of failing completely
                 Ok(ExtractedKnowledge::default())
             }
@@ -292,7 +303,7 @@ Responde SOLO este JSON:
                 return after_start[..end].trim().to_string();
             }
         }
-        
+
         // Try to find JSON between generic code blocks
         if let Some(start) = response.find("```") {
             let after_start = &response[start + 3..];
@@ -321,67 +332,77 @@ Responde SOLO este JSON:
     /// =========================================================================
     async fn store_knowledge(&self, knowledge: &ExtractedKnowledge) -> Result<(), DomainError> {
         let min_confidence = 0.4; // Lower threshold to capture more knowledge
-        
+
         // Store facts
         for item in &knowledge.facts {
             if item.confidence >= min_confidence {
-                self.store_memory_item(&item.content, MemoryType::Fact, item.confidence).await?;
+                self.store_memory_item(&item.content, MemoryType::Fact, item.confidence)
+                    .await?;
             }
         }
 
         // Store preferences
         for item in &knowledge.preferences {
             if item.confidence >= min_confidence {
-                self.store_memory_item(&item.content, MemoryType::Preference, item.confidence).await?;
+                self.store_memory_item(&item.content, MemoryType::Preference, item.confidence)
+                    .await?;
             }
         }
 
         // Store entities
         for item in &knowledge.entities {
             if item.confidence >= min_confidence {
-                self.store_memory_item(&item.content, MemoryType::Entity, item.confidence).await?;
+                self.store_memory_item(&item.content, MemoryType::Entity, item.confidence)
+                    .await?;
             }
         }
 
         // Store goals
         for item in &knowledge.goals {
             if item.confidence >= min_confidence {
-                self.store_memory_item(&item.content, MemoryType::Goal, item.confidence).await?;
+                self.store_memory_item(&item.content, MemoryType::Goal, item.confidence)
+                    .await?;
             }
         }
 
         // Store skills
         for item in &knowledge.skills {
             if item.confidence >= min_confidence {
-                self.store_memory_item(&item.content, MemoryType::Skill, item.confidence).await?;
+                self.store_memory_item(&item.content, MemoryType::Skill, item.confidence)
+                    .await?;
             }
         }
 
         // Store events
         for item in &knowledge.events {
             if item.confidence >= min_confidence {
-                self.store_memory_item(&item.content, MemoryType::Event, item.confidence).await?;
+                self.store_memory_item(&item.content, MemoryType::Event, item.confidence)
+                    .await?;
             }
         }
 
         // Store opinions
         for item in &knowledge.opinions {
             if item.confidence >= min_confidence {
-                self.store_memory_item(&item.content, MemoryType::Opinion, item.confidence).await?;
+                self.store_memory_item(&item.content, MemoryType::Opinion, item.confidence)
+                    .await?;
             }
         }
 
         // Store experiences
         for item in &knowledge.experiences {
             if item.confidence >= min_confidence {
-                self.store_memory_item(&item.content, MemoryType::Experience, item.confidence).await?;
+                self.store_memory_item(&item.content, MemoryType::Experience, item.confidence)
+                    .await?;
             }
         }
 
         // Store tasks
         for item in &knowledge.tasks {
-            if item.confidence >= 0.5 { // Slightly higher for tasks
-                self.store_memory_item(&item.content, MemoryType::Task, item.confidence).await?;
+            if item.confidence >= 0.5 {
+                // Slightly higher for tasks
+                self.store_memory_item(&item.content, MemoryType::Task, item.confidence)
+                    .await?;
             }
         }
 
@@ -392,10 +413,10 @@ Responde SOLO este JSON:
     /// Store a single memory item
     /// =========================================================================
     async fn store_memory_item(
-        &self, 
-        content: &str, 
+        &self,
+        content: &str,
         memory_type: MemoryType,
-        confidence: f64
+        confidence: f64,
     ) -> Result<Option<Uuid>, DomainError> {
         // Skip empty content
         if content.trim().is_empty() {
@@ -409,11 +430,11 @@ Responde SOLO este JSON:
             "Storing extracted knowledge"
         );
 
-        match self.memory_service.create_memory(
-            content.to_string(),
-            memory_type,
-            None
-        ).await {
+        match self
+            .memory_service
+            .create_memory(content.to_string(), memory_type, None)
+            .await
+        {
             Ok(memory) => {
                 info!(memory_id = %memory.id, "Knowledge stored successfully");
                 Ok(Some(memory.id))
@@ -429,7 +450,10 @@ Responde SOLO este JSON:
     /// =========================================================================
     /// Create relationships between extracted knowledge and existing memories
     /// =========================================================================
-    async fn create_relationships(&self, knowledge: &ExtractedKnowledge) -> Result<(), DomainError> {
+    async fn create_relationships(
+        &self,
+        knowledge: &ExtractedKnowledge,
+    ) -> Result<(), DomainError> {
         for rel in &knowledge.relationships {
             if rel.confidence < 0.6 {
                 continue;
@@ -439,19 +463,18 @@ Responde SOLO este JSON:
             let from_memories = self.memory_service.search(&rel.from, 1).await?;
             let to_memories = self.memory_service.search(&rel.to, 1).await?;
 
-            if let (Some((from_mem, from_sim)), Some((to_mem, to_sim))) = 
-                (from_memories.first(), to_memories.first()) 
+            if let (Some((from_mem, from_sim)), Some((to_mem, to_sim))) =
+                (from_memories.first(), to_memories.first())
             {
                 // Only create relation if both matches are good
                 if *from_sim > 0.5 && *to_sim > 0.5 {
                     let relation = self.parse_relation_type(&rel.relation_type);
-                    
-                    match self.memory_service.create_relation(
-                        from_mem.id,
-                        to_mem.id,
-                        relation,
-                        rel.confidence
-                    ).await {
+
+                    match self
+                        .memory_service
+                        .create_relation(from_mem.id, to_mem.id, relation, rel.confidence)
+                        .await
+                    {
                         Ok(_) => {
                             info!(
                                 from = %rel.from,
@@ -498,15 +521,34 @@ Responde SOLO este JSON:
     fn is_simple_greeting(&self, message: &str) -> bool {
         let msg_lower = message.to_lowercase().trim().to_string();
         let greetings = [
-            "hola", "hi", "hello", "hey", "buenos días", "buenas tardes", 
-            "buenas noches", "good morning", "good afternoon", "good evening",
-            "qué tal", "cómo estás", "how are you", "what's up", "sup",
-            "saludos", "greetings", "ey", "epa", "alo", "aló",
+            "hola",
+            "hi",
+            "hello",
+            "hey",
+            "buenos días",
+            "buenas tardes",
+            "buenas noches",
+            "good morning",
+            "good afternoon",
+            "good evening",
+            "qué tal",
+            "cómo estás",
+            "how are you",
+            "what's up",
+            "sup",
+            "saludos",
+            "greetings",
+            "ey",
+            "epa",
+            "alo",
+            "aló",
         ];
-        
+
         // Check if message is just a greeting (possibly with punctuation)
         let clean_msg = msg_lower.trim_matches(|c: char| !c.is_alphanumeric() && c != ' ');
-        greetings.iter().any(|g| clean_msg == *g || clean_msg.starts_with(&format!("{} ", g)))
+        greetings
+            .iter()
+            .any(|g| clean_msg == *g || clean_msg.starts_with(&format!("{} ", g)))
     }
 
     /// =========================================================================
@@ -517,10 +559,10 @@ Responde SOLO este JSON:
     #[allow(dead_code)]
     #[instrument(skip(self))]
     pub async fn learn_from_conversation(
-        &self, 
+        &self,
         user_message: &str,
         assistant_response: &str,
-        conversation_context: &[String]
+        conversation_context: &[String],
     ) -> Result<ExtractedKnowledge, DomainError> {
         // Build context-aware prompt
         let context_str = if conversation_context.is_empty() {
@@ -531,9 +573,7 @@ Responde SOLO este JSON:
 
         let full_message = format!(
             "Usuario: {}\nAsistente: {}{}",
-            user_message, 
-            assistant_response,
-            context_str
+            user_message, assistant_response, context_str
         );
 
         // Use modified extraction that considers context
@@ -550,7 +590,7 @@ mod tests {
 ```json
 {"is_memorable": true}
 ```"#;
-        
+
         // Test direct JSON extraction logic
         let json_str = if let Some(start) = response_with_markdown.find("```json") {
             let after_start = &response_with_markdown[start + 7..];
@@ -562,23 +602,21 @@ mod tests {
         } else {
             response_with_markdown.to_string()
         };
-        
+
         assert!(json_str.contains("is_memorable"));
     }
 
     #[test]
     fn test_is_simple_greeting_logic() {
         // Test greeting detection logic directly
-        let greetings = [
-            "hola", "hi", "hello", "hey", "buenos días", "buenas tardes",
-        ];
-        
+        let greetings = ["hola", "hi", "hello", "hey", "buenos días", "buenas tardes"];
+
         let test_msg = "hola";
         let msg_lower = test_msg.to_lowercase();
         let clean_msg = msg_lower.trim_matches(|c: char| !c.is_alphanumeric() && c != ' ');
         let is_greeting = greetings.iter().any(|g| clean_msg == *g);
         assert!(is_greeting);
-        
+
         let test_msg2 = "me llamo Juan";
         let msg_lower2 = test_msg2.to_lowercase();
         let clean_msg2 = msg_lower2.trim_matches(|c: char| !c.is_alphanumeric() && c != ' ');

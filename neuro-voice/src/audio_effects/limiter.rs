@@ -8,7 +8,12 @@ fn db_to_lin(db: f32) -> f32 {
 }
 
 /// Simple peak limiter with release smoothing (no lookahead).
-pub fn apply_limiter(audio: &[f32], ceiling_db: f32, release_ms: f32, sample_rate: u32) -> Vec<f32> {
+pub fn apply_limiter(
+    audio: &[f32],
+    ceiling_db: f32,
+    release_ms: f32,
+    sample_rate: u32,
+) -> Vec<f32> {
     if audio.is_empty() {
         return Vec::new();
     }
@@ -17,7 +22,7 @@ pub fn apply_limiter(audio: &[f32], ceiling_db: f32, release_ms: f32, sample_rat
     // Pre-calcular coeficiente de release una sola vez
     let release_time = release_ms.max(0.1) * 0.001 * sample_rate as f32;
     let release = (-1.0 / release_time).exp();
-    let one_minus_release = 1.0 - release;  // Pre-calcular para el loop
+    let one_minus_release = 1.0 - release; // Pre-calcular para el loop
 
     let mut gain = 1.0f32;
     let mut out = Vec::with_capacity(audio.len());

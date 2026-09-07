@@ -53,9 +53,8 @@ impl MetadataEnricher {
             .build();
 
         // Rate limiter: allow immediate first request
-        let last_musicbrainz_request = Arc::new(Mutex::new(
-            Instant::now() - Duration::from_secs(2)
-        ));
+        let last_musicbrainz_request =
+            Arc::new(Mutex::new(Instant::now() - Duration::from_secs(2)));
 
         info!("✅ Metadata enricher initialized with cache (10k entries, 7d TTL) and rate limiting (1.1s)");
 
@@ -72,8 +71,9 @@ impl MetadataEnricher {
     /// Tries cache first, then MusicBrainz, then LLM inference
     pub async fn enrich(&self, title: &str, artist: Option<&str>) -> EnrichedMetadata {
         // Build cache key (normalized)
-        let cache_key = format!("{}:{}", 
-            title.to_lowercase().trim(), 
+        let cache_key = format!(
+            "{}:{}",
+            title.to_lowercase().trim(),
             artist.unwrap_or("").to_lowercase().trim()
         );
 
@@ -131,7 +131,10 @@ impl MetadataEnricher {
 
         if elapsed < min_interval {
             let wait_time = min_interval - elapsed;
-            debug!(wait_ms = wait_time.as_millis(), "Rate limiting MusicBrainz request");
+            debug!(
+                wait_ms = wait_time.as_millis(),
+                "Rate limiting MusicBrainz request"
+            );
             tokio::time::sleep(wait_time).await;
         }
 
@@ -140,15 +143,21 @@ impl MetadataEnricher {
 
     /// Search MusicBrainz for recording metadata
     /// Rate-limited to 1 request per 1.1 seconds
-    async fn search_musicbrainz(&self, title: &str, artist: Option<&str>) -> Option<EnrichedMetadata> {
+    async fn search_musicbrainz(
+        &self,
+        title: &str,
+        artist: Option<&str>,
+    ) -> Option<EnrichedMetadata> {
         // Apply rate limiting before request
         self.rate_limit_musicbrainz().await;
 
         // Clean up title for search (remove common YouTube suffixes)
         let clean_title = Self::clean_youtube_title(title);
-        
+
         let query = match artist {
-            Some(a) if !a.is_empty() => format!("recording:\"{}\" AND artist:\"{}\"", clean_title, a),
+            Some(a) if !a.is_empty() => {
+                format!("recording:\"{}\" AND artist:\"{}\"", clean_title, a)
+            }
             _ => format!("recording:\"{}\"", clean_title),
         };
 
@@ -182,11 +191,11 @@ impl MetadataEnricher {
         };
 
         let recordings = json["recordings"].as_array()?;
-        
+
         // Find the best match
         for recording in recordings {
             let rec_title = recording["title"].as_str()?;
-            
+
             // Get artist from artist-credit
             let artist_credit = recording["artist-credit"].as_array()?;
             let artist_name = artist_credit
@@ -261,7 +270,7 @@ Reglas:
         );
 
         let url = format!("{}/api/llm/chat", self.backend_url);
-        
+
         let body = serde_json::json!({
             "messages": [
                 {
@@ -385,22 +394,22 @@ Reglas:
         }
 
         // Trim and clean up extra spaces
-        result
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
+        result.split_whitespace().collect::<Vec<_>>().join(" ")
     }
 
     /// Enrich multiple search results in batch (for search results)
-    pub async fn enrich_search_results(&self, results: Vec<SearchResultToEnrich>) -> Vec<EnrichedSearchResult> {
+    pub async fn enrich_search_results(
+        &self,
+        results: Vec<SearchResultToEnrich>,
+    ) -> Vec<EnrichedSearchResult> {
         let mut enriched = Vec::with_capacity(results.len());
-        
+
         for result in results {
             let metadata = self.enrich(&result.title, result.channel.as_deref()).await;
-            
+
             // Use enriched artist if found, otherwise use the extracted artist from title
             let final_artist = metadata.artist.or(result.artist);
-            
+
             enriched.push(EnrichedSearchResult {
                 video_id: result.video_id,
                 original_title: result.title,
@@ -414,7 +423,7 @@ Reglas:
                 source: metadata.source,
             });
         }
-        
+
         enriched
     }
 }

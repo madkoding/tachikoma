@@ -29,9 +29,18 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/checklists/:id", delete(handlers::delete_checklist))
         // Checklist Items
         .route("/checklists/:id/items", post(handlers::add_item))
-        .route("/checklists/:checklist_id/items/:item_id", patch(handlers::update_item))
-        .route("/checklists/:checklist_id/items/:item_id", delete(handlers::delete_item))
-        .route("/checklists/:checklist_id/items/:item_id/toggle", post(handlers::toggle_item));
+        .route(
+            "/checklists/:checklist_id/items/:item_id",
+            patch(handlers::update_item),
+        )
+        .route(
+            "/checklists/:checklist_id/items/:item_id",
+            delete(handlers::delete_item),
+        )
+        .route(
+            "/checklists/:checklist_id/items/:item_id/toggle",
+            post(handlers::toggle_item),
+        );
 
     // Compose final router
     Router::new()

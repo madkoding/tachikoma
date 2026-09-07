@@ -132,8 +132,14 @@ mod tests {
             priority: Some(5),
             due_date: None,
             items: vec![
-                CreateChecklistItem { content: "Milk".to_string(), order: Some(0) },
-                CreateChecklistItem { content: "Bread".to_string(), order: Some(1) },
+                CreateChecklistItem {
+                    content: "Milk".to_string(),
+                    order: Some(0),
+                },
+                CreateChecklistItem {
+                    content: "Bread".to_string(),
+                    order: Some(1),
+                },
             ],
         };
         assert_eq!(req.items.len(), 2);

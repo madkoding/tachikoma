@@ -14,8 +14,8 @@ use uuid::Uuid;
 
 use crate::domain::entities::memory::{MemoryNode, MemoryType};
 use crate::infrastructure::api::dto::{
-    CreateMemoryRequest, ErrorResponse, MemoryDto, PaginatedResponse,
-    SearchResultDto, SemanticSearchRequest, UpdateMemoryRequest,
+    CreateMemoryRequest, ErrorResponse, MemoryDto, PaginatedResponse, SearchResultDto,
+    SemanticSearchRequest, UpdateMemoryRequest,
 };
 use crate::AppState;
 
@@ -30,8 +30,12 @@ pub struct ListMemoriesParams {
     pub memory_type: Option<String>,
 }
 
-fn default_page() -> usize { 1 }
-fn default_per_page() -> usize { 20 }
+fn default_page() -> usize {
+    1
+}
+fn default_per_page() -> usize {
+    20
+}
 
 /// GET /api/memories
 #[utoipa::path(
@@ -54,7 +58,11 @@ pub async fn list_memories(
 ) -> Result<Json<PaginatedResponse<MemoryDto>>, (StatusCode, Json<ErrorResponse>)> {
     let offset = (params.page.saturating_sub(1)) * params.per_page;
 
-    match state.memory_service.get_all_memories(params.per_page, offset).await {
+    match state
+        .memory_service
+        .get_all_memories(params.per_page, offset)
+        .await
+    {
         Ok(memories) => {
             let total = state.memory_service.count_memories().await.unwrap_or(0);
             let total_pages = (total + params.per_page - 1) / params.per_page;
@@ -137,7 +145,11 @@ pub async fn create_memory(
 
     let memory_type = parse_memory_type(&request.memory_type);
 
-    match state.memory_service.create_memory(request.content, memory_type, None).await {
+    match state
+        .memory_service
+        .create_memory(request.content, memory_type, None)
+        .await
+    {
         Ok(memory) => {
             // SSE event is emitted by MemoryService
             Ok((StatusCode::CREATED, Json(memory_to_dto(memory))))
@@ -173,7 +185,11 @@ pub async fn update_memory(
     Path(memory_id): Path<Uuid>,
     Json(request): Json<UpdateMemoryRequest>,
 ) -> Result<Json<MemoryDto>, (StatusCode, Json<ErrorResponse>)> {
-    match state.memory_service.update_memory(memory_id, request.content, None, None).await {
+    match state
+        .memory_service
+        .update_memory(memory_id, request.content, None, None)
+        .await
+    {
         Ok(memory) => {
             // SSE event is emitted by MemoryService
             Ok(Json(memory_to_dto(memory)))
@@ -251,7 +267,11 @@ pub async fn search_memories(
 ) -> Result<Json<Vec<SearchResultDto>>, (StatusCode, Json<ErrorResponse>)> {
     debug!(query = %request.query, limit = request.limit, "Performing semantic search");
 
-    match state.memory_service.search(&request.query, request.limit).await {
+    match state
+        .memory_service
+        .search(&request.query, request.limit)
+        .await
+    {
         Ok(results) => {
             let dtos: Vec<SearchResultDto> = results
                 .into_iter()

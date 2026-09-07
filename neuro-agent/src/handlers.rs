@@ -2,18 +2,14 @@
 //! HTTP Handlers for Agent Tools
 //! =============================================================================
 
-use std::sync::Arc;
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tracing::{error, info};
 
-use crate::AppState;
-use crate::searxng::{SearchRequest, SearchResult};
 use crate::executor::ExecuteRequest;
+use crate::searxng::{SearchRequest, SearchResult};
+use crate::AppState;
 
 // =============================================================================
 // Health Check
@@ -27,9 +23,7 @@ pub struct HealthResponse {
     pub searxng_url: String,
 }
 
-pub async fn health_check(
-    State(state): State<Arc<AppState>>,
-) -> Json<HealthResponse> {
+pub async fn health_check(State(state): State<Arc<AppState>>) -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "healthy".to_string(),
         service: "tachikoma-agent".to_string(),
@@ -88,7 +82,7 @@ pub async fn web_search(
     match state.searxng.search(&search_request).await {
         Ok(response) => {
             let mut results = response.results;
-            
+
             // Limit results if requested
             if let Some(max) = payload.max_results {
                 results.truncate(max);
@@ -150,7 +144,10 @@ pub async fn execute_command(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CommandRequest>,
 ) -> Result<Json<CommandResponse>, (StatusCode, Json<CommandResponse>)> {
-    info!("Command execution request: {} {:?}", payload.command, payload.args);
+    info!(
+        "Command execution request: {} {:?}",
+        payload.command, payload.args
+    );
 
     let exec_request = ExecuteRequest {
         command: payload.command,
@@ -159,7 +156,10 @@ pub async fn execute_command(
         timeout_secs: payload.timeout_secs,
     };
 
-    let result = state.executor.execute(&exec_request, &state.config.allowed_commands).await;
+    let result = state
+        .executor
+        .execute(&exec_request, &state.config.allowed_commands)
+        .await;
 
     let response = CommandResponse {
         success: result.success,

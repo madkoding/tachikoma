@@ -15,7 +15,11 @@ use crate::domain::errors::DomainError;
 #[async_trait]
 pub trait CommandExecutor: Send + Sync {
     /// Execute a shell command with safety controls
-    async fn execute(&self, command: &str, options: Option<ExecutionOptions>) -> Result<CommandOutput, DomainError>;
+    async fn execute(
+        &self,
+        command: &str,
+        options: Option<ExecutionOptions>,
+    ) -> Result<CommandOutput, DomainError>;
 
     /// Validate if a command is allowed
     async fn validate(&self, command: &str) -> Result<bool, DomainError>;

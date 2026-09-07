@@ -22,10 +22,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     init_tracing("tachikoma_checklists=info,tower_http=debug");
 
     let config = Config::from_env(3001);
-    info!("Checklists service | port={} backend={}", config.port, config.backend_url);
+    info!(
+        "Checklists service | port={} backend={}",
+        config.port, config.backend_url
+    );
 
     let client = BackendClient::new(&config);
-    let state = Arc::new(AppState { client, config: config.clone() });
+    let state = Arc::new(AppState {
+        client,
+        config: config.clone(),
+    });
     let app = routes::create_router(state);
 
     let addr = format!("0.0.0.0:{}", config.port);

@@ -14,9 +14,9 @@ use uuid::Uuid;
 /// =============================================================================
 /// Tasks are operations that the AI decides to perform during a conversation.
 /// Each task has a type, input parameters, and produces a result.
-/// 
+///
 /// # Task Types
-/// 
+///
 /// * `WebSearch` - Search the web using Searxng
 /// * `ExecuteCommand` - Run a safe local command
 /// * `RememberFact` - Store information in memory
@@ -79,7 +79,10 @@ impl AgentTask {
     pub fn web_search(query: String) -> Self {
         Self::new(
             TaskType::WebSearch,
-            TaskInput::WebSearch { query, max_results: 5 },
+            TaskInput::WebSearch {
+                query,
+                max_results: 5,
+            },
         )
     }
 
@@ -115,10 +118,7 @@ impl AgentTask {
     /// Create a memory recall task
     /// =========================================================================
     pub fn recall(query: String, limit: usize) -> Self {
-        Self::new(
-            TaskType::RecallMemory,
-            TaskInput::Recall { query, limit },
-        )
+        Self::new(TaskType::RecallMemory, TaskInput::Recall { query, limit })
     }
 
     /// =========================================================================
@@ -150,9 +150,8 @@ impl AgentTask {
     /// Get execution duration in milliseconds
     /// =========================================================================
     pub fn duration_ms(&self) -> Option<u64> {
-        self.completed_at.map(|completed| {
-            (completed - self.created_at).num_milliseconds() as u64
-        })
+        self.completed_at
+            .map(|completed| (completed - self.created_at).num_milliseconds() as u64)
     }
 
     /// =========================================================================
@@ -207,10 +206,7 @@ pub enum TaskType {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TaskInput {
     /// Web search input
-    WebSearch {
-        query: String,
-        max_results: usize,
-    },
+    WebSearch { query: String, max_results: usize },
 
     /// Command execution input
     ExecuteCommand {
@@ -227,10 +223,7 @@ pub enum TaskInput {
     },
 
     /// Memory recall input
-    Recall {
-        query: String,
-        limit: usize,
-    },
+    Recall { query: String, limit: usize },
 
     /// Code generation input
     CodeGeneration {
@@ -240,9 +233,7 @@ pub enum TaskInput {
     },
 
     /// Simple text input
-    Text {
-        content: String,
-    },
+    Text { content: String },
 }
 
 /// =============================================================================
@@ -284,14 +275,10 @@ pub enum TaskResult {
     },
 
     /// Simple text response
-    Text {
-        content: String,
-    },
+    Text { content: String },
 
     /// Error result
-    Error {
-        message: String,
-    },
+    Error { message: String },
 }
 
 /// =============================================================================
@@ -370,7 +357,9 @@ mod tests {
         task.start();
         assert_eq!(task.status, TaskStatus::Running);
 
-        task.complete(TaskResult::Text { content: "done".to_string() });
+        task.complete(TaskResult::Text {
+            content: "done".to_string(),
+        });
         assert_eq!(task.status, TaskStatus::Completed);
         assert!(task.result.is_some());
         assert!(task.completed_at.is_some());

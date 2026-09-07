@@ -192,7 +192,9 @@ impl EqualizerSettings {
         Self {
             enabled: true,
             preset: Some("bass_boost".to_string()),
-            bands: [8.0, 7.0, 6.0, 4.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            bands: [
+                8.0, 7.0, 6.0, 4.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            ],
         }
     }
 
@@ -200,7 +202,9 @@ impl EqualizerSettings {
         Self {
             enabled: true,
             preset: Some("treble_boost".to_string()),
-            bands: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 3.0, 4.0, 5.0, 6.0, 6.0, 7.0, 7.0, 8.0, 8.0],
+            bands: [
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 3.0, 4.0, 5.0, 6.0, 6.0, 7.0, 7.0, 8.0, 8.0,
+            ],
         }
     }
 
@@ -208,7 +212,10 @@ impl EqualizerSettings {
         Self {
             enabled: true,
             preset: Some("vocal".to_string()),
-            bands: [-2.0, -2.0, -1.0, 0.0, 3.0, 5.0, 5.0, 4.0, 3.0, 2.0, 0.0, -1.0, -1.0, -2.0, -2.0, -2.0],
+            bands: [
+                -2.0, -2.0, -1.0, 0.0, 3.0, 5.0, 5.0, 4.0, 3.0, 2.0, 0.0, -1.0, -1.0, -2.0, -2.0,
+                -2.0,
+            ],
         }
     }
 
@@ -216,7 +223,9 @@ impl EqualizerSettings {
         Self {
             enabled: true,
             preset: Some("rock".to_string()),
-            bands: [5.0, 4.0, 3.0, 1.0, -1.0, -2.0, 0.0, 2.0, 3.0, 4.0, 5.0, 5.0, 5.0, 4.0, 4.0, 3.0],
+            bands: [
+                5.0, 4.0, 3.0, 1.0, -1.0, -2.0, 0.0, 2.0, 3.0, 4.0, 5.0, 5.0, 5.0, 4.0, 4.0, 3.0,
+            ],
         }
     }
 
@@ -224,7 +233,9 @@ impl EqualizerSettings {
         Self {
             enabled: true,
             preset: Some("electronic".to_string()),
-            bands: [6.0, 5.0, 4.0, 2.0, 0.0, -2.0, -1.0, 0.0, 2.0, 4.0, 5.0, 5.0, 4.0, 4.0, 5.0, 6.0],
+            bands: [
+                6.0, 5.0, 4.0, 2.0, 0.0, -2.0, -1.0, 0.0, 2.0, 4.0, 5.0, 5.0, 4.0, 4.0, 5.0, 6.0,
+            ],
         }
     }
 
@@ -232,7 +243,9 @@ impl EqualizerSettings {
         Self {
             enabled: true,
             preset: Some("acoustic".to_string()),
-            bands: [3.0, 3.0, 2.0, 1.0, 1.0, 2.0, 3.0, 2.0, 1.0, 1.0, 2.0, 3.0, 3.0, 2.0, 2.0, 2.0],
+            bands: [
+                3.0, 3.0, 2.0, 1.0, 1.0, 2.0, 3.0, 2.0, 1.0, 1.0, 2.0, 3.0, 3.0, 2.0, 2.0, 2.0,
+            ],
         }
     }
 }
@@ -312,7 +325,10 @@ mod tests {
         let json = serde_json::to_string(&p).unwrap();
         let back: Playlist = serde_json::from_str(&json).unwrap();
         assert_eq!(p.id, back.id);
-        assert_eq!(format!("{}", p.repeat_mode), format!("{}", back.repeat_mode));
+        assert_eq!(
+            format!("{}", p.repeat_mode),
+            format!("{}", back.repeat_mode)
+        );
     }
 
     #[test]
@@ -355,5 +371,3 @@ mod tests {
         assert!(flat.preset.is_none());
     }
 }
-
-

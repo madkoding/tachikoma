@@ -8,8 +8,8 @@ use surrealdb::sql::Thing;
 use uuid::Uuid;
 
 use crate::domain::entities::music::{
-    CreatePlaylist, CreateSong, EqualizerSettings, ListeningEntry, Playlist,
-    PlaylistWithSongs, Song, UpdatePlaylist, UpdateSong, YouTubeMetadata,
+    CreatePlaylist, CreateSong, EqualizerSettings, ListeningEntry, Playlist, PlaylistWithSongs,
+    Song, UpdatePlaylist, UpdateSong, YouTubeMetadata,
 };
 use crate::domain::errors::DomainError;
 use crate::domain::ports::music_repository::MusicRepository;
@@ -130,14 +130,19 @@ impl SurrealMusicRepository {
             .bind(("playlist_id", playlist_id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let stats: Vec<serde_json::Value> = result.take(0)
+
+        let stats: Vec<serde_json::Value> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let (song_count, total_duration) = stats.first()
+
+        let (song_count, total_duration) = stats
+            .first()
             .map(|v| {
                 let count = v.get("song_count").and_then(|c| c.as_i64()).unwrap_or(0) as i32;
-                let duration = v.get("total_duration").and_then(|d| d.as_i64()).unwrap_or(0);
+                let duration = v
+                    .get("total_duration")
+                    .and_then(|d| d.as_i64())
+                    .unwrap_or(0);
                 (count, duration)
             })
             .unwrap_or((0, 0));
@@ -146,7 +151,8 @@ impl SurrealMusicRepository {
             "UPDATE playlist:`{}` SET song_count = $count, total_duration = $duration, updated_at = time::now()",
             playlist_id
         );
-        self.pool.client()
+        self.pool
+            .client()
             .query(&query)
             .bind(("count", song_count))
             .bind(("duration", total_duration))
@@ -160,29 +166,40 @@ impl SurrealMusicRepository {
 #[async_trait]
 impl MusicRepository for SurrealMusicRepository {
     async fn get_all_playlists(&self) -> Result<Vec<Playlist>, DomainError> {
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query("SELECT * FROM playlist ORDER BY created_at DESC")
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let records: Vec<PlaylistRecord> = result.take(0)
+
+        let records: Vec<PlaylistRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(records.into_iter().map(Playlist::from).collect())
     }
 
     async fn get_playlist(&self, id: Uuid) -> Result<Option<Playlist>, DomainError> {
         let query = format!("SELECT * FROM playlist:`{}`", id);
-        let mut result = self.pool.client().query(&query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let records: Vec<PlaylistRecord> = result.take(0)
+
+        let records: Vec<PlaylistRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(records.into_iter().next().map(Playlist::from))
     }
 
-    async fn get_playlist_with_songs(&self, id: Uuid) -> Result<Option<PlaylistWithSongs>, DomainError> {
+    async fn get_playlist_with_songs(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<PlaylistWithSongs>, DomainError> {
         let playlist = match self.get_playlist(id).await? {
             Some(p) => p,
             None => return Ok(None),
@@ -193,7 +210,9 @@ impl MusicRepository for SurrealMusicRepository {
         // For favorites playlist, enrich songs with total play count across all playlists
         if playlist.is_favorites {
             for song in &mut songs {
-                let total = self.get_total_play_count_by_youtube_id(&song.youtube_id).await?;
+                let total = self
+                    .get_total_play_count_by_youtube_id(&song.youtube_id)
+                    .await?;
                 song.play_count = total;
             }
         }
@@ -221,7 +240,9 @@ impl MusicRepository for SurrealMusicRepository {
             id
         );
 
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("name", data.name.clone()))
             .bind(("description", data.description.clone()))
@@ -231,9 +252,10 @@ impl MusicRepository for SurrealMusicRepository {
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<PlaylistRecord> = result.take(0)
+        let record: Option<PlaylistRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         record
             .map(Playlist::from)
             .ok_or_else(|| DomainError::database("Failed to create playlist"))
@@ -261,61 +283,81 @@ impl MusicRepository for SurrealMusicRepository {
             id
         );
 
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("name", data.name.unwrap_or(existing.name)))
             .bind(("description", data.description.or(existing.description)))
             .bind(("cover_url", data.cover_url.or(existing.cover_url)))
             .bind(("shuffle", data.shuffle.unwrap_or(existing.shuffle)))
-            .bind(("repeat_mode", data.repeat_mode.unwrap_or(existing.repeat_mode).to_string()))
+            .bind((
+                "repeat_mode",
+                data.repeat_mode.unwrap_or(existing.repeat_mode).to_string(),
+            ))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<PlaylistRecord> = result.take(0)
+        let record: Option<PlaylistRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(record.map(Playlist::from))
     }
 
     async fn delete_playlist(&self, id: Uuid) -> Result<bool, DomainError> {
         // Delete all songs first
-        self.pool.client()
+        self.pool
+            .client()
             .query("DELETE song WHERE playlist_id = $playlist_id")
             .bind(("playlist_id", id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         let query = format!("DELETE playlist:`{}` RETURN BEFORE", id);
-        let mut result = self.pool.client().query(&query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let deleted: Vec<PlaylistRecord> = result.take(0)
+
+        let deleted: Vec<PlaylistRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(!deleted.is_empty())
     }
 
     async fn get_songs_by_playlist(&self, playlist_id: Uuid) -> Result<Vec<Song>, DomainError> {
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query("SELECT * FROM song WHERE playlist_id = $playlist_id ORDER BY song_order ASC")
             .bind(("playlist_id", playlist_id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let records: Vec<SongRecord> = result.take(0)
+
+        let records: Vec<SongRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(records.into_iter().map(Song::from).collect())
     }
 
     async fn get_song(&self, id: Uuid) -> Result<Option<Song>, DomainError> {
         let query = format!("SELECT * FROM song:`{}`", id);
-        let mut result = self.pool.client().query(&query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let records: Vec<SongRecord> = result.take(0)
+
+        let records: Vec<SongRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(records.into_iter().next().map(Song::from))
     }
 
@@ -330,10 +372,11 @@ impl MusicRepository for SurrealMusicRepository {
             .bind(("playlist_id", playlist_id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let records: Vec<SongRecord> = result.take(0)
+
+        let records: Vec<SongRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(records.into_iter().next().map(Song::from))
     }
 
@@ -352,11 +395,13 @@ impl MusicRepository for SurrealMusicRepository {
             .bind(("playlist_id", playlist_id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let max_order: Vec<serde_json::Value> = result.take(0)
+
+        let max_order: Vec<serde_json::Value> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let next_order = max_order.first()
+
+        let next_order = max_order
+            .first()
             .and_then(|v| v.get("song_order"))
             .and_then(|v| v.as_i64())
             .map(|n| n as i32 + 1)
@@ -381,7 +426,8 @@ impl MusicRepository for SurrealMusicRepository {
             id
         );
 
-        self.pool.client()
+        self.pool
+            .client()
             .query(&query)
             .bind(("playlist_id", playlist_id.to_string()))
             .bind(("youtube_id", metadata.youtube_id.clone()))
@@ -429,12 +475,19 @@ impl MusicRepository for SurrealMusicRepository {
             id
         );
 
-        self.pool.client()
+        self.pool
+            .client()
             .query(&query)
-            .bind(("title", data.title.clone().unwrap_or(existing.title.clone())))
+            .bind((
+                "title",
+                data.title.clone().unwrap_or(existing.title.clone()),
+            ))
             .bind(("artist", data.artist.clone().or(existing.artist.clone())))
             .bind(("album", data.album.clone().or(existing.album.clone())))
-            .bind(("cover_url", data.cover_url.clone().or(existing.cover_url.clone())))
+            .bind((
+                "cover_url",
+                data.cover_url.clone().or(existing.cover_url.clone()),
+            ))
             .bind(("song_order", data.song_order.unwrap_or(existing.song_order)))
             .bind(("is_liked", data.is_liked.unwrap_or(existing.is_liked)))
             .await
@@ -446,10 +499,15 @@ impl MusicRepository for SurrealMusicRepository {
     async fn delete_song(&self, id: Uuid) -> Result<bool, DomainError> {
         // Use DELETE RETURN BEFORE to get the song data in one atomic operation
         let query = format!("DELETE song:`{}` RETURN BEFORE", id);
-        let mut result = self.pool.client().query(&query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let deleted: Vec<SongRecord> = result.take(0)
+
+        let deleted: Vec<SongRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         // Only update stats if we actually deleted something
@@ -463,16 +521,27 @@ impl MusicRepository for SurrealMusicRepository {
     }
 
     async fn increment_play_count(&self, id: Uuid) -> Result<(), DomainError> {
-        let query = format!("UPDATE song:`{}` SET play_count += 1, last_played = time::now()", id);
-        self.pool.client().query(&query).await
+        let query = format!(
+            "UPDATE song:`{}` SET play_count += 1, last_played = time::now()",
+            id
+        );
+        self.pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
         Ok(())
     }
 
-    async fn reorder_songs(&self, playlist_id: Uuid, song_ids: Vec<Uuid>) -> Result<(), DomainError> {
+    async fn reorder_songs(
+        &self,
+        playlist_id: Uuid,
+        song_ids: Vec<Uuid>,
+    ) -> Result<(), DomainError> {
         for (index, song_id) in song_ids.iter().enumerate() {
             let query = "UPDATE song SET song_order = $order WHERE id = type::thing(\"song\", $song_id) AND playlist_id = $playlist_id";
-            self.pool.client()
+            self.pool
+                .client()
                 .query(query)
                 .bind(("order", index as i32))
                 .bind(("song_id", song_id.to_string()))
@@ -495,50 +564,66 @@ impl MusicRepository for SurrealMusicRepository {
         Ok(())
     }
 
-    async fn get_listening_history(&self, limit: usize) -> Result<Vec<ListeningEntry>, DomainError> {
-        let mut result = self.pool.client()
+    async fn get_listening_history(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<ListeningEntry>, DomainError> {
+        let mut result = self
+            .pool
+            .client()
             .query("SELECT * FROM listening_history ORDER BY listened_at DESC LIMIT $limit")
             .bind(("limit", limit as i64))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let history: Vec<ListeningEntry> = result.take(0)
+
+        let history: Vec<ListeningEntry> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(history)
     }
 
     async fn get_most_played_songs(&self, limit: usize) -> Result<Vec<Song>, DomainError> {
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query("SELECT * FROM song ORDER BY play_count DESC LIMIT $limit")
             .bind(("limit", limit as i64))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let records: Vec<SongRecord> = result.take(0)
+
+        let records: Vec<SongRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(records.into_iter().map(Song::from).collect())
     }
 
     async fn get_equalizer_settings(&self) -> Result<EqualizerSettings, DomainError> {
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query("SELECT * FROM equalizer_settings LIMIT 1")
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let settings: Vec<EqualizerSettings> = result.take(0)
+
+        let settings: Vec<EqualizerSettings> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(settings.into_iter().next().unwrap_or_default())
     }
 
-    async fn save_equalizer_settings(&self, settings: EqualizerSettings) -> Result<(), DomainError> {
-        self.pool.client()
+    async fn save_equalizer_settings(
+        &self,
+        settings: EqualizerSettings,
+    ) -> Result<(), DomainError> {
+        self.pool
+            .client()
             .query("DELETE equalizer_settings")
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         self.pool.client()
             .query("CREATE equalizer_settings SET enabled = $enabled, preset = $preset, bands = $bands")
             .bind(("enabled", settings.enabled))
@@ -546,19 +631,22 @@ impl MusicRepository for SurrealMusicRepository {
             .bind(("bands", settings.bands))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(())
     }
 
     async fn get_liked_songs(&self) -> Result<Vec<Song>, DomainError> {
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query("SELECT * FROM song WHERE is_liked = true ORDER BY updated_at DESC")
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let records: Vec<SongRecord> = result.take(0)
+
+        let records: Vec<SongRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(records.into_iter().map(Song::from).collect())
     }
 
@@ -567,30 +655,35 @@ impl MusicRepository for SurrealMusicRepository {
             "UPDATE playlist:`{}` SET last_suggestions_update = time::now(), updated_at = time::now()",
             id
         );
-        
-        self.pool.client()
+
+        self.pool
+            .client()
             .query(&query)
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(())
     }
 
-    async fn get_total_play_count_by_youtube_id(&self, youtube_id: &str) -> Result<i32, DomainError> {
+    async fn get_total_play_count_by_youtube_id(
+        &self,
+        youtube_id: &str,
+    ) -> Result<i32, DomainError> {
         let mut result = self.pool.client()
             .query("SELECT math::sum(play_count) as total FROM song WHERE youtube_id = $youtube_id GROUP ALL")
             .bind(("youtube_id", youtube_id))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         #[derive(Debug, Deserialize)]
         struct SumResult {
             total: Option<i64>,
         }
-        
-        let records: Vec<SumResult> = result.take(0)
+
+        let records: Vec<SumResult> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(records.first().and_then(|r| r.total).unwrap_or(0) as i32)
     }
 }

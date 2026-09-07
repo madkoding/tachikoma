@@ -45,10 +45,10 @@ impl Default for PiperConfig {
     fn default() -> Self {
         Self {
             binary_path: PathBuf::from(
-                std::env::var("PIPER_BIN").unwrap_or_else(|_| "/app/piper/piper".to_string())
+                std::env::var("PIPER_BIN").unwrap_or_else(|_| "/app/piper/piper".to_string()),
             ),
             models_dir: PathBuf::from(
-                std::env::var("MODELS_DIR").unwrap_or_else(|_| "/app/models".to_string())
+                std::env::var("MODELS_DIR").unwrap_or_else(|_| "/app/models".to_string()),
             ),
             default_voice: std::env::var("DEFAULT_VOICE")
                 .unwrap_or_else(|_| "es_MX-claude-high".to_string()),
@@ -67,24 +67,24 @@ pub struct EffectsConfig {
     pub pitch_shift: f32,
     /// Enable robotic effect chain
     pub robot_effect: bool,
-    
+
     // High-pass filter settings
     pub highpass_cutoff: f32,
-    
+
     // Chorus settings
     pub chorus_wet: f32,
     pub chorus_voices: usize,
-    
-    // Flanger settings  
+
+    // Flanger settings
     pub flanger_rate: f32,
     pub flanger_depth: f32,
     pub flanger_feedback: f32,
     pub flanger_wet: f32,
-    
+
     // Ring modulation settings
     pub ring_freq: f32,
     pub ring_wet: f32,
-    
+
     // Reverb settings
     pub reverb_wet: f32,
     pub reverb_decay: f32,
@@ -105,32 +105,32 @@ impl Default for EffectsConfig {
         Self {
             // Velocidad ligeramente aumentada (1.15x)
             speed: 1.15,
-            
+
             // Pitch 0: la cadena de efectos aplica +1 internamente a la capa procesada
             // La voz principal queda sin pitch shift para claridad
             pitch_shift: 0.0,
-            
+
             // Activar efectos robóticos (doble capa: dry + wet con delay)
             robot_effect: true,
-            
+
             // High-pass según spec (150-200Hz) - elimina graves innecesarios
             highpass_cutoff: 180.0,
-            
+
             // Chorus sutil (15-20% mix)
             chorus_wet: 0.18,
             chorus_voices: 2,
-            
+
             // Flanger muy sutil (movimiento ligero, como circuitos)
             flanger_rate: 0.3,
             flanger_depth: 0.08,
             flanger_feedback: 0.1,
             flanger_wet: 0.08,
-            
+
             // Ring modulation: se mantiene por compatibilidad, pero la cadena actual
             // prioriza vocoder. Si se vuelve a usar, estos valores son sutiles.
             ring_freq: 80.0,
             ring_wet: 0.0,
-            
+
             // Reverb muy ligera (5-10% mix, room pequeño 10-15%, decay 0.3-0.5s)
             reverb_wet: 0.08,
             reverb_decay: 0.4,

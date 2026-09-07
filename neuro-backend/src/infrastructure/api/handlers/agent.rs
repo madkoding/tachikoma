@@ -8,8 +8,7 @@ use tracing::{debug, error, instrument, warn};
 
 use crate::domain::ports::search_provider::SearchOptions;
 use crate::infrastructure::api::dto::{
-    CommandExecuteRequest, CommandResultDto, ErrorResponse,
-    WebSearchRequest, WebSearchResultDto,
+    CommandExecuteRequest, CommandResultDto, ErrorResponse, WebSearchRequest, WebSearchResultDto,
 };
 use crate::AppState;
 
@@ -33,9 +32,14 @@ pub async fn web_search(
 
     let options = SearchOptions::with_limit(request.limit);
 
-    match state.search_provider.search(&request.query, Some(options)).await {
+    match state
+        .search_provider
+        .search(&request.query, Some(options))
+        .await
+    {
         Ok(response) => {
-            let results: Vec<WebSearchResultDto> = response.results
+            let results: Vec<WebSearchResultDto> = response
+                .results
                 .into_iter()
                 .map(|r| WebSearchResultDto {
                     title: r.title,
@@ -83,7 +87,10 @@ pub async fn execute_command(
             warn!(command = %request.command, "Command not allowed");
             return Err((
                 StatusCode::FORBIDDEN,
-                Json(ErrorResponse::new("COMMAND_NOT_ALLOWED", "Command not in allowlist")),
+                Json(ErrorResponse::new(
+                    "COMMAND_NOT_ALLOWED",
+                    "Command not in allowlist",
+                )),
             ));
         }
         Err(e) => {
@@ -99,16 +106,18 @@ pub async fn execute_command(
         crate::domain::ports::command_executor::ExecutionOptions::with_working_dir(&dir)
     });
 
-    match state.command_executor.execute(&request.command, options).await {
-        Ok(result) => {
-            Ok(Json(CommandResultDto {
-                exit_code: result.exit_code,
-                stdout: result.stdout,
-                stderr: result.stderr,
-                duration_ms: result.execution_time_ms,
-                timed_out: result.timed_out,
-            }))
-        }
+    match state
+        .command_executor
+        .execute(&request.command, options)
+        .await
+    {
+        Ok(result) => Ok(Json(CommandResultDto {
+            exit_code: result.exit_code,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            duration_ms: result.execution_time_ms,
+            timed_out: result.timed_out,
+        })),
         Err(e) => {
             error!(error = %e, "Command execution failed");
             Err((
@@ -126,9 +135,18 @@ pub async fn get_allowed_commands(
 ) -> Result<Json<Vec<String>>, (StatusCode, Json<ErrorResponse>)> {
     // Return a static list for now
     Ok(Json(vec![
-        "ls".to_string(), "cat".to_string(), "head".to_string(), "tail".to_string(),
-        "grep".to_string(), "find".to_string(), "pwd".to_string(), "echo".to_string(),
-        "git".to_string(), "cargo".to_string(), "npm".to_string(), "node".to_string(),
+        "ls".to_string(),
+        "cat".to_string(),
+        "head".to_string(),
+        "tail".to_string(),
+        "grep".to_string(),
+        "find".to_string(),
+        "pwd".to_string(),
+        "echo".to_string(),
+        "git".to_string(),
+        "cargo".to_string(),
+        "npm".to_string(),
+        "node".to_string(),
     ]))
 }
 
@@ -138,7 +156,11 @@ pub async fn get_search_categories(
     State(_state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<String>>, (StatusCode, Json<ErrorResponse>)> {
     Ok(Json(vec![
-        "general".to_string(), "images".to_string(), "videos".to_string(),
-        "news".to_string(), "map".to_string(), "it".to_string(),
+        "general".to_string(),
+        "images".to_string(),
+        "videos".to_string(),
+        "news".to_string(),
+        "map".to_string(),
+        "it".to_string(),
     ]))
 }

@@ -13,5 +13,5 @@
 pub mod manifest;
 pub mod registry;
 
-pub use manifest::{PluginManifest, PluginType, Capability};
+pub use manifest::{Capability, PluginManifest, PluginType};
 pub use registry::{LoadedPlugin, PluginRegistry, PluginTool};

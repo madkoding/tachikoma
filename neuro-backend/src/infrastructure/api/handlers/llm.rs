@@ -12,11 +12,11 @@ use axum::{
 };
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use std::{convert::Infallible, sync::Arc};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
+use utoipa::ToSchema;
 
 use crate::domain::ports::llm_provider::{
     ChatMessage, LlmHealthStatus, SpeculativeChunk, StreamChunk,
@@ -101,20 +101,20 @@ pub struct GenerateResponse {
         (status = 200, description = "LLM provider health status", body = LlmHealthStatus),
     )
 )]
-pub async fn llm_health(
-    State(state): State<Arc<AppState>>,
-) -> Json<LlmHealthStatus> {
-    let status = state.llm_provider.health_status().await.unwrap_or_else(|e| {
-        LlmHealthStatus {
+pub async fn llm_health(State(state): State<Arc<AppState>>) -> Json<LlmHealthStatus> {
+    let status = state
+        .llm_provider
+        .health_status()
+        .await
+        .unwrap_or_else(|e| LlmHealthStatus {
             healthy: false,
             models_count: 0,
             models: vec![],
             provider_url: "unknown".to_string(),
             provider: "unknown".to_string(),
             error: Some(e.to_string()),
-        }
-    });
-    
+        });
+
     Json(status)
 }
 
@@ -138,13 +138,19 @@ pub async fn llm_embed(
     State(state): State<Arc<AppState>>,
     Json(request): Json<EmbedRequest>,
 ) -> Result<Json<EmbedResponse>, (axum::http::StatusCode, String)> {
-    debug!("Generating embedding for text of length {}", request.text.len());
-    
-    let embedding = state.llm_provider.embed(&request.text).await
+    debug!(
+        "Generating embedding for text of length {}",
+        request.text.len()
+    );
+
+    let embedding = state
+        .llm_provider
+        .embed(&request.text)
+        .await
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    
+
     let dimensions = embedding.len();
-    
+
     Ok(Json(EmbedResponse {
         embedding,
         dimensions,
@@ -157,14 +163,20 @@ pub async fn llm_embed_batch(
     State(state): State<Arc<AppState>>,
     Json(request): Json<EmbedBatchRequest>,
 ) -> Result<Json<EmbedBatchResponse>, (axum::http::StatusCode, String)> {
-    debug!("Generating batch embeddings for {} texts", request.texts.len());
-    
-    let embeddings = state.llm_provider.embed_batch(&request.texts).await
+    debug!(
+        "Generating batch embeddings for {} texts",
+        request.texts.len()
+    );
+
+    let embeddings = state
+        .llm_provider
+        .embed_batch(&request.texts)
+        .await
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    
+
     let count = embeddings.len();
     let dimensions = embeddings.first().map(|e| e.len()).unwrap_or(0);
-    
+
     Ok(Json(EmbedBatchResponse {
         embeddings,
         count,
@@ -193,10 +205,13 @@ pub async fn llm_chat(
     Json(request): Json<ChatRequest>,
 ) -> Result<Json<GenerateResponse>, (axum::http::StatusCode, String)> {
     debug!("Chat request with {} messages", request.messages.len());
-    
-    let result = state.llm_provider.chat(request.messages, request.model.as_deref()).await
+
+    let result = state
+        .llm_provider
+        .chat(request.messages, request.model.as_deref())
+        .await
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    
+
     Ok(Json(GenerateResponse {
         content: result.content,
         model: result.model,
@@ -211,23 +226,28 @@ pub async fn llm_chat_stream(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ChatStreamRequest>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    info!("Starting chat stream with {} messages", request.messages.len());
-    
+    info!(
+        "Starting chat stream with {} messages",
+        request.messages.len()
+    );
+
     let (tx, rx) = tokio::sync::mpsc::channel::<StreamChunk>(100);
-    
+
     let llm_provider = state.llm_provider.clone();
     let messages = request.messages;
     let model = request.model;
-    
+
     tokio::spawn(async move {
-        llm_provider.chat_stream(messages, model.as_deref(), tx).await;
+        llm_provider
+            .chat_stream(messages, model.as_deref(), tx)
+            .await;
     });
-    
+
     let stream = ReceiverStream::new(rx).map(|chunk| {
         let data = serde_json::to_string(&chunk).unwrap_or_default();
         Ok(Event::default().event("message").data(data))
     });
-    
+
     Sse::new(stream)
 }
 
@@ -245,30 +265,32 @@ pub async fn llm_speculative_stream(
         request.target_model,
         request.lookahead
     );
-    
+
     let (tx, rx) = tokio::sync::mpsc::channel::<SpeculativeChunk>(100);
-    
+
     let llm_provider = state.llm_provider.clone();
     let messages = request.messages;
     let draft_model = request.draft_model;
     let target_model = request.target_model;
     let lookahead = request.lookahead;
-    
+
     tokio::spawn(async move {
-        llm_provider.speculative_stream(
-            messages,
-            draft_model.as_deref(),
-            target_model.as_deref(),
-            lookahead,
-            tx,
-        ).await;
+        llm_provider
+            .speculative_stream(
+                messages,
+                draft_model.as_deref(),
+                target_model.as_deref(),
+                lookahead,
+                tx,
+            )
+            .await;
     });
-    
+
     let stream = ReceiverStream::new(rx).map(|chunk| {
         let data = serde_json::to_string(&chunk).unwrap_or_default();
         Ok(Event::default().event("message").data(data))
     });
-    
+
     Sse::new(stream)
 }
 
@@ -292,11 +314,17 @@ pub async fn llm_generate(
     State(state): State<Arc<AppState>>,
     Json(request): Json<GenerateRequest>,
 ) -> Result<Json<GenerateResponse>, (axum::http::StatusCode, String)> {
-    debug!("Generate request with prompt length {}", request.prompt.len());
-    
-    let result = state.llm_provider.generate(&request.prompt, request.model.as_deref()).await
+    debug!(
+        "Generate request with prompt length {}",
+        request.prompt.len()
+    );
+
+    let result = state
+        .llm_provider
+        .generate(&request.prompt, request.model.as_deref())
+        .await
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    
+
     Ok(Json(GenerateResponse {
         content: result.content,
         model: result.model,
@@ -337,7 +365,10 @@ pub async fn llm_pull_model(
 ) -> Result<Json<PullModelResponse>, (axum::http::StatusCode, String)> {
     debug!("Pulling model: {}", request.name);
 
-    state.llm_provider.pull_model(&request.name).await
+    state
+        .llm_provider
+        .pull_model(&request.name)
+        .await
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(PullModelResponse {

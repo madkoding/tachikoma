@@ -16,18 +16,20 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         // Health & System
         .route("/health", get(handlers::health_check))
         .route("/models", get(handlers::list_models))
-        
         // Chat
         .route("/chat", post(handlers::send_message))
         .route("/chat/stream", post(handlers::stream_message))
-        .route("/chat/speculative/stream", post(handlers::speculative_stream))
-        
+        .route(
+            "/chat/speculative/stream",
+            post(handlers::speculative_stream),
+        )
         // Conversations
         .route("/chat/conversations", get(handlers::list_conversations))
         .route("/chat/conversations/:id", get(handlers::get_conversation))
-        .route("/chat/conversations/:id", delete(handlers::delete_conversation));
+        .route(
+            "/chat/conversations/:id",
+            delete(handlers::delete_conversation),
+        );
 
-    Router::new()
-        .nest("/api", api_routes)
-        .with_state(state)
+    Router::new().nest("/api", api_routes).with_state(state)
 }

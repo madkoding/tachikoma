@@ -8,7 +8,7 @@ use anyhow::Result;
 use surrealdb::engine::remote::ws::{Client, Ws};
 use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
-use tracing::{info, debug, error};
+use tracing::{debug, error, info};
 
 use crate::infrastructure::config::DatabaseConfig;
 
@@ -29,13 +29,13 @@ impl DatabasePool {
     /// Create a new database connection pool
     /// =========================================================================
     /// Connects to SurrealDB, authenticates, and initializes the schema.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `config` - Database configuration
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(DatabasePool)` - Connected pool
     /// * `Err` - If connection fails
     /// =========================================================================
@@ -43,7 +43,8 @@ impl DatabasePool {
         info!("Connecting to SurrealDB at {}", config.url);
 
         // Extract host from URL (remove ws:// prefix if present)
-        let host = config.url
+        let host = config
+            .url
             .strip_prefix("ws://")
             .or_else(|| config.url.strip_prefix("wss://"))
             .unwrap_or(&config.url);
@@ -123,7 +124,7 @@ impl DatabasePool {
             "DEFINE FIELD confidence ON related_to TYPE float DEFAULT 1.0",
             "DEFINE FIELD created_at ON related_to TYPE datetime",
             "DEFINE FIELD metadata ON related_to TYPE object",
-            
+
             // =====================================================================
             // Chat/Conversation tables
             // =====================================================================
@@ -140,7 +141,7 @@ impl DatabasePool {
             "DEFINE FIELD metadata ON chat_message TYPE object",
             "DEFINE FIELD created_at ON chat_message TYPE datetime",
             "DEFINE INDEX message_conversation_idx ON chat_message FIELDS conversation_id",
-            
+
             // =====================================================================
             // Checklist tables
             // =====================================================================
@@ -163,7 +164,7 @@ impl DatabasePool {
             "DEFINE FIELD item_order ON TABLE checklist_item TYPE int DEFAULT 0",
             "DEFINE FIELD created_at ON TABLE checklist_item TYPE datetime DEFAULT time::now()",
             "DEFINE INDEX idx_item_checklist ON TABLE checklist_item COLUMNS checklist_id",
-            
+
             // =====================================================================
             // Music tables
             // =====================================================================
@@ -208,7 +209,7 @@ impl DatabasePool {
             "DEFINE FIELD enabled ON TABLE equalizer_settings TYPE bool DEFAULT true",
             "DEFINE FIELD preset ON TABLE equalizer_settings TYPE option<string>",
             "DEFINE FIELD bands ON TABLE equalizer_settings TYPE array DEFAULT [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]",
-            
+
             // =====================================================================
             // Kanban tables
             // =====================================================================
@@ -244,10 +245,16 @@ impl DatabasePool {
         ];
 
         for (i, stmt) in statements.iter().enumerate() {
-            debug!("📝 Executing schema statement {}/{}: {}", i + 1, statements.len(), stmt);
+            debug!(
+                "📝 Executing schema statement {}/{}: {}",
+                i + 1,
+                statements.len(),
+                stmt
+            );
             match self.client.query(*stmt).await {
                 Ok(mut response) => {
-                    let errors: Vec<surrealdb::Error> = response.take_errors().into_values().collect();
+                    let errors: Vec<surrealdb::Error> =
+                        response.take_errors().into_values().collect();
                     if !errors.is_empty() {
                         for err in &errors {
                             error!("❌ Schema error for '{}': {}", stmt, err);
@@ -268,7 +275,7 @@ impl DatabasePool {
             "UPDATE song SET is_liked = false WHERE is_liked = NONE",
             // Set default is_favorites for playlists that don't have it
             "UPDATE playlist SET is_favorites = false WHERE is_favorites = NONE",
-            // Set default is_suggestions for playlists that don't have it  
+            // Set default is_suggestions for playlists that don't have it
             "UPDATE playlist SET is_suggestions = false WHERE is_suggestions = NONE",
         ];
 
@@ -303,10 +310,7 @@ impl DatabasePool {
     /// Verifies database connectivity.
     /// =========================================================================
     pub async fn health_check(&self) -> Result<bool> {
-        let result: Option<String> = self.client
-            .query("RETURN 'healthy'")
-            .await?
-            .take(0)?;
+        let result: Option<String> = self.client.query("RETURN 'healthy'").await?.take(0)?;
 
         Ok(result.is_some())
     }

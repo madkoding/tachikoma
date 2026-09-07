@@ -82,12 +82,9 @@ impl SearxngClient {
         debug!("Searching Searxng for: {}", request.query);
 
         let mut url = format!("{}/search", self.base_url);
-        
+
         // Build query parameters
-        let mut params = vec![
-            ("q", request.query.clone()),
-            ("format", "json".to_string()),
-        ];
+        let mut params = vec![("q", request.query.clone()), ("format", "json".to_string())];
 
         if let Some(ref categories) = request.categories {
             params.push(("categories", categories.join(",")));
@@ -106,7 +103,8 @@ impl SearxngClient {
         }
 
         // Add query string
-        let query_string = params.iter()
+        let query_string = params
+            .iter()
             .map(|(k, v)| format!("{}={}", k, urlencoding::encode(v)))
             .collect::<Vec<_>>()
             .join("&");
@@ -114,14 +112,10 @@ impl SearxngClient {
 
         debug!("Searxng URL: {}", url);
 
-        let response = self.client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| {
-                error!("Searxng request failed: {}", e);
-                format!("Search request failed: {}", e)
-            })?;
+        let response = self.client.get(&url).send().await.map_err(|e| {
+            error!("Searxng request failed: {}", e);
+            format!("Search request failed: {}", e)
+        })?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -130,15 +124,15 @@ impl SearxngClient {
             return Err(format!("Search failed with status {}", status));
         }
 
-        let searxng_response: SearxngResponse = response
-            .json()
-            .await
-            .map_err(|e| {
-                error!("Failed to parse Searxng response: {}", e);
-                format!("Failed to parse search response: {}", e)
-            })?;
+        let searxng_response: SearxngResponse = response.json().await.map_err(|e| {
+            error!("Failed to parse Searxng response: {}", e);
+            format!("Failed to parse search response: {}", e)
+        })?;
 
-        debug!("Got {} results from Searxng", searxng_response.results.len());
+        debug!(
+            "Got {} results from Searxng",
+            searxng_response.results.len()
+        );
 
         Ok(SearchResponse {
             results: searxng_response.results,

@@ -23,8 +23,7 @@ impl Config {
                 .unwrap_or(default_port),
             backend_url: env::var("BACKEND_URL")
                 .unwrap_or_else(|_| "http://localhost:3000".to_string()),
-            database_url: env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "127.0.0.1:8000".to_string()),
+            database_url: env::var("DATABASE_URL").unwrap_or_else(|_| "127.0.0.1:8000".to_string()),
             database_user: env::var("DATABASE_USER").unwrap_or_else(|_| "root".to_string()),
             database_pass: env::var("DATABASE_PASS").unwrap_or_else(|_| "root".to_string()),
             database_ns: env::var("DATABASE_NS").unwrap_or_else(|_| "tachikoma".to_string()),

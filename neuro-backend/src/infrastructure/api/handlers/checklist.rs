@@ -29,8 +29,12 @@ pub struct ListChecklistsParams {
     pub include_archived: bool,
 }
 
-fn default_page() -> usize { 1 }
-fn default_per_page() -> usize { 20 }
+fn default_page() -> usize {
+    1
+}
+fn default_per_page() -> usize {
+    20
+}
 
 /// GET /api/data/checklists
 #[instrument(skip(state))]
@@ -40,13 +44,14 @@ pub async fn list_checklists(
 ) -> Result<Json<PaginatedChecklists>, (StatusCode, Json<ErrorResponse>)> {
     let offset = (params.page.saturating_sub(1)) * params.per_page;
 
-    match state.checklist_repository.get_all_checklists(
-        params.per_page,
-        offset,
-        params.include_archived,
-    ).await {
+    match state
+        .checklist_repository
+        .get_all_checklists(params.per_page, offset, params.include_archived)
+        .await
+    {
         Ok(checklists) => {
-            let total = state.checklist_repository
+            let total = state
+                .checklist_repository
                 .count_checklists(params.include_archived)
                 .await
                 .unwrap_or(0);
@@ -78,7 +83,11 @@ pub async fn get_checklist(
 ) -> Result<Json<ChecklistWithItems>, (StatusCode, Json<ErrorResponse>)> {
     match state.checklist_repository.get_checklist(id).await {
         Ok(Some(checklist)) => {
-            let items = state.checklist_repository.get_items(id).await.unwrap_or_default();
+            let items = state
+                .checklist_repository
+                .get_items(id)
+                .await
+                .unwrap_or_default();
             Ok(Json(ChecklistWithItems { checklist, items }))
         }
         Ok(None) => Err((
@@ -103,12 +112,15 @@ pub async fn create_checklist(
 ) -> Result<(StatusCode, Json<Checklist>), (StatusCode, Json<ErrorResponse>)> {
     // Clone items before moving data
     let items = data.items.clone();
-    
+
     match state.checklist_repository.create_checklist(data).await {
         Ok(checklist) => {
             // Create items if provided
             for item_data in items {
-                let _ = state.checklist_repository.add_item(checklist.id, item_data).await;
+                let _ = state
+                    .checklist_repository
+                    .add_item(checklist.id, item_data)
+                    .await;
             }
             Ok((StatusCode::CREATED, Json(checklist)))
         }
@@ -196,7 +208,11 @@ pub async fn create_checklist_item(
     Path(checklist_id): Path<Uuid>,
     Json(data): Json<CreateChecklistItem>,
 ) -> Result<(StatusCode, Json<ChecklistItem>), (StatusCode, Json<ErrorResponse>)> {
-    match state.checklist_repository.add_item(checklist_id, data).await {
+    match state
+        .checklist_repository
+        .add_item(checklist_id, data)
+        .await
+    {
         Ok(item) => Ok((StatusCode::CREATED, Json(item))),
         Err(e) => {
             error!(error = %e, "Failed to create checklist item");

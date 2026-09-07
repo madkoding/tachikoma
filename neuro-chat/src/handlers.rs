@@ -1,7 +1,7 @@
 //! =============================================================================
 //! API Handlers
 //! =============================================================================
-//! 
+//!
 //! All LLM operations go through tachikoma-backend's /api/llm/* endpoints.
 //! This service no longer connects directly to Ollama.
 //! =============================================================================
@@ -9,7 +9,10 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::{sse::{Event, Sse}, IntoResponse},
+    response::{
+        sse::{Event, Sse},
+        IntoResponse,
+    },
     Json,
 };
 use chrono::Utc;
@@ -22,8 +25,8 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
-    models::*,
     backend_client::{ChatMessage as LlmMessage, SpeculativeChunk, StreamChunk},
+    models::*,
     AppState,
 };
 
@@ -36,7 +39,11 @@ pub async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoRespon
     let llm_healthy = state.llm_client.health_check().await;
     let memory_healthy = state.memory_client.health_check().await;
 
-    let status = if db_healthy && llm_healthy { "healthy" } else { "degraded" };
+    let status = if db_healthy && llm_healthy {
+        "healthy"
+    } else {
+        "degraded"
+    };
 
     Json(json!({
         "status": status,
@@ -75,16 +82,18 @@ pub async fn send_message(
         .system_prompt
         .clone()
         .unwrap_or_else(get_system_prompt);
-    
+
     // Get or create conversation
     let conversation_id = match request.conversation_id {
         Some(id) => id,
-        None => create_conversation(&state).await.unwrap_or_else(|_| Uuid::new_v4()),
+        None => create_conversation(&state)
+            .await
+            .unwrap_or_else(|_| Uuid::new_v4()),
     };
 
     // Build messages with context
     let mut messages = vec![];
-    
+
     // Add system prompt
     messages.push(LlmMessage {
         role: "system".to_string(),
@@ -128,12 +137,21 @@ pub async fn send_message(
     match state.llm_client.chat(messages, model.as_deref()).await {
         Ok(response) => {
             let message_id = Uuid::new_v4();
-            
+
             // Save messages to database
-            if let Err(e) = save_message(&state, conversation_id, MessageRole::User, &request.message).await {
+            if let Err(e) =
+                save_message(&state, conversation_id, MessageRole::User, &request.message).await
+            {
                 warn!(error = %e, "Failed to save user message");
             }
-            if let Err(e) = save_message(&state, conversation_id, MessageRole::Assistant, &response.content).await {
+            if let Err(e) = save_message(
+                &state,
+                conversation_id,
+                MessageRole::Assistant,
+                &response.content,
+            )
+            .await
+            {
                 warn!(error = %e, "Failed to save assistant message");
             }
 
@@ -150,7 +168,11 @@ pub async fn send_message(
         }
         Err(e) => {
             error!("Backend LLM error: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e })),
+            )
+                .into_response()
         }
     }
 }
@@ -167,16 +189,18 @@ pub async fn stream_message(
         .system_prompt
         .clone()
         .unwrap_or_else(get_system_prompt);
-    
+
     // Get or create conversation
     let conversation_id = match request.conversation_id {
         Some(id) => id,
-        None => create_conversation(&state).await.unwrap_or_else(|_| Uuid::new_v4()),
+        None => create_conversation(&state)
+            .await
+            .unwrap_or_else(|_| Uuid::new_v4()),
     };
 
     // Build messages
     let mut messages = vec![];
-    
+
     messages.push(LlmMessage {
         role: "system".to_string(),
         content: system_prompt.clone(),
@@ -216,19 +240,21 @@ pub async fn stream_message(
 
     // Create channel for streaming
     let (tx, mut rx) = mpsc::channel::<Result<StreamChunk, String>>(100);
-    
+
     // Spawn backend streaming task
     let llm_client = state.llm_client.clone();
     let model_clone = model.clone();
     tokio::spawn(async move {
-        llm_client.chat_stream(messages, model_clone.as_deref(), tx).await;
+        llm_client
+            .chat_stream(messages, model_clone.as_deref(), tx)
+            .await;
     });
 
     // Create SSE stream
     let user_message = request.message.clone();
     let state_clone = state.clone();
     let model_display = model.unwrap_or_else(|| "default".to_string());
-    
+
     let stream = async_stream::stream! {
         // Send start event
         yield Ok(Event::default()
@@ -318,16 +344,21 @@ pub async fn stream_message(
 /// List all conversations
 pub async fn list_conversations(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let sql = "SELECT * FROM conversation ORDER BY updated_at DESC LIMIT 50";
-    
+
     match state.db.client().query(sql).await {
         Ok(mut response) => {
             let records: Vec<ConversationRecord> = response.take(0).unwrap_or_default();
-            let conversations: Vec<Conversation> = records.into_iter().map(|r| r.to_conversation()).collect();
+            let conversations: Vec<Conversation> =
+                records.into_iter().map(|r| r.to_conversation()).collect();
             Json(json!({ "conversations": conversations })).into_response()
         }
         Err(e) => {
             error!("Failed to list conversations: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -339,7 +370,9 @@ pub async fn get_conversation(
 ) -> impl IntoResponse {
     // Get conversation
     let conv_sql = "SELECT * FROM type::thing('conversation', $id)";
-    let conv_result = state.db.client()
+    let conv_result = state
+        .db
+        .client()
         .query(conv_sql)
         .bind(("id", id.to_string()))
         .await;
@@ -349,19 +382,34 @@ pub async fn get_conversation(
             let records: Vec<ConversationRecord> = response.take(0).unwrap_or_default();
             match records.into_iter().next() {
                 Some(r) => r.to_conversation(),
-                None => return (StatusCode::NOT_FOUND, Json(json!({ "error": "Conversation not found" }))).into_response(),
+                None => {
+                    return (
+                        StatusCode::NOT_FOUND,
+                        Json(json!({ "error": "Conversation not found" })),
+                    )
+                        .into_response()
+                }
             }
         }
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
     };
 
     // Get messages
-    let messages = get_conversation_messages(&state, id).await.unwrap_or_default();
+    let messages = get_conversation_messages(&state, id)
+        .await
+        .unwrap_or_default();
 
     Json(ConversationWithMessages {
         conversation,
         messages,
-    }).into_response()
+    })
+    .into_response()
 }
 
 /// Delete a conversation
@@ -371,16 +419,28 @@ pub async fn delete_conversation(
 ) -> impl IntoResponse {
     // Delete messages first
     let delete_msgs = "DELETE chat_message WHERE conversation_id = $id";
-    let _ = state.db.client()
+    let _ = state
+        .db
+        .client()
         .query(delete_msgs)
         .bind(("id", id.to_string()))
         .await;
 
     // Delete conversation
     let sql = "DELETE type::thing('conversation', $id)";
-    match state.db.client().query(sql).bind(("id", id.to_string())).await {
+    match state
+        .db
+        .client()
+        .query(sql)
+        .bind(("id", id.to_string()))
+        .await
+    {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
     }
 }
 
@@ -392,7 +452,8 @@ fn get_system_prompt() -> String {
     r#"Eres un asistente de IA amigable y útil llamado TACHIKOMA. 
 Respondes en español de forma concisa y clara.
 Tienes acceso a memorias del usuario que te ayudan a personalizar las respuestas.
-Siempre intentas ser útil y proporcionar información precisa."#.to_string()
+Siempre intentas ser útil y proporcionar información precisa."#
+        .to_string()
 }
 
 async fn create_conversation(state: &Arc<AppState>) -> Result<Uuid, String> {
@@ -408,7 +469,9 @@ async fn create_conversation(state: &Arc<AppState>) -> Result<Uuid, String> {
             message_count = 0
     "#;
 
-    state.db.client()
+    state
+        .db
+        .client()
         .query(sql)
         .bind(("id", id.to_string()))
         .bind(("now", Datetime::from(now)))
@@ -418,10 +481,15 @@ async fn create_conversation(state: &Arc<AppState>) -> Result<Uuid, String> {
     Ok(id)
 }
 
-async fn get_conversation_messages(state: &Arc<AppState>, conversation_id: Uuid) -> Result<Vec<ChatMessage>, String> {
+async fn get_conversation_messages(
+    state: &Arc<AppState>,
+    conversation_id: Uuid,
+) -> Result<Vec<ChatMessage>, String> {
     let sql = "SELECT * FROM chat_message WHERE conversation_id = $id ORDER BY created_at ASC";
-    
-    let mut response = state.db.client()
+
+    let mut response = state
+        .db
+        .client()
         .query(sql)
         .bind(("id", conversation_id.to_string()))
         .await
@@ -449,7 +517,9 @@ async fn save_message(
             created_at = $now
     "#;
 
-    state.db.client()
+    state
+        .db
+        .client()
         .query(sql)
         .bind(("id", id.to_string()))
         .bind(("conversation_id", conversation_id.to_string()))
@@ -466,7 +536,9 @@ async fn save_message(
             message_count = message_count + 1
     "#;
 
-    state.db.client()
+    state
+        .db
+        .client()
         .query(update_sql)
         .bind(("id", conversation_id.to_string()))
         .bind(("now", Datetime::from(now)))
@@ -480,8 +552,8 @@ async fn save_message(
 // ============================================================================
 
 /// Stream a message response using speculative decoding via SSE
-/// 
-/// Calls backend's speculative_stream endpoint which uses a fast draft model 
+///
+/// Calls backend's speculative_stream endpoint which uses a fast draft model
 /// to generate tokens speculatively, then verifies with a larger target model.
 pub async fn speculative_stream(
     State(state): State<Arc<AppState>>,
@@ -490,7 +562,8 @@ pub async fn speculative_stream(
     // Models are optional - backend will use tier defaults (Light=draft, Standard=target)
     let draft_model = request.draft_model.clone();
     let target_model = request.target_model.clone();
-    let lookahead = request.lookahead
+    let lookahead = request
+        .lookahead
         .unwrap_or(state.config.speculative_lookahead);
     let system_prompt = request
         .system_prompt
@@ -500,12 +573,14 @@ pub async fn speculative_stream(
     // Get or create conversation
     let conversation_id = match request.conversation_id {
         Some(id) => id,
-        None => create_conversation(&state).await.unwrap_or_else(|_| Uuid::new_v4()),
+        None => create_conversation(&state)
+            .await
+            .unwrap_or_else(|_| Uuid::new_v4()),
     };
 
     // Build messages
     let mut messages = vec![];
-    
+
     messages.push(LlmMessage {
         role: "system".to_string(),
         content: system_prompt.clone(),
@@ -551,13 +626,15 @@ pub async fn speculative_stream(
     let draft_clone = draft_model.clone();
     let target_clone = target_model.clone();
     tokio::spawn(async move {
-        llm_client.speculative_stream(
-            messages, 
-            draft_clone.as_deref(), 
-            target_clone.as_deref(), 
-            Some(lookahead), 
-            tx
-        ).await;
+        llm_client
+            .speculative_stream(
+                messages,
+                draft_clone.as_deref(),
+                target_clone.as_deref(),
+                Some(lookahead),
+                tx,
+            )
+            .await;
     });
 
     // Create SSE stream

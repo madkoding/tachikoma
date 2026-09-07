@@ -12,13 +12,14 @@ use futures_util::stream::Stream;
 use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Instant;
+use tokio_stream::wrappers::ReceiverStream;
 use tracing::{error, info, instrument};
 use uuid::Uuid;
-use tokio_stream::wrappers::ReceiverStream;
 
-use crate::domain::entities::chat::{ChatRequest, ChatMessage, MessageMetadata};
+use crate::domain::entities::chat::{ChatMessage, ChatRequest, MessageMetadata};
 use crate::infrastructure::api::dto::{
-    ChatMessageRequest, ChatMessageResponse, ConversationDto, ConversationWithMessagesDto, ChatMessageDto, ErrorResponse,
+    ChatMessageDto, ChatMessageRequest, ChatMessageResponse, ConversationDto,
+    ConversationWithMessagesDto, ErrorResponse,
 };
 use crate::AppState;
 
@@ -40,7 +41,10 @@ pub async fn send_message(
 ) -> Result<Json<ChatMessageResponse>, (StatusCode, Json<ErrorResponse>)> {
     let start = Instant::now();
     let msg_len = request.message.len();
-    let conv_id = request.conversation_id.map(|id| id.to_string()).unwrap_or_else(|| "new".to_string());
+    let conv_id = request
+        .conversation_id
+        .map(|id| id.to_string())
+        .unwrap_or_else(|| "new".to_string());
 
     info!(conv = %conv_id, len = msg_len, "Chat request");
 
@@ -89,7 +93,7 @@ pub async fn stream_message(
     let message_for_memory = request.message.clone(); // Clone for memory extraction
     let msg_len = message.len();
     let conv_id_str = conversation_id.to_string();
-    
+
     info!(conv = %conv_id_str, len = msg_len, "Stream request");
 
     // Get services
@@ -100,23 +104,27 @@ pub async fn stream_message(
 
     tokio::spawn(async move {
         let start = Instant::now();
-        
+
         // =========================================================================
         // PARALLEL TOOL EXECUTION - Execute tools while preparing context
         // =========================================================================
-        
+
         // Quick keyword detection (instant) to know if tool is needed
         let needs_tool = chat_service.quick_tool_check(&message);
-        
+
         if needs_tool {
             // Send "thinking" event immediately so UI shows feedback
             let thinking_data = serde_json::json!({
                 "type": "thinking",
                 "message": "Ejecutando herramienta...",
             });
-            let _ = tx.send(Ok(Event::default().event("message").data(thinking_data.to_string()))).await;
+            let _ = tx
+                .send(Ok(Event::default()
+                    .event("message")
+                    .data(thinking_data.to_string())))
+                .await;
         }
-        
+
         // Execute tool detection and execution (with templates, this is fast now)
         let tools_used = chat_service.detect_and_execute_tools(&message).await;
         let tools_names: Vec<String> = tools_used.iter().map(|(n, _)| n.clone()).collect();
@@ -126,26 +134,30 @@ pub async fn stream_message(
         } else {
             None
         };
-        
+
         // Send tool_executed event if tools were run
         if !tools_names.is_empty() {
             let tool_data = serde_json::json!({
                 "type": "tool_executed",
                 "tools": tools_names,
             });
-            let _ = tx.send(Ok(Event::default().event("message").data(tool_data.to_string()))).await;
+            let _ = tx
+                .send(Ok(Event::default()
+                    .event("message")
+                    .data(tool_data.to_string())))
+                .await;
         }
-        
+
         // Get conversation history
         let conversation = chat_service.get_conversation(conversation_id).await;
-        
+
         // Get relevant memory context
         let context_memories = memory_service.search(&message, 5).await.unwrap_or_default();
         let memory_ids: Vec<Uuid> = context_memories.iter().map(|(m, _)| m.id).collect();
-        
+
         // Build system prompt (using the same prompt from ChatService)
         let mut system_prompt = chat_service.system_prompt.clone();
-        
+
         // Add memory context to system prompt if available
         if !context_memories.is_empty() {
             system_prompt.push_str("\n\nTienes acceso a estos recuerdos relevantes del usuario:\n");
@@ -155,7 +167,7 @@ pub async fn stream_message(
                 }
             }
         }
-        
+
         // Add tool results to system prompt if tools were executed
         if let Some(ref tools) = tools_context {
             system_prompt.push_str("\n\n=== RESULTADOS DE HERRAMIENTAS EJECUTADAS ===\n");
@@ -165,23 +177,17 @@ pub async fn stream_message(
             }
             system_prompt.push_str("Responde al usuario basándote en los resultados anteriores.\n");
         }
-        
+
         // Build messages array for Ollama
-        let mut ollama_messages: Vec<serde_json::Value> = vec![
-            serde_json::json!({
-                "role": "system",
-                "content": system_prompt
-            })
-        ];
-        
+        let mut ollama_messages: Vec<serde_json::Value> = vec![serde_json::json!({
+            "role": "system",
+            "content": system_prompt
+        })];
+
         // Add conversation history (last 10 messages to avoid context overflow)
         if let Some(conv) = conversation {
-            let history_messages: Vec<_> = conv.messages.iter()
-                .rev()
-                .take(10)
-                .rev()
-                .collect();
-            
+            let history_messages: Vec<_> = conv.messages.iter().rev().take(10).rev().collect();
+
             for msg in history_messages {
                 let role = match msg.role {
                     crate::domain::entities::chat::MessageRole::User => "user",
@@ -195,28 +201,33 @@ pub async fn stream_message(
                 }));
             }
         }
-        
+
         // Add current user message
         ollama_messages.push(serde_json::json!({
             "role": "user",
             "content": message
         }));
-        
+
         // Select model
         let model = chat_service.select_model_for_task(&message);
-        
+
         // Send initial event
         let init_data = serde_json::json!({
             "type": "start",
             "conversation_id": conversation_id,
             "model": model,
         });
-        let _ = tx.send(Ok(Event::default().event("message").data(init_data.to_string()))).await;
-        
+        let _ = tx
+            .send(Ok(Event::default()
+                .event("message")
+                .data(init_data.to_string())))
+            .await;
+
         // Make streaming request to Ollama
-        let ollama_url = std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
+        let ollama_url =
+            std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
         let client = reqwest::Client::new();
-        
+
         let ollama_request = serde_json::json!({
             "model": model,
             "messages": ollama_messages,
@@ -226,8 +237,9 @@ pub async fn stream_message(
                 "num_predict": 2048
             }
         });
-        
-        match client.post(format!("{}/api/chat", ollama_url))
+
+        match client
+            .post(format!("{}/api/chat", ollama_url))
             .json(&ollama_request)
             .send()
             .await
@@ -238,30 +250,51 @@ pub async fn stream_message(
                     let mut full_content = String::new();
                     let mut prompt_tokens: u64 = 0;
                     let mut completion_tokens: u64 = 0;
-                    
-                    while let Some(chunk_result) = futures_util::StreamExt::next(&mut stream).await {
+
+                    while let Some(chunk_result) = futures_util::StreamExt::next(&mut stream).await
+                    {
                         match chunk_result {
                             Ok(chunk) => {
                                 if let Ok(text) = std::str::from_utf8(&chunk) {
                                     for line in text.lines() {
-                                        if line.is_empty() { continue; }
-                                        
-                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
+                                        if line.is_empty() {
+                                            continue;
+                                        }
+
+                                        if let Ok(json) =
+                                            serde_json::from_str::<serde_json::Value>(line)
+                                        {
                                             if let Some(msg) = json.get("message") {
-                                                if let Some(content) = msg.get("content").and_then(|c| c.as_str()) {
+                                                if let Some(content) =
+                                                    msg.get("content").and_then(|c| c.as_str())
+                                                {
                                                     full_content.push_str(content);
-                                                    
+
                                                     let chunk_data = serde_json::json!({
                                                         "type": "chunk",
                                                         "content": content,
                                                     });
-                                                    let _ = tx.send(Ok(Event::default().event("message").data(chunk_data.to_string()))).await;
+                                                    let _ = tx
+                                                        .send(Ok(Event::default()
+                                                            .event("message")
+                                                            .data(chunk_data.to_string())))
+                                                        .await;
                                                 }
                                             }
-                                            
-                                            if json.get("done").and_then(|d| d.as_bool()).unwrap_or(false) {
-                                                prompt_tokens = json.get("prompt_eval_count").and_then(|c| c.as_u64()).unwrap_or(0);
-                                                completion_tokens = json.get("eval_count").and_then(|c| c.as_u64()).unwrap_or(0);
+
+                                            if json
+                                                .get("done")
+                                                .and_then(|d| d.as_bool())
+                                                .unwrap_or(false)
+                                            {
+                                                prompt_tokens = json
+                                                    .get("prompt_eval_count")
+                                                    .and_then(|c| c.as_u64())
+                                                    .unwrap_or(0);
+                                                completion_tokens = json
+                                                    .get("eval_count")
+                                                    .and_then(|c| c.as_u64())
+                                                    .unwrap_or(0);
                                             }
                                         }
                                     }
@@ -273,10 +306,11 @@ pub async fn stream_message(
                             }
                         }
                     }
-                    
+
                     // Save to database
                     let user_message = ChatMessage::user(conversation_id, message);
-                    let mut assistant_message = ChatMessage::assistant(conversation_id, full_content.clone());
+                    let mut assistant_message =
+                        ChatMessage::assistant(conversation_id, full_content.clone());
                     assistant_message.metadata = MessageMetadata {
                         model: Some(model.clone()),
                         context_memory_ids: memory_ids,
@@ -286,7 +320,7 @@ pub async fn stream_message(
                         token_count: Some((prompt_tokens + completion_tokens) as u32),
                         ..Default::default()
                     };
-                    
+
                     // Send final event FIRST (before saving to DB)
                     let final_data = serde_json::json!({
                         "type": "done",
@@ -297,16 +331,28 @@ pub async fn stream_message(
                         "tokens_completion": completion_tokens,
                         "processing_time_ms": start.elapsed().as_millis() as u64,
                     });
-                    let _ = tx.send(Ok(Event::default().event("message").data(final_data.to_string()))).await;
+                    let _ = tx
+                        .send(Ok(Event::default()
+                            .event("message")
+                            .data(final_data.to_string())))
+                        .await;
 
                     drop(tx);
-                    
+
                     // Extract and store memories from user message
-                    chat_service.extract_and_store_memories(&message_for_memory).await;
-                    
+                    chat_service
+                        .extract_and_store_memories(&message_for_memory)
+                        .await;
+
                     // NOW save to database (after stream is closed)
                     tracing::info!(conversation_id = %conversation_id, "Saving conversation after stream completed");
-                    chat_service.update_conversation_direct(conversation_id, user_message, assistant_message.clone()).await;
+                    chat_service
+                        .update_conversation_direct(
+                            conversation_id,
+                            user_message,
+                            assistant_message.clone(),
+                        )
+                        .await;
                     tracing::info!(conversation_id = %conversation_id, "Conversation save completed");
                 } else {
                     let error_msg = format!("Ollama error: {}", response.status());
@@ -315,7 +361,11 @@ pub async fn stream_message(
                         "type": "error",
                         "error": error_msg,
                     });
-                    let _ = tx.send(Ok(Event::default().event("message").data(error_data.to_string()))).await;
+                    let _ = tx
+                        .send(Ok(Event::default()
+                            .event("message")
+                            .data(error_data.to_string())))
+                        .await;
                 }
             }
             Err(e) => {
@@ -325,10 +375,14 @@ pub async fn stream_message(
                     "type": "error",
                     "error": error_msg,
                 });
-                let _ = tx.send(Ok(Event::default().event("message").data(error_data.to_string()))).await;
+                let _ = tx
+                    .send(Ok(Event::default()
+                        .event("message")
+                        .data(error_data.to_string())))
+                    .await;
             }
         }
-        
+
         tracing::info!("Stream handler task completed");
     });
 
@@ -343,8 +397,10 @@ pub async fn get_conversation(
 ) -> Result<Json<ConversationWithMessagesDto>, (StatusCode, Json<ErrorResponse>)> {
     match state.chat_service.get_conversation(conversation_id).await {
         Some(conversation) => {
-            let messages: Vec<ChatMessageDto> = conversation.messages.iter().map(|m| {
-                ChatMessageDto {
+            let messages: Vec<ChatMessageDto> = conversation
+                .messages
+                .iter()
+                .map(|m| ChatMessageDto {
                     id: m.id,
                     role: format!("{:?}", m.role).to_lowercase(),
                     content: m.content.clone(),
@@ -352,8 +408,8 @@ pub async fn get_conversation(
                     tokens_prompt: m.metadata.prompt_tokens,
                     tokens_completion: m.metadata.completion_tokens,
                     created_at: m.created_at.to_rfc3339(),
-                }
-            }).collect();
+                })
+                .collect();
 
             Ok(Json(ConversationWithMessagesDto {
                 id: conversation.id,
@@ -363,12 +419,10 @@ pub async fn get_conversation(
                 updated_at: conversation.updated_at.to_rfc3339(),
             }))
         }
-        None => {
-            Err((
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse::new("NOT_FOUND", "Conversation not found")),
-            ))
-        }
+        None => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new("NOT_FOUND", "Conversation not found")),
+        )),
     }
 }
 
@@ -407,7 +461,11 @@ pub async fn delete_conversation(
     State(state): State<Arc<AppState>>,
     Path(conversation_id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    if state.chat_service.delete_conversation(conversation_id).await {
+    if state
+        .chat_service
+        .delete_conversation(conversation_id)
+        .await
+    {
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err((

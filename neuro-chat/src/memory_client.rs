@@ -21,9 +21,14 @@ impl MemoryClient {
     }
 
     /// Search for relevant memories
-    pub async fn search(&self, query: &str, limit: usize, threshold: f64) -> Result<Vec<MemorySearchResult>, String> {
+    pub async fn search(
+        &self,
+        query: &str,
+        limit: usize,
+        threshold: f64,
+    ) -> Result<Vec<MemorySearchResult>, String> {
         let url = format!("{}/api/memories/search", self.base_url);
-        
+
         let request = MemorySearchRequest {
             query: query.to_string(),
             limit: Some(limit),
@@ -32,7 +37,8 @@ impl MemoryClient {
 
         debug!("Searching memories: {}", query);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&request)
             .send()
@@ -56,8 +62,9 @@ impl MemoryClient {
     /// Create a new memory
     pub async fn create(&self, content: &str, memory_type: &str) -> Result<Memory, String> {
         let url = format!("{}/api/memories", self.base_url);
-        
-        let response = self.client
+
+        let response = self
+            .client
             .post(&url)
             .json(&serde_json::json!({
                 "content": content,

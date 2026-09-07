@@ -6,7 +6,11 @@ pub struct CombFilter {
 
 impl CombFilter {
     fn new(delay_samples: usize, feedback: f32) -> Self {
-        Self { buffer: vec![0.0; delay_samples.max(1)], index: 0, feedback }
+        Self {
+            buffer: vec![0.0; delay_samples.max(1)],
+            index: 0,
+            feedback,
+        }
     }
 
     fn process(&mut self, input: f32) -> f32 {
@@ -25,7 +29,11 @@ pub struct AllPassFilter {
 
 impl AllPassFilter {
     fn new(delay_samples: usize, feedback: f32) -> Self {
-        Self { buffer: vec![0.0; delay_samples.max(1)], index: 0, feedback }
+        Self {
+            buffer: vec![0.0; delay_samples.max(1)],
+            index: 0,
+            feedback,
+        }
     }
 
     fn process(&mut self, input: f32) -> f32 {
@@ -37,21 +45,27 @@ impl AllPassFilter {
     }
 }
 
-pub fn apply_reverb(audio: &[f32], sample_rate: u32, room_size: f32, decay_time: f32, wet: f32) -> Vec<f32> {
+pub fn apply_reverb(
+    audio: &[f32],
+    sample_rate: u32,
+    room_size: f32,
+    decay_time: f32,
+    wet: f32,
+) -> Vec<f32> {
     if audio.is_empty() || wet < 0.001 {
         return audio.to_vec();
     }
 
     let sample_rate_f = sample_rate as f32;
     let wet = wet.clamp(0.0, 1.0);
-    let dry = 1.0 - wet;  // Pre-calcular dry
+    let dry = 1.0 - wet; // Pre-calcular dry
 
     let room = room_size.clamp(0.1, 1.0);
     let _decay = decay_time.clamp(0.05, 5.0);
 
     // Pragmatic mapping: keep it stable and small
     let base_feedback = 0.78 * room;
-    
+
     // Pre-calcular factor de conversión ms->samples
     let ms_to_samples = room * sample_rate_f * 0.001;
 
@@ -63,7 +77,7 @@ pub fn apply_reverb(audio: &[f32], sample_rate: u32, room_size: f32, decay_time:
             CombFilter::new(delay, base_feedback)
         })
         .collect();
-    
+
     // Pre-calcular inversa del número de combs para evitar división en el loop
     let inv_num_combs = 1.0 / combs.len() as f32;
 

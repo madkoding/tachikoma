@@ -27,15 +27,19 @@ async fn proxy_to_service(
     // Note: The path from request.uri() doesn't include /api prefix since it's stripped by nest()
     // We need to add /api back for the microservice
     let path = request.uri().path();
-    let query = request.uri().query().map(|q| format!("?{}", q)).unwrap_or_default();
+    let query = request
+        .uri()
+        .query()
+        .map(|q| format!("?{}", q))
+        .unwrap_or_default();
     let target_url = format!("{}/api{}{}", service_url, path, query);
-    
+
     debug!(target = %target_url, service = %service_name, "Proxying request");
 
     // Get method and headers
     let method = request.method().clone();
     let headers = request.headers().clone();
-    
+
     // Get body
     let body_bytes = match axum::body::to_bytes(request.into_body(), 10 * 1024 * 1024).await {
         Ok(bytes) => bytes,
@@ -89,11 +93,11 @@ async fn proxy_to_service(
 
     // For streaming responses (audio/video), use streaming body
     if stream_response {
-        let stream = response.bytes_stream().map(|result| {
-            result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-        });
+        let stream = response
+            .bytes_stream()
+            .map(|result| result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
         let body = Body::from_stream(stream);
-        
+
         builder.body(body).map_err(|e| {
             error!(error = %e, service = %service_name, "Failed to build streaming response");
             StatusCode::INTERNAL_SERVER_ERROR
@@ -109,7 +113,7 @@ async fn proxy_to_service(
         };
 
         let body = Body::from(body_bytes.to_vec());
-        
+
         builder.body(body).map_err(|e| {
             error!(error = %e, service = %service_name, "Failed to build response");
             StatusCode::INTERNAL_SERVER_ERROR
@@ -128,7 +132,8 @@ pub async fn proxy_checklists(
         "checklists",
         request,
         false, // No streaming needed for checklists
-    ).await
+    )
+    .await
 }
 
 /// Proxy requests to the music microservice
@@ -139,16 +144,17 @@ pub async fn proxy_music(
 ) -> Result<Response, StatusCode> {
     let path = request.uri().path();
     debug!("🎵 Proxying music request: {}", path);
-    
+
     // Enable streaming for audio stream endpoints and SSE events
     let is_stream = path.contains("/stream/") || path.contains("/events");
-    
+
     proxy_to_service(
         &state.microservices_config.music_url,
         "music",
         request,
         is_stream,
-    ).await
+    )
+    .await
 }
 
 /// Proxy requests to the pomodoro microservice
@@ -158,13 +164,14 @@ pub async fn proxy_pomodoro(
     request: Request,
 ) -> Result<Response, StatusCode> {
     debug!("🍅 Proxying pomodoro request: {}", request.uri().path());
-    
+
     proxy_to_service(
         &state.microservices_config.pomodoro_url,
         "pomodoro",
         request,
         false, // No streaming for pomodoro
-    ).await
+    )
+    .await
 }
 
 /// Proxy requests to the kanban microservice
@@ -174,13 +181,14 @@ pub async fn proxy_kanban(
     request: Request,
 ) -> Result<Response, StatusCode> {
     debug!("🗂️ Proxying kanban request: {}", request.uri().path());
-    
+
     proxy_to_service(
         &state.microservices_config.kanban_url,
         "kanban",
         request,
         false, // No streaming for kanban
-    ).await
+    )
+    .await
 }
 
 /// Proxy requests to the note microservice
@@ -190,13 +198,14 @@ pub async fn proxy_note(
     request: Request,
 ) -> Result<Response, StatusCode> {
     debug!("📝 Proxying note request: {}", request.uri().path());
-    
+
     proxy_to_service(
         &state.microservices_config.note_url,
         "note",
         request,
         false, // No streaming for notes
-    ).await
+    )
+    .await
 }
 
 /// Proxy requests to the docs microservice
@@ -206,13 +215,14 @@ pub async fn proxy_docs(
     request: Request,
 ) -> Result<Response, StatusCode> {
     debug!("📄 Proxying docs request: {}", request.uri().path());
-    
+
     proxy_to_service(
         &state.microservices_config.docs_url,
         "docs",
         request,
         false, // No streaming for docs
-    ).await
+    )
+    .await
 }
 
 /// Proxy requests to the calendar microservice
@@ -222,13 +232,14 @@ pub async fn proxy_calendar(
     request: Request,
 ) -> Result<Response, StatusCode> {
     debug!("🗓️ Proxying calendar request: {}", request.uri().path());
-    
+
     proxy_to_service(
         &state.microservices_config.calendar_url,
         "calendar",
         request,
         false, // No streaming for calendar
-    ).await
+    )
+    .await
 }
 
 /// Proxy requests to the image microservice
@@ -238,13 +249,14 @@ pub async fn proxy_image(
     request: Request,
 ) -> Result<Response, StatusCode> {
     debug!("🖼️ Proxying image request: {}", request.uri().path());
-    
+
     proxy_to_service(
         &state.microservices_config.image_url,
         "image",
         request,
         false, // No streaming for images
-    ).await
+    )
+    .await
 }
 
 /// Proxy requests to the voice microservice
@@ -255,14 +267,15 @@ pub async fn proxy_voice(
 ) -> Result<Response, StatusCode> {
     let path = request.uri().path();
     debug!("🔊 Proxying voice request: {}", path);
-    
+
     // Enable streaming for audio synthesis endpoints
     let is_stream = path.contains("/stream") || path.contains("/synthesize");
-    
+
     proxy_to_service(
         &state.microservices_config.voice_url,
         "voice",
         request,
         is_stream,
-    ).await
+    )
+    .await
 }

@@ -98,7 +98,8 @@ impl AgentOrchestrator {
             _ => MemoryType::General,
         };
 
-        let memory = self.memory_service
+        let memory = self
+            .memory_service
             .create_memory(content.to_string(), mem_type, None)
             .await?;
 
@@ -108,7 +109,11 @@ impl AgentOrchestrator {
 
     /// Recall relevant memories
     #[instrument(skip(self))]
-    pub async fn recall(&self, query: &str, limit: usize) -> Result<Vec<(Uuid, String, f64)>, DomainError> {
+    pub async fn recall(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<(Uuid, String, f64)>, DomainError> {
         debug!(query = query, limit = limit, "Recalling memories");
 
         let results = self.memory_service.search(query, limit).await?;
@@ -118,7 +123,11 @@ impl AgentOrchestrator {
             .map(|(memory, similarity)| (memory.id, memory.content, similarity))
             .collect();
 
-        debug!(query = query, results = memories.len(), "Memory recall completed");
+        debug!(
+            query = query,
+            results = memories.len(),
+            "Memory recall completed"
+        );
         Ok(memories)
     }
 

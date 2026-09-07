@@ -9,7 +9,7 @@ use tracing::{debug, instrument, warn};
 
 use crate::domain::{
     errors::DomainError,
-    ports::search_provider::{SearchProvider, SearchOptions, SearchResults, SearchResultItem},
+    ports::search_provider::{SearchOptions, SearchProvider, SearchResultItem, SearchResults},
 };
 use crate::infrastructure::config::SearxngConfig;
 
@@ -55,19 +55,22 @@ impl SearxngClient {
 #[async_trait]
 impl SearchProvider for SearxngClient {
     #[instrument(skip(self))]
-    async fn search(&self, query: &str, options: Option<SearchOptions>) -> Result<SearchResults, DomainError> {
+    async fn search(
+        &self,
+        query: &str,
+        options: Option<SearchOptions>,
+    ) -> Result<SearchResults, DomainError> {
         let opts = options.unwrap_or_default();
         let max_results = opts.max_results.unwrap_or(self.config.max_results);
 
-        let params: Vec<(&str, String)> = vec![
-            ("q", query.to_string()),
-            ("format", "json".to_string()),
-        ];
+        let params: Vec<(&str, String)> =
+            vec![("q", query.to_string()), ("format", "json".to_string())];
 
         let url = self.search_url();
         debug!(url = %url, query = %query, "Performing search");
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .query(&params)
             .send()
@@ -77,13 +80,19 @@ impl SearchProvider for SearxngClient {
         if !response.status().is_success() {
             let status = response.status();
             let body: String = response.text().await.unwrap_or_default();
-            return Err(DomainError::search(format!("Searxng API error: {} - {}", status, body)));
+            return Err(DomainError::search(format!(
+                "Searxng API error: {} - {}",
+                status, body
+            )));
         }
 
-        let searxng_response: SearxngResponse = response.json().await
+        let searxng_response: SearxngResponse = response
+            .json()
+            .await
             .map_err(|e| DomainError::search(format!("Failed to parse response: {}", e)))?;
 
-        let results: Vec<SearchResultItem> = searxng_response.results
+        let results: Vec<SearchResultItem> = searxng_response
+            .results
             .into_iter()
             .take(max_results)
             .map(|r| SearchResultItem {
@@ -106,7 +115,13 @@ impl SearchProvider for SearxngClient {
     #[instrument(skip(self))]
     async fn is_healthy(&self) -> bool {
         let url = format!("{}/healthz", self.config.url);
-        match self.client.get(&url).timeout(std::time::Duration::from_secs(5)).send().await {
+        match self
+            .client
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await
+        {
             Ok(response) => response.status().is_success(),
             Err(e) => {
                 warn!(error = %e, "Searxng health check failed");
@@ -213,7 +228,10 @@ mod tests {
             .mount(&server)
             .await;
 
-        let results = client.search("test", Some(SearchOptions::with_limit(2))).await.unwrap();
+        let results = client
+            .search("test", Some(SearchOptions::with_limit(2)))
+            .await
+            .unwrap();
         assert_eq!(results.results.len(), 2);
     }
 
@@ -243,14 +261,12 @@ mod tests {
     fn test_search_results_as_context() {
         let results = SearchResults {
             query: "rust".to_string(),
-            results: vec![
-                SearchResultItem {
-                    title: "Rust".to_string(),
-                    url: "https://rust-lang.org".to_string(),
-                    snippet: "A language".to_string(),
-                    engine: None,
-                },
-            ],
+            results: vec![SearchResultItem {
+                title: "Rust".to_string(),
+                url: "https://rust-lang.org".to_string(),
+                snippet: "A language".to_string(),
+                engine: None,
+            }],
             total_results: Some(1),
         };
         let context = results.as_context(5);

@@ -2,17 +2,16 @@
 //! Chat Service - Simplified
 //! =============================================================================
 
+use reqwest::Client;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
-use tracing::{debug, info, instrument, error};
+use tracing::{debug, error, info, instrument};
 use uuid::Uuid;
-use reqwest::Client;
-use serde::Deserialize;
 
 use crate::application::services::{
-    agent_orchestrator::AgentOrchestrator,
-    knowledge_extractor::KnowledgeExtractor,
+    agent_orchestrator::AgentOrchestrator, knowledge_extractor::KnowledgeExtractor,
     memory_service::MemoryService,
 };
 use crate::domain::{
@@ -131,11 +130,14 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         let context_memories = self.memory_service.search(&request.message, 5).await?;
         let memory_ids: Vec<Uuid> = context_memories.iter().map(|(m, _)| m.id).collect();
 
-        debug!(memory_count = context_memories.len(), "Retrieved memory context");
+        debug!(
+            memory_count = context_memories.len(),
+            "Retrieved memory context"
+        );
 
         // Detect if we need to use tools
         let tools_used = self.detect_and_execute_tools(&request.message).await;
-        
+
         // Build prompt with context and tool results
         let prompt = self.build_prompt_with_tools(&request.message, &context_memories, &tools_used);
 
@@ -144,7 +146,10 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         info!(model = %selected_model, "Auto-selected model for task");
 
         // Generate response with selected model
-        let result = self.llm_provider.generate(&prompt, Some(&selected_model)).await?;
+        let result = self
+            .llm_provider
+            .generate(&prompt, Some(&selected_model))
+            .await?;
 
         // Create assistant message
         let mut assistant_message = ChatMessage::assistant(conversation_id, result.content);
@@ -159,10 +164,11 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         };
 
         // Update conversation history
-        self.update_conversation(conversation_id, user_message, assistant_message.clone()).await;
+        self.update_conversation(conversation_id, user_message, assistant_message.clone())
+            .await;
 
         let tools_list: Vec<String> = tools_used.iter().map(|(name, _)| name.clone()).collect();
-        
+
         let response = ChatResponse {
             conversation_id,
             message: assistant_message,
@@ -189,7 +195,7 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         let intent = self.fallback_keyword_detection(message);
         intent.tool != "none" && intent.confidence >= 0.7
     }
-    
+
     /// =========================================================================
     /// Tool Detection and Execution - Fast Keywords + LLM Fallback
     /// =========================================================================
@@ -197,12 +203,12 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
     /// Uses fast keyword detection first, then LLM only for ambiguous cases.
     pub async fn detect_and_execute_tools(&self, message: &str) -> Vec<(String, String)> {
         let mut tools_used = Vec::new();
-        
+
         debug!("Starting tool detection for message: {}", message);
 
         // STEP 1: Try fast keyword detection first (instant)
         let keyword_intent = self.fallback_keyword_detection(message);
-        
+
         let intent = if keyword_intent.tool != "none" && keyword_intent.confidence >= 0.7 {
             // Keywords matched with high confidence - use it directly
             info!("⚡ Fast keyword detection: tool={}", keyword_intent.tool);
@@ -211,7 +217,10 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
             // STEP 2: Use LLM only for ambiguous cases
             match self.classify_intent(message).await {
                 Ok(intent) => {
-                    info!("🧠 LLM classified intent: tool={}, confidence={}", intent.tool, intent.confidence);
+                    info!(
+                        "🧠 LLM classified intent: tool={}, confidence={}",
+                        intent.tool, intent.confidence
+                    );
                     intent
                 }
                 Err(e) => {
@@ -241,16 +250,21 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
                     }
                     Err(e) => {
                         error!("❌ Playlist creation failed: {}", e);
-                        tools_used.push(("create_playlist".to_string(), format!("Error al crear playlist: {}", e)));
+                        tools_used.push((
+                            "create_playlist".to_string(),
+                            format!("Error al crear playlist: {}", e),
+                        ));
                     }
                 }
             }
             "web_search" => {
                 info!("🔍 Executing web search");
-                let query = intent.parameters.get("query")
+                let query = intent
+                    .parameters
+                    .get("query")
                     .map(|s| s.as_str())
                     .unwrap_or(message);
-                
+
                 match self.agent_orchestrator.search_web(query).await {
                     Ok(results) => {
                         let summary = self.summarize_search_results(&results);
@@ -274,7 +288,8 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
                         }
                         Err(e) => {
                             error!("❌ Command failed: {}", e);
-                            tools_used.push(("execute_command".to_string(), format!("Error: {}", e)));
+                            tools_used
+                                .push(("execute_command".to_string(), format!("Error: {}", e)));
                         }
                     }
                 }
@@ -303,7 +318,10 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
                     }
                     Err(e) => {
                         error!("❌ Checklist creation failed: {}", e);
-                        tools_used.push(("create_checklist".to_string(), format!("Error al crear checklist: {}", e)));
+                        tools_used.push((
+                            "create_checklist".to_string(),
+                            format!("Error al crear checklist: {}", e),
+                        ));
                     }
                 }
             }
@@ -319,23 +337,26 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
     fn fallback_keyword_detection(&self, message: &str) -> UserIntent {
         let msg_lower = message.to_lowercase();
         // Normalize: remove accents
-        let msg_norm: String = msg_lower.chars().map(|c| match c {
-            'á' | 'à' | 'ä' | 'â' => 'a',
-            'é' | 'è' | 'ë' | 'ê' => 'e',
-            'í' | 'ì' | 'ï' | 'î' => 'i',
-            'ó' | 'ò' | 'ö' | 'ô' => 'o',
-            'ú' | 'ù' | 'ü' | 'û' => 'u',
-            'ñ' => 'n',
-            _ => c,
-        }).collect();
+        let msg_norm: String = msg_lower
+            .chars()
+            .map(|c| match c {
+                'á' | 'à' | 'ä' | 'â' => 'a',
+                'é' | 'è' | 'ë' | 'ê' => 'e',
+                'í' | 'ì' | 'ï' | 'î' => 'i',
+                'ó' | 'ò' | 'ö' | 'ô' => 'o',
+                'ú' | 'ù' | 'ü' | 'û' => 'u',
+                'ñ' => 'n',
+                _ => c,
+            })
+            .collect();
 
         // Check for playlist creation
         let playlist_verbs = ["crea", "arma", "haz", "genera", "pon", "create", "make"];
         let playlist_nouns = ["playlist", "lista", "mix", "musica", "canciones"];
-        
+
         let has_playlist_verb = playlist_verbs.iter().any(|v| msg_norm.contains(v));
         let has_playlist_noun = playlist_nouns.iter().any(|n| msg_norm.contains(n));
-        
+
         if has_playlist_verb && has_playlist_noun {
             info!("🎯 Fallback detected: create_playlist");
             return UserIntent {
@@ -346,15 +367,29 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
         }
 
         // Check for checklist creation - more flexible detection
-        let checklist_verbs = ["crea", "arma", "haz", "genera", "create", "make", "agrega", "add", "necesito", "quiero", "hazme", "dame"];
-        let checklist_nouns = ["checklist", "lista de tareas", "to-do", "todo", "pendientes", "tareas", "task list", "lista para"];
-        
+        let checklist_verbs = [
+            "crea", "arma", "haz", "genera", "create", "make", "agrega", "add", "necesito",
+            "quiero", "hazme", "dame",
+        ];
+        let checklist_nouns = [
+            "checklist",
+            "lista de tareas",
+            "to-do",
+            "todo",
+            "pendientes",
+            "tareas",
+            "task list",
+            "lista para",
+        ];
+
         let has_checklist_verb = checklist_verbs.iter().any(|v| msg_norm.contains(v));
         let has_checklist_noun = checklist_nouns.iter().any(|n| msg_norm.contains(n));
-        
+
         // Also detect if just the noun is present (user might say "checklist para X")
-        let checklist_only = msg_norm.contains("checklist") || msg_norm.contains("to-do") || msg_norm.contains("todo list");
-        
+        let checklist_only = msg_norm.contains("checklist")
+            || msg_norm.contains("to-do")
+            || msg_norm.contains("todo list");
+
         if (has_checklist_verb && has_checklist_noun) || checklist_only {
             info!("🎯 Fallback detected: create_checklist");
             return UserIntent {
@@ -370,7 +405,9 @@ Responde siempre en el mismo idioma que usa el usuario. Sé conciso pero amable.
             info!("🎯 Fallback detected: web_search");
             return UserIntent {
                 tool: "web_search".to_string(),
-                parameters: [("query".to_string(), message.to_string())].into_iter().collect(),
+                parameters: [("query".to_string(), message.to_string())]
+                    .into_iter()
+                    .collect(),
                 confidence: 0.7,
             };
         }
@@ -405,29 +442,45 @@ Responde SOLO con la categoría, una sola palabra:"#,
 
         // Use Light model (ministral:3b) for fast classification - it's a simple task
         let light_model = DEFAULT_MODEL;
-        let result = self.llm_provider.generate(&classification_prompt, Some(light_model)).await?;
-        
+        let result = self
+            .llm_provider
+            .generate(&classification_prompt, Some(light_model))
+            .await?;
+
         // Parse the simple response
         let content = result.content.trim().to_lowercase();
         debug!("LLM classification response: {}", content);
-        
+
         // Extract tool from response
         let tool = if content.contains("create_playlist") || content.contains("playlist") {
             "create_playlist"
-        } else if content.contains("create_checklist") || content.contains("checklist") || content.contains("to-do") || content.contains("todo") {
+        } else if content.contains("create_checklist")
+            || content.contains("checklist")
+            || content.contains("to-do")
+            || content.contains("todo")
+        {
             "create_checklist"
-        } else if content.contains("web_search") || content.contains("search") || content.contains("buscar") {
+        } else if content.contains("web_search")
+            || content.contains("search")
+            || content.contains("buscar")
+        {
             "web_search"
-        } else if content.contains("execute_command") || content.contains("command") || content.contains("ejecutar") {
+        } else if content.contains("execute_command")
+            || content.contains("command")
+            || content.contains("ejecutar")
+        {
             "execute_command"
-        } else if content.contains("read_file") || content.contains("file") || content.contains("archivo") {
+        } else if content.contains("read_file")
+            || content.contains("file")
+            || content.contains("archivo")
+        {
             "read_file"
         } else {
             "none"
         };
-        
+
         info!("🎯 Classified as: {}", tool);
-        
+
         Ok(UserIntent {
             tool: tool.to_string(),
             parameters: HashMap::new(),
@@ -439,39 +492,42 @@ Responde SOLO con la categoría, una sola palabra:"#,
     async fn read_and_analyze_file(&self, file_path: &str) -> Result<String, DomainError> {
         // Sanitize path to prevent directory traversal
         let path = file_path.trim_start_matches("./");
-        
+
         // Try different working directories
         let paths_to_try = vec![
             path.to_string(),
             format!("/home/madkoding/proyectos/kibo/{}", path),
             format!("../{}", path),
         ];
-        
+
         let mut last_error = String::new();
-        
+
         for try_path in paths_to_try {
             let cmd = format!("cat {}", try_path);
             match self.agent_orchestrator.execute_command(&cmd, None).await {
                 Ok(output) if output.exit_code == 0 => {
                     let content = output.stdout;
                     let line_count = content.lines().count();
-                    
+
                     // Build structured output
                     let mut result = format!("📄 Archivo: {}\n", file_path);
                     result.push_str(&format!("📊 Líneas: {}\n\n", line_count));
                     result.push_str("```\n");
-                    
+
                     // Limit to 100 lines for context
                     if line_count > 100 {
                         let lines: Vec<&str> = content.lines().take(100).collect();
                         result.push_str(&lines.join("\n"));
-                        result.push_str(&format!("\n\n... ({} líneas más omitidas)", line_count - 100));
+                        result.push_str(&format!(
+                            "\n\n... ({} líneas más omitidas)",
+                            line_count - 100
+                        ));
                     } else {
                         result.push_str(&content);
                     }
-                    
+
                     result.push_str("\n```");
-                    
+
                     return Ok(result);
                 }
                 Err(e) => {
@@ -482,7 +538,7 @@ Responde SOLO con la categoría, una sola palabra:"#,
                 }
             }
         }
-        
+
         Err(DomainError::CommandFailed {
             command: format!("cat {}", path),
             exit_code: 1,
@@ -491,9 +547,12 @@ Responde SOLO con la categoría, una sola palabra:"#,
     }
 
     /// Summarize search results
-    fn summarize_search_results(&self, results: &crate::domain::ports::search_provider::SearchResults) -> String {
+    fn summarize_search_results(
+        &self,
+        results: &crate::domain::ports::search_provider::SearchResults,
+    ) -> String {
         let mut summary = format!("🔍 Encontré {} resultados:\n\n", results.results.len());
-        
+
         for (i, result) in results.results.iter().take(5).enumerate() {
             summary.push_str(&format!("{}. {}\n", i + 1, result.title));
             if !result.snippet.is_empty() {
@@ -539,7 +598,11 @@ Responde SOLO con la categoría, una sola palabra:"#,
     }
 
     #[allow(dead_code)]
-    fn build_prompt(&self, user_message: &str, memories: &[(crate::domain::entities::memory::MemoryNode, f64)]) -> String {
+    fn build_prompt(
+        &self,
+        user_message: &str,
+        memories: &[(crate::domain::entities::memory::MemoryNode, f64)],
+    ) -> String {
         self.build_prompt_with_tools(user_message, memories, &[])
     }
 
@@ -550,7 +613,8 @@ Responde SOLO con la categoría, una sola palabra:"#,
         user_message: ChatMessage,
         assistant_message: ChatMessage,
     ) {
-        self.update_conversation_direct(conversation_id, user_message, assistant_message).await;
+        self.update_conversation_direct(conversation_id, user_message, assistant_message)
+            .await;
     }
 
     /// Update conversation directly - public for streaming handler
@@ -561,9 +625,10 @@ Responde SOLO con la categoría, una sola palabra:"#,
         assistant_message: ChatMessage,
     ) {
         tracing::info!(conversation_id = %conversation_id, "Saving conversation to database");
-        
+
         // Get or create conversation
-        let mut conversation = self.repository
+        let mut conversation = self
+            .repository
             .get_conversation(conversation_id)
             .await
             .unwrap_or(None)
@@ -606,7 +671,9 @@ Responde SOLO con la categoría, una sola palabra:"#,
             .unwrap_or(None)
     }
 
-    pub async fn list_conversations(&self) -> Vec<(Uuid, Option<String>, chrono::DateTime<chrono::Utc>)> {
+    pub async fn list_conversations(
+        &self,
+    ) -> Vec<(Uuid, Option<String>, chrono::DateTime<chrono::Utc>)> {
         self.repository
             .list_conversations()
             .await
@@ -634,9 +701,16 @@ Responde SOLO con la categoría, una sola palabra:"#,
     #[instrument(skip(self, user_message), fields(message_len = user_message.len()))]
     pub async fn extract_and_store_memories(&self, user_message: &str) {
         // Use the intelligent knowledge extractor
-        debug!("Starting intelligent knowledge extraction for: {}...", &user_message[..user_message.len().min(50)]);
-        
-        match self.knowledge_extractor.learn_from_message(user_message).await {
+        debug!(
+            "Starting intelligent knowledge extraction for: {}...",
+            &user_message[..user_message.len().min(50)]
+        );
+
+        match self
+            .knowledge_extractor
+            .learn_from_message(user_message)
+            .await
+        {
             Ok(knowledge) => {
                 if knowledge.is_memorable {
                     info!(
@@ -654,7 +728,9 @@ Responde SOLO con la categoría, una sola palabra:"#,
                     );
                 } else {
                     // LLM said not memorable, but try pattern fallback anyway for common cases
-                    info!("🔄 LLM extraction returned is_memorable=false, trying pattern fallback...");
+                    info!(
+                        "🔄 LLM extraction returned is_memorable=false, trying pattern fallback..."
+                    );
                     self.extract_with_patterns(user_message).await;
                 }
             }
@@ -671,7 +747,7 @@ Responde SOLO con la categoría, una sola palabra:"#,
     /// =========================================================================
     async fn extract_with_patterns(&self, user_message: &str) {
         let msg_lower = user_message.to_lowercase();
-        
+
         // Skip very short messages or questions
         if user_message.len() < 10 || msg_lower.ends_with("?") {
             return;
@@ -679,19 +755,46 @@ Responde SOLO con la categoría, una sola palabra:"#,
 
         // Quick pattern checks for common cases
         let preference_keywords = [
-            "me gusta", "me encanta", "me fascina", "me apasiona", "prefiero",
-            "odio", "detesto", "no me gusta", "mi favorito", "mi favorita",
-            "i like", "i love", "i hate", "i prefer", "my favorite",
+            "me gusta",
+            "me encanta",
+            "me fascina",
+            "me apasiona",
+            "prefiero",
+            "odio",
+            "detesto",
+            "no me gusta",
+            "mi favorito",
+            "mi favorita",
+            "i like",
+            "i love",
+            "i hate",
+            "i prefer",
+            "my favorite",
         ];
 
         let identity_keywords = [
-            "mi nombre", "me llamo", "soy ", "trabajo en", "trabajo como",
-            "vivo en", "my name", "i am", "i work", "i live",
+            "mi nombre",
+            "me llamo",
+            "soy ",
+            "trabajo en",
+            "trabajo como",
+            "vivo en",
+            "my name",
+            "i am",
+            "i work",
+            "i live",
         ];
 
         let task_keywords = [
-            "tengo que", "debo", "necesito", "todo:", "pendiente",
-            "i need to", "i have to", "i must", "i should",
+            "tengo que",
+            "debo",
+            "necesito",
+            "todo:",
+            "pendiente",
+            "i need to",
+            "i have to",
+            "i must",
+            "i should",
         ];
 
         // Check preferences
@@ -747,7 +850,7 @@ Responde SOLO con la categoría, una sola palabra:"#,
                 .replace("prefiero", "prefiere")
                 .replace("odio", "odia")
                 .replace("no me gusta", "no le gusta");
-            
+
             // Add "Al usuario" prefix if not already reformulated
             if reformulated.starts_with("le ") || reformulated.starts_with("su ") {
                 Some(format!("Al usuario {}", reformulated))
@@ -769,7 +872,11 @@ Responde SOLO con la categoría, una sola palabra:"#,
             "Storing memory from conversation"
         );
 
-        match self.memory_service.create_memory(content.to_string(), memory_type, None).await {
+        match self
+            .memory_service
+            .create_memory(content.to_string(), memory_type, None)
+            .await
+        {
             Ok(_) => {
                 info!("Memory stored successfully");
                 true
@@ -784,27 +891,32 @@ Responde SOLO con la categoría, una sola palabra:"#,
     /// =========================================================================
     /// Playlist Creation Tool
     /// =========================================================================
-    
+
     /// Create a playlist from a user request using LLM to generate metadata and search terms
     async fn create_playlist_from_request(&self, user_request: &str) -> Result<String, String> {
-        info!("🎵 Starting playlist creation from request: {}", user_request);
-        
+        info!(
+            "🎵 Starting playlist creation from request: {}",
+            user_request
+        );
+
         // Step 1: Use LLM to generate playlist metadata and search tags
         let metadata = self.generate_playlist_metadata(user_request).await?;
         info!("📝 Generated metadata: {:?}", metadata);
-        
+
         // Step 2: Create the playlist immediately WITHOUT cover (fast!)
-        let playlist = self.create_music_playlist(&metadata.title, &metadata.description, None).await?;
+        let playlist = self
+            .create_music_playlist(&metadata.title, &metadata.description, None)
+            .await?;
         let playlist_id = playlist.id.clone();
         info!("✅ Playlist created with ID: {}", playlist_id);
-        
+
         // Step 3: Spawn background task to search cover and add songs (don't wait for it)
         let music_service_url = self.music_service_url.clone();
         let http_client = self.http_client.clone();
         let search_tags = metadata.search_tags.clone();
         let playlist_title = metadata.title.clone();
         let bg_playlist_id = playlist_id.clone();
-        
+
         // Helper function for URL encoding (moved outside closure for accessibility)
         fn url_encode(s: &str) -> String {
             s.chars()
@@ -815,26 +927,36 @@ Responde SOLO con la categoría, una sola palabra:"#,
                     '?' => "%3F".to_string(),
                     '#' => "%23".to_string(),
                     '+' => "%2B".to_string(),
-                    _ if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '~' => c.to_string(),
+                    _ if c.is_ascii_alphanumeric()
+                        || c == '-'
+                        || c == '_'
+                        || c == '.'
+                        || c == '~' =>
+                    {
+                        c.to_string()
+                    }
                     _ => format!("%{:02X}", c as u8),
                 })
                 .collect()
         }
-        
+
         tokio::spawn(async move {
-            info!("🎵 Background task: Adding songs to playlist {}", bg_playlist_id);
+            info!(
+                "🎵 Background task: Adding songs to playlist {}",
+                bg_playlist_id
+            );
             let mut added_count = 0;
             let max_songs = 10;
             let songs_per_tag = 3;
             let mut cover_updated = false;
-            
+
             for tag in &search_tags {
                 if added_count >= max_songs {
                     break;
                 }
-                
+
                 info!("🔍 Background: Searching YouTube for: {}", tag);
-                
+
                 // Search YouTube
                 let search_url = format!(
                     "{}/api/music/youtube/search?q={}&limit={}",
@@ -842,11 +964,14 @@ Responde SOLO con la categoría, una sola palabra:"#,
                     url_encode(tag),
                     songs_per_tag
                 );
-                
+
                 let search_response = match http_client.get(&search_url).send().await {
                     Ok(resp) if resp.status().is_success() => resp,
                     Ok(resp) => {
-                        error!("  ❌ Background: Search failed with status: {}", resp.status());
+                        error!(
+                            "  ❌ Background: Search failed with status: {}",
+                            resp.status()
+                        );
                         continue;
                     }
                     Err(e) => {
@@ -854,7 +979,7 @@ Responde SOLO con la categoría, una sola palabra:"#,
                         continue;
                     }
                 };
-                
+
                 let results: Vec<YouTubeSearchResult> = match search_response.json().await {
                     Ok(r) => r,
                     Err(e) => {
@@ -862,34 +987,47 @@ Responde SOLO con la categoría, una sola palabra:"#,
                         continue;
                     }
                 };
-                
+
                 // Update playlist cover with first result's thumbnail
                 if !cover_updated && !results.is_empty() {
                     if let Some(thumbnail) = &results[0].thumbnail {
-                        let update_url = format!("{}/api/music/playlists/{}", music_service_url, bg_playlist_id);
+                        let update_url = format!(
+                            "{}/api/music/playlists/{}",
+                            music_service_url, bg_playlist_id
+                        );
                         let body = serde_json::json!({ "cover_url": thumbnail });
-                        if http_client.patch(&update_url).json(&body).send().await.is_ok() {
+                        if http_client
+                            .patch(&update_url)
+                            .json(&body)
+                            .send()
+                            .await
+                            .is_ok()
+                        {
                             info!("🎨 Background: Updated playlist cover");
                             cover_updated = true;
                         }
                     }
                 }
-                
+
                 for result in results {
                     if added_count >= max_songs {
                         break;
                     }
-                    
+
                     // Add song to playlist
-                    let add_url = format!("{}/api/music/playlists/{}/songs", music_service_url, bg_playlist_id);
-                    let youtube_url = format!("https://www.youtube.com/watch?v={}", result.video_id);
-                    
+                    let add_url = format!(
+                        "{}/api/music/playlists/{}/songs",
+                        music_service_url, bg_playlist_id
+                    );
+                    let youtube_url =
+                        format!("https://www.youtube.com/watch?v={}", result.video_id);
+
                     let body = serde_json::json!({
                         "youtube_url": youtube_url,
                         "title": result.title,
                         "artist": result.channel.as_deref().unwrap_or("Unknown Artist")
                     });
-                    
+
                     match http_client.post(&add_url).json(&body).send().await {
                         Ok(resp) if resp.status().is_success() => {
                             info!("  ✅ Background: Added: {}", result.title);
@@ -899,18 +1037,28 @@ Responde SOLO con la categoría, una sola palabra:"#,
                             debug!("  ⚠️ Background: Song already exists: {}", result.title);
                         }
                         Ok(resp) => {
-                            debug!("  ⚠️ Background: Failed to add song ({}): {}", resp.status(), result.title);
+                            debug!(
+                                "  ⚠️ Background: Failed to add song ({}): {}",
+                                resp.status(),
+                                result.title
+                            );
                         }
                         Err(e) => {
-                            debug!("  ⚠️ Background: Request failed for {}: {}", result.title, e);
+                            debug!(
+                                "  ⚠️ Background: Request failed for {}: {}",
+                                result.title, e
+                            );
                         }
                     }
                 }
             }
-            
-            info!("🎵 Background task completed: Added {} songs to '{}'", added_count, playlist_title);
+
+            info!(
+                "🎵 Background task completed: Added {} songs to '{}'",
+                added_count, playlist_title
+            );
         });
-        
+
         // Step 5: Return immediately with initial summary
         let summary = format!(
             "🎵 ¡Playlist creada!\n\n\
@@ -922,12 +1070,15 @@ Responde SOLO con la categoría, una sola palabra:"#,
             metadata.description,
             metadata.search_tags.join(", ")
         );
-        
+
         Ok(summary)
     }
-    
+
     /// Generate playlist metadata using LLM
-    async fn generate_playlist_metadata(&self, user_request: &str) -> Result<PlaylistMetadata, String> {
+    async fn generate_playlist_metadata(
+        &self,
+        user_request: &str,
+    ) -> Result<PlaylistMetadata, String> {
         let prompt = format!(
             r#"El usuario quiere crear una playlist de música con este pedido: "{}"
 
@@ -940,13 +1091,16 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
 {{"title": "Rock de los 80s", "description": "Los mejores hits del rock ochentero", "search_tags": ["rock 80s hits", "def leppard songs", "bon jovi best", "guns n roses classics", "journey greatest hits"]}}"#,
             user_request
         );
-        
-        let response = self.llm_provider.generate(&prompt, None).await
+
+        let response = self
+            .llm_provider
+            .generate(&prompt, None)
+            .await
             .map_err(|e| format!("Error generando metadata: {}", e))?;
-        
+
         // Parse the JSON response - response.content contains the text
         let json_str = response.content.trim();
-        
+
         // Try to extract JSON if wrapped in markdown
         let json_str = if json_str.starts_with("```") {
             json_str
@@ -958,46 +1112,61 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
         } else {
             json_str.to_string()
         };
-        
-        serde_json::from_str::<PlaylistMetadata>(&json_str)
-            .map_err(|e| format!("Error parseando respuesta del LLM: {}. Response: {}", e, json_str))
+
+        serde_json::from_str::<PlaylistMetadata>(&json_str).map_err(|e| {
+            format!(
+                "Error parseando respuesta del LLM: {}. Response: {}",
+                e, json_str
+            )
+        })
     }
-    
+
     /// Create a playlist in the music service
-    async fn create_music_playlist(&self, title: &str, description: &str, cover_url: Option<&str>) -> Result<PlaylistResponse, String> {
+    async fn create_music_playlist(
+        &self,
+        title: &str,
+        description: &str,
+        cover_url: Option<&str>,
+    ) -> Result<PlaylistResponse, String> {
         let url = format!("{}/api/music/playlists", self.music_service_url);
-        
+
         let body = serde_json::json!({
             "name": title,
             "description": description,
             "cover_url": cover_url
         });
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .post(&url)
             .json(&body)
             .send()
             .await
             .map_err(|e| format!("Error conectando con servicio de música: {}", e))?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             return Err(format!("Error creando playlist ({}): {}", status, text));
         }
-        
-        response.json::<PlaylistResponse>().await
+
+        response
+            .json::<PlaylistResponse>()
+            .await
             .map_err(|e| format!("Error parseando respuesta de playlist: {}", e))
     }
 
     /// =========================================================================
     /// Checklist Creation Tool
     /// =========================================================================
-    
+
     /// Create a checklist from a user request using templates or LLM
     async fn create_checklist_from_request(&self, user_request: &str) -> Result<String, String> {
-        info!("📋 Starting checklist creation from request: {}", user_request);
-        
+        info!(
+            "📋 Starting checklist creation from request: {}",
+            user_request
+        );
+
         // Step 1: Try to use template first (instant), fallback to LLM
         let metadata = if let Some(template) = self.match_checklist_template(user_request) {
             info!("⚡ Using template for checklist: {}", template.title);
@@ -1006,15 +1175,15 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
             info!("🧠 No template match, using LLM to generate checklist");
             self.generate_checklist_metadata(user_request).await?
         };
-        
+
         info!("📝 Checklist metadata ready: {:?}", metadata);
-        
+
         // Step 2: Create the checklist in the checklists service
         let checklists_service_url = std::env::var("CHECKLISTS_SERVICE_URL")
             .unwrap_or_else(|_| "http://localhost:3001".to_string());
-        
+
         let url = format!("{}/api/checklists", checklists_service_url);
-        
+
         let body = serde_json::json!({
             "title": metadata.title,
             "description": metadata.description,
@@ -1026,28 +1195,32 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
                 })
             }).collect::<Vec<_>>()
         });
-        
-        let response = self.http_client
+
+        let response = self
+            .http_client
             .post(&url)
             .json(&body)
             .send()
             .await
             .map_err(|e| format!("Error conectando con servicio de checklists: {}", e))?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             return Err(format!("Error creando checklist ({}): {}", status, text));
         }
-        
-        let checklist_response: serde_json::Value = response.json().await
+
+        let checklist_response: serde_json::Value = response
+            .json()
+            .await
             .map_err(|e| format!("Error parseando respuesta de checklist: {}", e))?;
-        
+
         // Step 3: Generate result summary
-        let checklist_id = checklist_response.get("id")
+        let checklist_id = checklist_response
+            .get("id")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown");
-        
+
         let summary = format!(
             "📋 Checklist creada exitosamente!\n\n\
             **{}**\n\
@@ -1057,33 +1230,42 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
             metadata.title,
             metadata.description,
             metadata.items.len(),
-            metadata.items.iter()
+            metadata
+                .items
+                .iter()
                 .enumerate()
                 .map(|(i, s)| format!("{}. [ ] {}", i + 1, s))
                 .collect::<Vec<_>>()
                 .join("\n"),
             checklist_id
         );
-        
+
         info!("✅ Checklist created with ID: {}", checklist_id);
         Ok(summary)
     }
-    
+
     /// Match user request against predefined checklist templates (instant)
     fn match_checklist_template(&self, user_request: &str) -> Option<ChecklistMetadata> {
         let msg = user_request.to_lowercase();
-        let msg_norm: String = msg.chars().map(|c| match c {
-            'á' | 'à' | 'ä' | 'â' => 'a',
-            'é' | 'è' | 'ë' | 'ê' => 'e',
-            'í' | 'ì' | 'ï' | 'î' => 'i',
-            'ó' | 'ò' | 'ö' | 'ô' => 'o',
-            'ú' | 'ù' | 'ü' | 'û' => 'u',
-            'ñ' => 'n',
-            _ => c,
-        }).collect();
-        
+        let msg_norm: String = msg
+            .chars()
+            .map(|c| match c {
+                'á' | 'à' | 'ä' | 'â' => 'a',
+                'é' | 'è' | 'ë' | 'ê' => 'e',
+                'í' | 'ì' | 'ï' | 'î' => 'i',
+                'ó' | 'ò' | 'ö' | 'ô' => 'o',
+                'ú' | 'ù' | 'ü' | 'û' => 'u',
+                'ñ' => 'n',
+                _ => c,
+            })
+            .collect();
+
         // Travel checklist
-        if msg_norm.contains("viaje") || msg_norm.contains("viajar") || msg_norm.contains("vacaciones") || msg_norm.contains("travel") {
+        if msg_norm.contains("viaje")
+            || msg_norm.contains("viajar")
+            || msg_norm.contains("vacaciones")
+            || msg_norm.contains("travel")
+        {
             return Some(ChecklistMetadata {
                 title: "Lista para viaje".to_string(),
                 description: "Preparativos esenciales para tu viaje".to_string(),
@@ -1100,9 +1282,14 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
                 ],
             });
         }
-        
+
         // Cleaning checklist
-        if msg_norm.contains("limpiar") || msg_norm.contains("limpieza") || msg_norm.contains("asear") || msg_norm.contains("cleaning") || msg_norm.contains("casa") {
+        if msg_norm.contains("limpiar")
+            || msg_norm.contains("limpieza")
+            || msg_norm.contains("asear")
+            || msg_norm.contains("cleaning")
+            || msg_norm.contains("casa")
+        {
             return Some(ChecklistMetadata {
                 title: "Limpieza del hogar".to_string(),
                 description: "Tareas de limpieza para mantener el hogar ordenado".to_string(),
@@ -1119,9 +1306,14 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
                 ],
             });
         }
-        
+
         // Study/Learning checklist
-        if msg_norm.contains("estudiar") || msg_norm.contains("estudio") || msg_norm.contains("aprender") || msg_norm.contains("examen") || msg_norm.contains("study") {
+        if msg_norm.contains("estudiar")
+            || msg_norm.contains("estudio")
+            || msg_norm.contains("aprender")
+            || msg_norm.contains("examen")
+            || msg_norm.contains("study")
+        {
             return Some(ChecklistMetadata {
                 title: "Plan de estudio".to_string(),
                 description: "Organiza tu sesión de estudio".to_string(),
@@ -1138,9 +1330,15 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
                 ],
             });
         }
-        
+
         // Cooking/Recipe checklist
-        if msg_norm.contains("cocinar") || msg_norm.contains("receta") || msg_norm.contains("comida") || msg_norm.contains("cook") || msg_norm.contains("cena") || msg_norm.contains("almuerzo") {
+        if msg_norm.contains("cocinar")
+            || msg_norm.contains("receta")
+            || msg_norm.contains("comida")
+            || msg_norm.contains("cook")
+            || msg_norm.contains("cena")
+            || msg_norm.contains("almuerzo")
+        {
             return Some(ChecklistMetadata {
                 title: "Preparar comida".to_string(),
                 description: "Pasos para preparar una comida".to_string(),
@@ -1157,9 +1355,14 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
                 ],
             });
         }
-        
+
         // Exercise/Workout checklist
-        if msg_norm.contains("ejercicio") || msg_norm.contains("entrenar") || msg_norm.contains("gym") || msg_norm.contains("workout") || msg_norm.contains("fitness") {
+        if msg_norm.contains("ejercicio")
+            || msg_norm.contains("entrenar")
+            || msg_norm.contains("gym")
+            || msg_norm.contains("workout")
+            || msg_norm.contains("fitness")
+        {
             return Some(ChecklistMetadata {
                 title: "Rutina de ejercicio".to_string(),
                 description: "Plan para tu sesión de entrenamiento".to_string(),
@@ -1175,9 +1378,13 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
                 ],
             });
         }
-        
+
         // Shopping checklist
-        if msg_norm.contains("compras") || msg_norm.contains("supermercado") || msg_norm.contains("shopping") || msg_norm.contains("comprar") {
+        if msg_norm.contains("compras")
+            || msg_norm.contains("supermercado")
+            || msg_norm.contains("shopping")
+            || msg_norm.contains("comprar")
+        {
             return Some(ChecklistMetadata {
                 title: "Lista de compras".to_string(),
                 description: "Items para comprar".to_string(),
@@ -1193,9 +1400,14 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
                 ],
             });
         }
-        
+
         // Work/Project checklist
-        if msg_norm.contains("proyecto") || msg_norm.contains("trabajo") || msg_norm.contains("presentacion") || msg_norm.contains("project") || msg_norm.contains("work") {
+        if msg_norm.contains("proyecto")
+            || msg_norm.contains("trabajo")
+            || msg_norm.contains("presentacion")
+            || msg_norm.contains("project")
+            || msg_norm.contains("work")
+        {
             return Some(ChecklistMetadata {
                 title: "Planificación de proyecto".to_string(),
                 description: "Pasos para completar tu proyecto".to_string(),
@@ -1212,9 +1424,14 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
                 ],
             });
         }
-        
+
         // Event planning checklist
-        if msg_norm.contains("evento") || msg_norm.contains("fiesta") || msg_norm.contains("celebracion") || msg_norm.contains("party") || msg_norm.contains("cumpleanos") {
+        if msg_norm.contains("evento")
+            || msg_norm.contains("fiesta")
+            || msg_norm.contains("celebracion")
+            || msg_norm.contains("party")
+            || msg_norm.contains("cumpleanos")
+        {
             return Some(ChecklistMetadata {
                 title: "Organizar evento".to_string(),
                 description: "Preparativos para tu evento o celebración".to_string(),
@@ -1231,9 +1448,13 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
                 ],
             });
         }
-        
+
         // Morning routine
-        if msg_norm.contains("manana") || msg_norm.contains("despertar") || msg_norm.contains("morning") || msg_norm.contains("rutina matutina") {
+        if msg_norm.contains("manana")
+            || msg_norm.contains("despertar")
+            || msg_norm.contains("morning")
+            || msg_norm.contains("rutina matutina")
+        {
             return Some(ChecklistMetadata {
                 title: "Rutina matutina".to_string(),
                 description: "Actividades para empezar bien el día".to_string(),
@@ -1248,13 +1469,16 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
                 ],
             });
         }
-        
+
         // No template match
         None
     }
-    
+
     /// Generate checklist metadata using LLM (fallback when no template matches)
-    async fn generate_checklist_metadata(&self, user_request: &str) -> Result<ChecklistMetadata, String> {
+    async fn generate_checklist_metadata(
+        &self,
+        user_request: &str,
+    ) -> Result<ChecklistMetadata, String> {
         let prompt = format!(
             r#"El usuario quiere crear una lista de tareas con este pedido: "{}"
 
@@ -1268,15 +1492,18 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
 {{"title": "Preparar presentación", "description": "Tareas para la presentación del lunes", "priority": 4, "items": ["Revisar diapositivas", "Preparar notas", "Practicar timing", "Verificar proyector"]}}"#,
             user_request
         );
-        
+
         // Use Light model for this simple task
         let light_model = DEFAULT_MODEL;
-        let response = self.llm_provider.generate(&prompt, Some(light_model)).await
+        let response = self
+            .llm_provider
+            .generate(&prompt, Some(light_model))
+            .await
             .map_err(|e| format!("Error generando metadata de checklist: {}", e))?;
-        
+
         // Parse the JSON response
         let json_str = response.content.trim();
-        
+
         // Try to extract JSON if wrapped in markdown
         let json_str = if json_str.starts_with("```") {
             json_str
@@ -1288,9 +1515,13 @@ Responde SOLO con el JSON, sin explicaciones ni markdown. Ejemplo de formato:
         } else {
             json_str.to_string()
         };
-        
-        serde_json::from_str::<ChecklistMetadata>(&json_str)
-            .map_err(|e| format!("Error parseando respuesta del LLM: {}. Response: {}", e, json_str))
+
+        serde_json::from_str::<ChecklistMetadata>(&json_str).map_err(|e| {
+            format!(
+                "Error parseando respuesta del LLM: {}. Response: {}",
+                e, json_str
+            )
+        })
     }
 }
 

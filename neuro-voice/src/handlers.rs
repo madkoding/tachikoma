@@ -4,12 +4,12 @@
 //! Axum HTTP handlers for the voice service API endpoints.
 //! =============================================================================
 
+use axum::body::Body;
 use axum::{
     extract::{Json, State},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use axum::body::Body;
 use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
@@ -50,11 +50,11 @@ fn default_voice() -> String {
 }
 
 fn default_speed() -> f32 {
-    1.05  // Tachikoma: ligeramente rápido (entusiasmo)
+    1.05 // Tachikoma: ligeramente rápido (entusiasmo)
 }
 
 fn default_pitch_shift() -> f32 {
-    6.0  // Tachikoma: voz aguda/infantil (+6 semitonos)
+    6.0 // Tachikoma: voz aguda/infantil (+6 semitonos)
 }
 
 fn default_robot_effect() -> bool {
@@ -134,7 +134,7 @@ pub async fn root(State(state): State<Arc<AppState>>) -> Json<RootResponse> {
 pub async fn health(State(state): State<Arc<AppState>>) -> Json<HealthResponse> {
     let is_ready = state.voice_engine.is_ready().await;
     let voices = state.voice_engine.list_voices().await;
-    
+
     Json(HealthResponse {
         status: if is_ready { "healthy" } else { "degraded" }.to_string(),
         model_loaded: !voices.is_empty(),
@@ -146,7 +146,7 @@ pub async fn health(State(state): State<Arc<AppState>>) -> Json<HealthResponse> 
 /// Get service status
 pub async fn get_status(State(state): State<Arc<AppState>>) -> Json<StatusResponse> {
     let voices = state.voice_engine.list_voices().await;
-    
+
     Json(StatusResponse {
         enabled: !voices.is_empty(),
         engine: "piper-tts".to_string(),
@@ -159,7 +159,7 @@ pub async fn get_status(State(state): State<Arc<AppState>>) -> Json<StatusRespon
 /// List available voices
 pub async fn list_voices(State(state): State<Arc<AppState>>) -> Json<VoicesResponse> {
     let voices = state.voice_engine.list_voices().await;
-    
+
     Json(VoicesResponse {
         voices,
         default: state.voice_engine.default_voice().to_string(),
@@ -308,7 +308,10 @@ pub async fn synthesize_stream(
                             data: Some(audio_b64),
                         };
 
-                        format!("data: {}\n\n", serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string()))
+                        format!(
+                            "data: {}\n\n",
+                            serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string())
+                        )
                     }
                     Err(e) => {
                         error!("Error synthesizing sentence {}: {}", index, e);
@@ -391,7 +394,7 @@ pub async fn synthesize_opus_stream(
                     Ok(samples) => {
                         // Resample stereo from voice engine rate (44100) to Opus rate (48000)
                         let resampled = resample_stereo(&samples, SAMPLE_RATE, OPUS_SAMPLE_RATE);
-                        
+
                         // Encode to Opus (stereo)
                         match encode_pcm_to_opus(&resampled) {
                             Ok(opus_bytes) => {
@@ -407,7 +410,11 @@ pub async fn synthesize_opus_stream(
                                     data: Some(audio_b64),
                                 };
 
-                                format!("data: {}\n\n", serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string()))
+                                format!(
+                                    "data: {}\n\n",
+                                    serde_json::to_string(&event)
+                                        .unwrap_or_else(|_| "{}".to_string())
+                                )
                             }
                             Err(e) => {
                                 error!("Opus encoding error for sentence {}: {}", index, e);
@@ -429,7 +436,10 @@ pub async fn synthesize_opus_stream(
                 total: None,
                 data: None,
             };
-            format!("data: {}\n\n", serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string()))
+            format!(
+                "data: {}\n\n",
+                serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string())
+            )
         }));
 
     let body = Body::from_stream(stream.map(Ok::<_, Infallible>));

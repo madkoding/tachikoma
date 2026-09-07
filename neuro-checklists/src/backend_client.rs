@@ -42,15 +42,15 @@ impl BackendClient {
             "{}/checklists?page={}&per_page={}&include_archived={}",
             self.base_url, page, limit, include_archived
         );
-        
+
         let response = self.client.get(&url).send().await?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let paginated: PaginatedChecklists = response.json().await?;
         Ok(paginated.data)
     }
@@ -63,13 +63,13 @@ impl BackendClient {
             "{}/checklists?page=1&per_page=1&include_archived={}",
             self.base_url, include_archived
         );
-        
+
         let response = self.client.get(&url).send().await?;
-        
+
         if !response.status().is_success() {
             return Ok(0);
         }
-        
+
         let paginated: PaginatedChecklists = response.json().await?;
         Ok(paginated.total)
     }
@@ -80,17 +80,17 @@ impl BackendClient {
     ) -> Result<Option<Checklist>, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/checklists/{}", self.base_url, id);
         let response = self.client.get(&url).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(None);
         }
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let with_items: ChecklistWithItems = response.json().await?;
         Ok(Some(with_items.checklist))
     }
@@ -101,17 +101,17 @@ impl BackendClient {
     ) -> Result<Option<ChecklistWithItems>, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/checklists/{}", self.base_url, id);
         let response = self.client.get(&url).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(None);
         }
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let with_items: ChecklistWithItems = response.json().await?;
         Ok(Some(with_items))
     }
@@ -122,13 +122,13 @@ impl BackendClient {
     ) -> Result<Checklist, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/checklists", self.base_url);
         let response = self.client.post(&url).json(&data).send().await?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let checklist: Checklist = response.json().await?;
         Ok(checklist)
     }
@@ -140,17 +140,17 @@ impl BackendClient {
     ) -> Result<Option<Checklist>, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/checklists/{}", self.base_url, id);
         let response = self.client.patch(&url).json(&data).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(None);
         }
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let checklist: Checklist = response.json().await?;
         Ok(Some(checklist))
     }
@@ -161,11 +161,11 @@ impl BackendClient {
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/checklists/{}", self.base_url, id);
         let response = self.client.delete(&url).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(false);
         }
-        
+
         Ok(response.status().is_success())
     }
 
@@ -179,13 +179,13 @@ impl BackendClient {
     ) -> Result<Vec<ChecklistItem>, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/checklists/{}/items", self.base_url, checklist_id);
         let response = self.client.get(&url).send().await?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let items: Vec<ChecklistItem> = response.json().await?;
         Ok(items)
     }
@@ -197,13 +197,13 @@ impl BackendClient {
     ) -> Result<ChecklistItem, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/checklists/{}/items", self.base_url, checklist_id);
         let response = self.client.post(&url).json(&data).send().await?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let item: ChecklistItem = response.json().await?;
         Ok(item)
     }
@@ -215,17 +215,17 @@ impl BackendClient {
     ) -> Result<Option<ChecklistItem>, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/checklists/items/{}", self.base_url, item_id);
         let response = self.client.patch(&url).json(&data).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(None);
         }
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let item: ChecklistItem = response.json().await?;
         Ok(Some(item))
     }
@@ -236,17 +236,17 @@ impl BackendClient {
     ) -> Result<Option<ChecklistItem>, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/checklists/items/{}/toggle", self.base_url, item_id);
         let response = self.client.post(&url).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(None);
         }
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let item: ChecklistItem = response.json().await?;
         Ok(Some(item))
     }
@@ -257,11 +257,11 @@ impl BackendClient {
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/checklists/items/{}", self.base_url, item_id);
         let response = self.client.delete(&url).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(false);
         }
-        
+
         Ok(response.status().is_success())
     }
 }

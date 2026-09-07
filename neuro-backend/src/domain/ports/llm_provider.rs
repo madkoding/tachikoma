@@ -7,8 +7,8 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use tokio::sync::mpsc;
+use utoipa::ToSchema;
 
 use crate::domain::errors::DomainError;
 
@@ -32,8 +32,8 @@ pub enum StreamChunk {
     /// Token/text chunk
     Token { content: String },
     /// Generation complete
-    Done { 
-        prompt_tokens: u64, 
+    Done {
+        prompt_tokens: u64,
         completion_tokens: u64,
         finish_reason: String,
     },
@@ -48,8 +48,8 @@ pub enum StreamChunk {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SpeculativeChunk {
     /// Start of speculative generation
-    Start { 
-        draft_model: String, 
+    Start {
+        draft_model: String,
         target_model: String,
         lookahead: usize,
     },
@@ -114,14 +114,22 @@ pub trait LlmProvider: Send + Sync {
     // =========================================================================
 
     /// Generate text completion from a simple prompt
-    async fn generate(&self, prompt: &str, model: Option<&str>) -> Result<GenerationResult, DomainError>;
+    async fn generate(
+        &self,
+        prompt: &str,
+        model: Option<&str>,
+    ) -> Result<GenerationResult, DomainError>;
 
     // ==========================================================================
     // Chat (with message history)
     // =========================================================================
 
     /// Chat completion with message history
-    async fn chat(&self, messages: Vec<ChatMessage>, model: Option<&str>) -> Result<GenerationResult, DomainError>;
+    async fn chat(
+        &self,
+        messages: Vec<ChatMessage>,
+        model: Option<&str>,
+    ) -> Result<GenerationResult, DomainError>;
 
     /// Stream chat response chunks via channel
     async fn chat_stream(

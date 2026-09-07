@@ -33,16 +33,14 @@ pub struct VoiceStatusResponse {
 /// Check Voice Status
 /// =============================================================================
 /// Returns whether voice synthesis is available.
-/// 
+///
 /// # Endpoint
 /// `GET /api/voice/status`
 /// =============================================================================
-pub async fn voice_status(
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
+pub async fn voice_status(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let enabled = state.voice_engine.is_ready().await;
     let voices = state.voice_engine.list_voices().await;
-    
+
     Json(VoiceStatusResponse {
         enabled,
         model: "kokoro-v1.0".to_string(),
@@ -56,10 +54,10 @@ pub async fn voice_status(
 /// Synthesize Voice (WAV)
 /// =============================================================================
 /// Converts text to speech and returns a WAV file.
-/// 
+///
 /// # Endpoint
 /// `POST /api/voice/synthesize`
-/// 
+///
 /// # Request Body
 /// ```json
 /// {
@@ -140,10 +138,10 @@ pub async fn synthesize_voice(
 /// Synthesize Voice Streaming (sentence by sentence)
 /// =============================================================================
 /// Converts text to speech, splitting by sentences and streaming each as SSE.
-/// 
+///
 /// # Endpoint
 /// `POST /api/voice/stream`
-/// 
+///
 /// # Request Body
 /// ```json
 /// {
@@ -151,7 +149,7 @@ pub async fn synthesize_voice(
 ///     "streaming": true
 /// }
 /// ```
-/// 
+///
 /// # Response
 /// Server-Sent Events with audio chunks as base64.
 /// =============================================================================
@@ -173,7 +171,8 @@ pub async fn stream_voice(
     }
 
     // Split text into sentences
-    let sentences: Vec<String> = request.text
+    let sentences: Vec<String> = request
+        .text
         .split(|c| c == '.' || c == '!' || c == '?' || c == '\n')
         .filter(|s| !s.trim().is_empty())
         .map(|s| s.trim().to_string())
@@ -209,7 +208,7 @@ pub async fn stream_voice(
                 }
             }
         }
-        
+
         // Send completion event
         let done_event = format!(
             "data: {}\n\n",
@@ -241,39 +240,40 @@ fn base64_encode(data: &[u8]) -> String {
 
 fn base64_encoder(writer: &mut Vec<u8>) -> impl std::io::Write + '_ {
     struct Base64Writer<'a>(&'a mut Vec<u8>);
-    
+
     impl<'a> std::io::Write for Base64Writer<'a> {
         fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-            const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-            
+            const ALPHABET: &[u8; 64] =
+                b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
             for chunk in buf.chunks(3) {
                 let b0 = chunk[0] as usize;
                 let b1 = chunk.get(1).copied().unwrap_or(0) as usize;
                 let b2 = chunk.get(2).copied().unwrap_or(0) as usize;
-                
+
                 self.0.push(ALPHABET[b0 >> 2]);
                 self.0.push(ALPHABET[((b0 & 0x03) << 4) | (b1 >> 4)]);
-                
+
                 if chunk.len() > 1 {
                     self.0.push(ALPHABET[((b1 & 0x0F) << 2) | (b2 >> 6)]);
                 } else {
                     self.0.push(b'=');
                 }
-                
+
                 if chunk.len() > 2 {
                     self.0.push(ALPHABET[b2 & 0x3F]);
                 } else {
                     self.0.push(b'=');
                 }
             }
-            
+
             Ok(buf.len())
         }
-        
+
         fn flush(&mut self) -> std::io::Result<()> {
             Ok(())
         }
     }
-    
+
     Base64Writer(writer)
 }

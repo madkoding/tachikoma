@@ -56,8 +56,7 @@ async fn main() -> Result<()> {
     // Initialize logging (quiet mode - only warnings)
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "warn".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "warn".into()),
         )
         .with_target(false)
         .compact()
@@ -113,8 +112,14 @@ async fn main() -> Result<()> {
     println!("\n{GREEN}{BOLD}✓ Voice Service ready!{RESET}");
     println!("{DIM}─────────────────────────────────────────────────────────{RESET}");
     println!("  {CYAN}▸{RESET} Server:     {YELLOW}http://{bind_addr}{RESET}");
-    println!("  {CYAN}▸{RESET} Piper:      {DIM}{}{RESET}", config.piper.binary_path.display());
-    println!("  {CYAN}▸{RESET} Voice:      {DIM}{}{RESET}", config.piper.default_voice);
+    println!(
+        "  {CYAN}▸{RESET} Piper:      {DIM}{}{RESET}",
+        config.piper.binary_path.display()
+    );
+    println!(
+        "  {CYAN}▸{RESET} Voice:      {DIM}{}{RESET}",
+        config.piper.default_voice
+    );
     println!("  {CYAN}▸{RESET} Synthesize: {DIM}POST /synthesize{RESET}");
     println!("  {CYAN}▸{RESET} Stream:     {DIM}POST /synthesize/opus{RESET}");
     println!("{DIM}─────────────────────────────────────────────────────────{RESET}\n");

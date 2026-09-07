@@ -38,7 +38,11 @@ impl YouTubeService {
         }
 
         // Maybe it's already just an ID
-        if url.len() == 11 && url.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+        if url.len() == 11
+            && url
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
             return Some(url.to_string());
         }
 
@@ -47,8 +51,8 @@ impl YouTubeService {
 
     /// Fetch video metadata using yt-dlp
     pub async fn get_metadata(&self, url: &str) -> Result<YouTubeMetadata, String> {
-        let video_id = Self::extract_video_id(url)
-            .ok_or_else(|| "URL de YouTube inválida".to_string())?;
+        let video_id =
+            Self::extract_video_id(url).ok_or_else(|| "URL de YouTube inválida".to_string())?;
 
         info!(video_id = %video_id, "Fetching YouTube metadata");
 
@@ -68,7 +72,7 @@ impl YouTubeService {
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr).to_lowercase();
             error!(stderr = %stderr, "yt-dlp failed");
-            
+
             // Parse common yt-dlp errors and return user-friendly messages
             if stderr.contains("private video") || stderr.contains("video is private") {
                 return Err("Este video es privado".to_string());
@@ -82,7 +86,9 @@ impl YouTubeService {
             if stderr.contains("age-restricted") || stderr.contains("sign in to confirm your age") {
                 return Err("Este video tiene restricción de edad".to_string());
             }
-            if stderr.contains("not available in your country") || stderr.contains("blocked in your country") {
+            if stderr.contains("not available in your country")
+                || stderr.contains("blocked in your country")
+            {
                 return Err("Este video no está disponible en tu región".to_string());
             }
             if stderr.contains("copyright") {
@@ -94,7 +100,7 @@ impl YouTubeService {
             if stderr.contains("requires payment") || stderr.contains("rental") {
                 return Err("Este video requiere pago".to_string());
             }
-            
+
             return Err("No se pudo obtener información del video".to_string());
         }
 
@@ -108,7 +114,11 @@ impl YouTubeService {
             title: json["title"].as_str().unwrap_or("Unknown").to_string(),
             artist: json["uploader"].as_str().map(|s| s.to_string()),
             album: json["album"].as_str().map(|s| s.to_string()),
-            duration: json["duration"].as_f64().map(|d| d as i64).or_else(|| json["duration"].as_i64()).unwrap_or(0),
+            duration: json["duration"]
+                .as_f64()
+                .map(|d| d as i64)
+                .or_else(|| json["duration"].as_i64())
+                .unwrap_or(0),
             thumbnail_url: json["thumbnail"].as_str().map(|s| s.to_string()),
         })
     }
@@ -119,7 +129,8 @@ impl YouTubeService {
 
         let output = Command::new(&self.ytdlp_path)
             .args([
-                "--format", "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
+                "--format",
+                "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
                 "--get-url",
                 "--no-playlist",
                 "--no-warnings",
@@ -138,11 +149,12 @@ impl YouTubeService {
         }
 
         let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        
+
         // Get format info
         let format_output = Command::new(&self.ytdlp_path)
             .args([
-                "--format", "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
+                "--format",
+                "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
                 "--dump-json",
                 "--no-playlist",
                 "--no-warnings",
@@ -181,17 +193,17 @@ impl YouTubeService {
     /// Also extracts artist if present in "Artist - Title" format
     fn clean_title(title: &str, channel: &str) -> (String, Option<String>) {
         use regex::Regex;
-        
+
         let mut cleaned = title.to_string();
         let mut artist: Option<String> = None;
-        
+
         // First, try to extract "Artist - Title" pattern
         // Common patterns: "Artist - Song", "Artist – Song", "Artist | Song"
         if let Ok(re) = Regex::new(r"^([^|\-–—]+?)\s*[|\-–—]\s*(.+)$") {
             if let Some(caps) = re.captures(&cleaned) {
                 let potential_artist = caps.get(1).map(|m| m.as_str().trim().to_string());
                 let potential_title = caps.get(2).map(|m| m.as_str().trim().to_string());
-                
+
                 if let (Some(art), Some(tit)) = (potential_artist, potential_title) {
                     // Only use if the potential artist looks like a name (not too long)
                     // and doesn't look like part of the title
@@ -202,7 +214,7 @@ impl YouTubeService {
                 }
             }
         }
-        
+
         // If no artist extracted, use channel name as fallback
         if artist.is_none() && !channel.is_empty() && channel != "Unknown" {
             // Clean channel name (remove "VEVO", "Official", etc.)
@@ -213,7 +225,7 @@ impl YouTubeService {
                 artist = Some(channel_clean);
             }
         }
-        
+
         // Patterns to remove from title (case insensitive)
         let patterns = [
             // Video quality tags
@@ -235,17 +247,17 @@ impl YouTubeService {
             // Trailing separators
             r"\s*[|\-–—]\s*$",
         ];
-        
+
         for pattern in patterns {
             if let Ok(re) = Regex::new(pattern) {
                 cleaned = re.replace_all(&cleaned, "").to_string();
             }
         }
-        
+
         // Clean up extra whitespace and trim
         let whitespace_re = Regex::new(r"\s+").unwrap();
         cleaned = whitespace_re.replace_all(&cleaned, " ").to_string();
-        
+
         (cleaned.trim().to_string(), artist)
     }
 
@@ -254,41 +266,99 @@ impl YouTubeService {
         let query_lower = query.to_lowercase();
         let classical_patterns = [
             // Genres
-            "opera", "ópera", "classical", "clásica", "clasica",
-            "symphony", "sinfonía", "sinfonia",
-            "concerto", "concierto",
-            "sonata", "nocturne", "nocturno",
-            "requiem", "cantata", "oratorio",
+            "opera",
+            "ópera",
+            "classical",
+            "clásica",
+            "clasica",
+            "symphony",
+            "sinfonía",
+            "sinfonia",
+            "concerto",
+            "concierto",
+            "sonata",
+            "nocturne",
+            "nocturno",
+            "requiem",
+            "cantata",
+            "oratorio",
             // Classical composers
-            "beethoven", "mozart", "bach", "chopin", "vivaldi",
-            "tchaikovsky", "brahms", "handel", "haydn", "schubert",
-            "debussy", "ravel", "liszt", "mendelssohn", "schumann",
-            "rachmaninoff", "rachmaninov", "prokofiev", "shostakovich",
-            "mahler", "bruckner", "dvorak", "dvořák", "grieg", "sibelius",
+            "beethoven",
+            "mozart",
+            "bach",
+            "chopin",
+            "vivaldi",
+            "tchaikovsky",
+            "brahms",
+            "handel",
+            "haydn",
+            "schubert",
+            "debussy",
+            "ravel",
+            "liszt",
+            "mendelssohn",
+            "schumann",
+            "rachmaninoff",
+            "rachmaninov",
+            "prokofiev",
+            "shostakovich",
+            "mahler",
+            "bruckner",
+            "dvorak",
+            "dvořák",
+            "grieg",
+            "sibelius",
             // Opera composers
-            "verdi", "puccini", "wagner", "rossini", "donizetti",
-            "bellini", "bizet", "massenet", "strauss",
+            "verdi",
+            "puccini",
+            "wagner",
+            "rossini",
+            "donizetti",
+            "bellini",
+            "bizet",
+            "massenet",
+            "strauss",
             // Famous opera singers
-            "pavarotti", "callas", "domingo", "carreras", "netrebko",
-            "bocelli", "brightman", "fleming", "gheorghiu",
+            "pavarotti",
+            "callas",
+            "domingo",
+            "carreras",
+            "netrebko",
+            "bocelli",
+            "brightman",
+            "fleming",
+            "gheorghiu",
             // Orchestra/ensemble terms
-            "philharmonic", "filarmónica", "orquesta", "orchestra",
-            "aria", "overture", "obertura", "quartet", "cuarteto",
+            "philharmonic",
+            "filarmónica",
+            "orquesta",
+            "orchestra",
+            "aria",
+            "overture",
+            "obertura",
+            "quartet",
+            "cuarteto",
         ];
-        
-        classical_patterns.iter().any(|pattern| query_lower.contains(pattern))
+
+        classical_patterns
+            .iter()
+            .any(|pattern| query_lower.contains(pattern))
     }
 
     /// Search YouTube for videos
-    pub async fn search(&self, query: &str, max_results: usize) -> Result<Vec<SearchResult>, String> {
+    pub async fn search(
+        &self,
+        query: &str,
+        max_results: usize,
+    ) -> Result<Vec<SearchResult>, String> {
         // Determine max duration based on query type
         // Classical/Opera: up to 30 min, Others: up to 12 min
         let is_classical = Self::is_classical_or_opera(query);
         let max_duration = if is_classical { 1800 } else { 720 }; // 30 min for classical, 12 min for others
-        
+
         info!(
-            query = %query, 
-            max_results = %max_results, 
+            query = %query,
+            max_results = %max_results,
             is_classical = %is_classical,
             max_duration_sec = %max_duration,
             "Searching YouTube"
@@ -319,47 +389,61 @@ impl YouTubeService {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let results: Vec<SearchResult> = stdout
             .lines()
-            .filter_map(|line| {
-                serde_json::from_str::<serde_json::Value>(line).ok()
-            })
+            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
             .filter_map(|json| {
                 let title = json["title"].as_str()?.to_string();
-                let duration = json["duration"].as_f64().map(|d| d as i64).or_else(|| json["duration"].as_i64()).unwrap_or(0);
-                
+                let duration = json["duration"]
+                    .as_f64()
+                    .map(|d| d as i64)
+                    .or_else(|| json["duration"].as_i64())
+                    .unwrap_or(0);
+
                 // Filter out lives (duration 0) and videos exceeding max duration
                 // max_duration is 10 min (600s) for regular music, 30 min (1800s) for classical/opera
                 if duration == 0 || duration > max_duration {
                     return None;
                 }
-                
+
                 // Filter out compilations, karaoke, covers, and multi-hour videos
                 let title_lower = title.to_lowercase();
                 let excluded_patterns = [
                     // Compilations and mixes
-                    "compilacion", "compilación", "compilation",
-                    "megamix", "mega mix",
+                    "compilacion",
+                    "compilación",
+                    "compilation",
+                    "megamix",
+                    "mega mix",
                     // Multi-hour videos
-                    "1 hour", "1hour", "2 hour", "2hour", "3 hour", "3hour",
+                    "1 hour",
+                    "1hour",
+                    "2 hour",
+                    "2hour",
+                    "3 hour",
+                    "3hour",
                     // Full albums
-                    "full album", "álbum completo", "album completo",
+                    "full album",
+                    "álbum completo",
+                    "album completo",
                     // Playlists
-                    "playlist", "play list",
+                    "playlist",
+                    "play list",
                     // Low quality versions
-                    "karaoke", "8d audio",
+                    "karaoke",
+                    "8d audio",
                 ];
-                
+
                 for pattern in excluded_patterns {
                     if title_lower.contains(pattern) {
                         return None;
                     }
                 }
-                
+
                 // Get channel name
                 let channel = json["uploader"].as_str().unwrap_or("Unknown").to_string();
-                
+
                 // Clean the title and extract artist
                 let (clean_title, extracted_artist) = Self::clean_title(&title, &channel);
-                
+
                 Some(SearchResult {
                     video_id: json["id"].as_str()?.to_string(),
                     title: clean_title,
@@ -370,7 +454,10 @@ impl YouTubeService {
                         "https://i.ytimg.com/vi/{}/mqdefault.jpg",
                         json["id"].as_str()?
                     ),
-                    view_count: json["view_count"].as_f64().map(|v| v as i64).or_else(|| json["view_count"].as_i64()),
+                    view_count: json["view_count"]
+                        .as_f64()
+                        .map(|v| v as i64)
+                        .or_else(|| json["view_count"].as_i64()),
                 })
             })
             .take(max_results)

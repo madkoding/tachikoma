@@ -9,10 +9,8 @@ use tracing::debug;
 use uuid::Uuid;
 
 use crate::domain::entities::kanban::{
-    Board, BoardSummary, Card, Column,
-    CreateBoard, CreateCard, CreateColumn,
-    MoveCard, ReorderColumn,
-    UpdateBoard, UpdateCard, UpdateColumn,
+    Board, BoardSummary, Card, Column, CreateBoard, CreateCard, CreateColumn, MoveCard,
+    ReorderColumn, UpdateBoard, UpdateCard, UpdateColumn,
 };
 use crate::domain::errors::DomainError;
 use crate::domain::ports::kanban_repository::KanbanRepository;
@@ -142,9 +140,9 @@ impl From<CardRecord> for Card {
 
 fn create_default_columns() -> Vec<(&'static str, Option<&'static str>, Option<i32>)> {
     vec![
-        ("To Do", Some("#6366f1"), None),        // Indigo
+        ("To Do", Some("#6366f1"), None),          // Indigo
         ("In Progress", Some("#f59e0b"), Some(5)), // Amber
-        ("Done", Some("#22c55e"), None),          // Green
+        ("Done", Some("#22c55e"), None),           // Green
     ]
 }
 
@@ -159,13 +157,16 @@ impl SurrealKanbanRepository {
 
     /// Get all columns for a board
     async fn get_columns_for_board(&self, board_id: Uuid) -> Result<Vec<Column>, DomainError> {
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query("SELECT * FROM kanban_column WHERE board_id = $id ORDER BY column_order ASC")
             .bind(("id", board_id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let records: Vec<ColumnRecord> = result.take(0)
+        let records: Vec<ColumnRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         let mut columns: Vec<Column> = Vec::new();
@@ -175,33 +176,41 @@ impl SurrealKanbanRepository {
             column.cards = self.get_cards_for_column(column_id).await?;
             columns.push(column);
         }
-        
+
         Ok(columns)
     }
 
     /// Get all cards for a column
     async fn get_cards_for_column(&self, column_id: Uuid) -> Result<Vec<Card>, DomainError> {
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query("SELECT * FROM kanban_card WHERE column_id = $id ORDER BY card_order ASC")
             .bind(("id", column_id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let records: Vec<CardRecord> = result.take(0)
+        let records: Vec<CardRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(records.into_iter().map(Card::from).collect())
     }
 
     /// Get a column by ID
     async fn get_column(&self, column_id: Uuid) -> Result<Option<Column>, DomainError> {
         let query = format!("SELECT * FROM kanban_column:`{}`", column_id);
-        let mut result = self.pool.client().query(&query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let record: Option<ColumnRecord> = result.take(0)
+
+        let record: Option<ColumnRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         match record {
             Some(r) => {
                 let mut column = Column::from(r);
@@ -215,26 +224,34 @@ impl SurrealKanbanRepository {
     /// Get a card by ID
     async fn get_card(&self, card_id: Uuid) -> Result<Option<Card>, DomainError> {
         let query = format!("SELECT * FROM kanban_card:`{}`", card_id);
-        let mut result = self.pool.client().query(&query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let record: Option<CardRecord> = result.take(0)
+
+        let record: Option<CardRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(record.map(Card::from))
     }
 
     /// Count columns for a board
     async fn count_columns(&self, board_id: Uuid) -> Result<usize, DomainError> {
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query("SELECT count() FROM kanban_column WHERE board_id = $id GROUP ALL")
             .bind(("id", board_id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let count: Option<CountResult> = result.take(0)
+
+        let count: Option<CountResult> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(count.map(|c| c.count).unwrap_or(0))
     }
 
@@ -249,10 +266,11 @@ impl SurrealKanbanRepository {
             .bind(("id", board_id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let count: Option<CountResult> = result.take(0)
+
+        let count: Option<CountResult> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(count.map(|c| c.count).unwrap_or(0))
     }
 }
@@ -263,25 +281,33 @@ impl KanbanRepository for SurrealKanbanRepository {
     // Board CRUD
     // =========================================================================
 
-    async fn get_all_boards(&self, include_archived: bool) -> Result<Vec<BoardSummary>, DomainError> {
+    async fn get_all_boards(
+        &self,
+        include_archived: bool,
+    ) -> Result<Vec<BoardSummary>, DomainError> {
         let query = if include_archived {
             "SELECT * FROM kanban_board ORDER BY created_at DESC"
         } else {
             "SELECT * FROM kanban_board WHERE is_archived = false ORDER BY created_at DESC"
         };
 
-        let mut result = self.pool.client().query(query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let records: Vec<BoardRecord> = result.take(0)
+
+        let records: Vec<BoardRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         let mut summaries = Vec::new();
         for record in records {
             let board_id = thing_to_uuid(&record.id).unwrap_or_default();
             let column_count = self.count_columns(board_id).await.unwrap_or(0);
             let card_count = self.count_cards(board_id).await.unwrap_or(0);
-            
+
             summaries.push(BoardSummary {
                 id: board_id,
                 name: record.name,
@@ -294,18 +320,23 @@ impl KanbanRepository for SurrealKanbanRepository {
                 updated_at: record.updated_at,
             });
         }
-        
+
         Ok(summaries)
     }
 
     async fn get_board(&self, id: Uuid) -> Result<Option<Board>, DomainError> {
         let query = format!("SELECT * FROM kanban_board:`{}`", id);
-        let mut result = self.pool.client().query(&query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let record: Option<BoardRecord> = result.take(0)
+
+        let record: Option<BoardRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         match record {
             Some(r) => {
                 let mut board = Board::from(r);
@@ -331,7 +362,9 @@ impl KanbanRepository for SurrealKanbanRepository {
             id
         );
 
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("name", data.name.clone()))
             .bind(("description", data.description.clone()))
@@ -339,9 +372,10 @@ impl KanbanRepository for SurrealKanbanRepository {
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<BoardRecord> = result.take(0)
+        let record: Option<BoardRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         let mut board = record
             .map(Board::from)
             .ok_or_else(|| DomainError::database("Failed to create board"))?;
@@ -350,11 +384,17 @@ impl KanbanRepository for SurrealKanbanRepository {
         if data.with_default_columns.unwrap_or(true) {
             let defaults = create_default_columns();
             for (i, (name, color, wip_limit)) in defaults.into_iter().enumerate() {
-                let col = self.create_column_internal(id, CreateColumn {
-                    name: name.to_string(),
-                    color: color.map(|s| s.to_string()),
-                    wip_limit,
-                }, i as i32).await?;
+                let col = self
+                    .create_column_internal(
+                        id,
+                        CreateColumn {
+                            name: name.to_string(),
+                            color: color.map(|s| s.to_string()),
+                            wip_limit,
+                        },
+                        i as i32,
+                    )
+                    .await?;
                 board.columns.push(col);
             }
         }
@@ -363,7 +403,11 @@ impl KanbanRepository for SurrealKanbanRepository {
         Ok(board)
     }
 
-    async fn update_board(&self, id: Uuid, data: UpdateBoard) -> Result<Option<Board>, DomainError> {
+    async fn update_board(
+        &self,
+        id: Uuid,
+        data: UpdateBoard,
+    ) -> Result<Option<Board>, DomainError> {
         let existing = self.get_board(id).await?;
         if existing.is_none() {
             return Ok(None);
@@ -381,18 +425,24 @@ impl KanbanRepository for SurrealKanbanRepository {
             id
         );
 
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("name", data.name.unwrap_or(existing.name)))
             .bind(("description", data.description.or(existing.description)))
             .bind(("color", data.color.or(existing.color)))
-            .bind(("is_archived", data.is_archived.unwrap_or(existing.is_archived)))
+            .bind((
+                "is_archived",
+                data.is_archived.unwrap_or(existing.is_archived),
+            ))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<BoardRecord> = result.take(0)
+        let record: Option<BoardRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         match record {
             Some(r) => {
                 let mut board = Board::from(r);
@@ -420,7 +470,8 @@ impl KanbanRepository for SurrealKanbanRepository {
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         // Delete all columns
-        self.pool.client()
+        self.pool
+            .client()
             .query("DELETE FROM kanban_column WHERE board_id = $id")
             .bind(("id", id.to_string()))
             .await
@@ -428,7 +479,10 @@ impl KanbanRepository for SurrealKanbanRepository {
 
         // Delete board
         let query = format!("DELETE kanban_board:`{}`", id);
-        self.pool.client().query(&query).await
+        self.pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         debug!("Deleted kanban board: {}", id);
@@ -439,22 +493,31 @@ impl KanbanRepository for SurrealKanbanRepository {
     // Column CRUD
     // =========================================================================
 
-    async fn create_column(&self, board_id: Uuid, data: CreateColumn) -> Result<Column, DomainError> {
+    async fn create_column(
+        &self,
+        board_id: Uuid,
+        data: CreateColumn,
+    ) -> Result<Column, DomainError> {
         // Get max order
         let mut result = self.pool.client()
             .query("SELECT math::max(column_order) as max_order FROM kanban_column WHERE board_id = $id GROUP ALL")
             .bind(("id", board_id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let max_order: Option<MaxOrderResult> = result.take(0)
+
+        let max_order: Option<MaxOrderResult> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
         let order = max_order.map(|m| m.max_order + 1).unwrap_or(0);
 
         self.create_column_internal(board_id, data, order).await
     }
 
-    async fn update_column(&self, column_id: Uuid, data: UpdateColumn) -> Result<Option<Column>, DomainError> {
+    async fn update_column(
+        &self,
+        column_id: Uuid,
+        data: UpdateColumn,
+    ) -> Result<Option<Column>, DomainError> {
         let existing = self.get_column(column_id).await?;
         if existing.is_none() {
             return Ok(None);
@@ -471,7 +534,9 @@ impl KanbanRepository for SurrealKanbanRepository {
             column_id
         );
 
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("name", data.name.unwrap_or(existing.name)))
             .bind(("color", data.color.or(existing.color)))
@@ -479,9 +544,10 @@ impl KanbanRepository for SurrealKanbanRepository {
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<ColumnRecord> = result.take(0)
+        let record: Option<ColumnRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         match record {
             Some(r) => {
                 let mut column = Column::from(r);
@@ -492,7 +558,11 @@ impl KanbanRepository for SurrealKanbanRepository {
         }
     }
 
-    async fn reorder_column(&self, column_id: Uuid, data: ReorderColumn) -> Result<Option<Column>, DomainError> {
+    async fn reorder_column(
+        &self,
+        column_id: Uuid,
+        data: ReorderColumn,
+    ) -> Result<Option<Column>, DomainError> {
         let existing = self.get_column(column_id).await?;
         if existing.is_none() {
             return Ok(None);
@@ -508,11 +578,14 @@ impl KanbanRepository for SurrealKanbanRepository {
         // Shift other columns
         if new_order > old_order {
             // Moving down: shift columns in range (old, new] up by -1
-            self.pool.client()
-                .query(r#"
+            self.pool
+                .client()
+                .query(
+                    r#"
                     UPDATE kanban_column SET column_order = column_order - 1 
                     WHERE board_id = $board_id AND column_order > $old AND column_order <= $new
-                "#)
+                "#,
+                )
                 .bind(("board_id", existing.board_id.to_string()))
                 .bind(("old", old_order))
                 .bind(("new", new_order))
@@ -520,11 +593,14 @@ impl KanbanRepository for SurrealKanbanRepository {
                 .map_err(|e| DomainError::database(e.to_string()))?;
         } else {
             // Moving up: shift columns in range [new, old) down by +1
-            self.pool.client()
-                .query(r#"
+            self.pool
+                .client()
+                .query(
+                    r#"
                     UPDATE kanban_column SET column_order = column_order + 1 
                     WHERE board_id = $board_id AND column_order >= $new AND column_order < $old
-                "#)
+                "#,
+                )
                 .bind(("board_id", existing.board_id.to_string()))
                 .bind(("old", old_order))
                 .bind(("new", new_order))
@@ -537,15 +613,18 @@ impl KanbanRepository for SurrealKanbanRepository {
             "UPDATE kanban_column:`{}` SET column_order = $order, updated_at = time::now()",
             column_id
         );
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("order", new_order))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<ColumnRecord> = result.take(0)
+        let record: Option<ColumnRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         match record {
             Some(r) => {
                 let mut column = Column::from(r);
@@ -563,7 +642,8 @@ impl KanbanRepository for SurrealKanbanRepository {
         }
 
         // Delete all cards
-        self.pool.client()
+        self.pool
+            .client()
             .query("DELETE FROM kanban_card WHERE column_id = $id")
             .bind(("id", column_id.to_string()))
             .await
@@ -571,7 +651,10 @@ impl KanbanRepository for SurrealKanbanRepository {
 
         // Delete column
         let query = format!("DELETE kanban_column:`{}`", column_id);
-        self.pool.client().query(&query).await
+        self.pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         Ok(true)
@@ -590,8 +673,9 @@ impl KanbanRepository for SurrealKanbanRepository {
             .bind(("id", column_id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let max_order: Option<MaxOrderResult> = result.take(0)
+
+        let max_order: Option<MaxOrderResult> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
         let order = max_order.map(|m| m.max_order + 1).unwrap_or(0);
 
@@ -612,7 +696,9 @@ impl KanbanRepository for SurrealKanbanRepository {
             id
         );
 
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("column_id", column_id.to_string()))
             .bind(("title", data.title.clone()))
@@ -624,7 +710,8 @@ impl KanbanRepository for SurrealKanbanRepository {
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<CardRecord> = result.take(0)
+        let record: Option<CardRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         record
@@ -632,7 +719,11 @@ impl KanbanRepository for SurrealKanbanRepository {
             .ok_or_else(|| DomainError::database("Failed to create card"))
     }
 
-    async fn update_card(&self, card_id: Uuid, data: UpdateCard) -> Result<Option<Card>, DomainError> {
+    async fn update_card(
+        &self,
+        card_id: Uuid,
+        data: UpdateCard,
+    ) -> Result<Option<Card>, DomainError> {
         let existing = self.get_card(card_id).await?;
         if existing.is_none() {
             return Ok(None);
@@ -651,7 +742,9 @@ impl KanbanRepository for SurrealKanbanRepository {
             card_id
         );
 
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("title", data.title.unwrap_or(existing.title)))
             .bind(("description", data.description.or(existing.description)))
@@ -661,9 +754,10 @@ impl KanbanRepository for SurrealKanbanRepository {
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<CardRecord> = result.take(0)
+        let record: Option<CardRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(record.map(Card::from))
     }
 
@@ -683,24 +777,30 @@ impl KanbanRepository for SurrealKanbanRepository {
             if old_order == new_order {
                 return Ok(Some(existing));
             }
-            
+
             if new_order > old_order {
-                self.pool.client()
-                    .query(r#"
+                self.pool
+                    .client()
+                    .query(
+                        r#"
                         UPDATE kanban_card SET card_order = card_order - 1 
                         WHERE column_id = $col AND card_order > $old AND card_order <= $new
-                    "#)
+                    "#,
+                    )
                     .bind(("col", old_column_id.to_string()))
                     .bind(("old", old_order))
                     .bind(("new", new_order))
                     .await
                     .map_err(|e| DomainError::database(e.to_string()))?;
             } else {
-                self.pool.client()
-                    .query(r#"
+                self.pool
+                    .client()
+                    .query(
+                        r#"
                         UPDATE kanban_card SET card_order = card_order + 1 
                         WHERE column_id = $col AND card_order >= $new AND card_order < $old
-                    "#)
+                    "#,
+                    )
                     .bind(("col", old_column_id.to_string()))
                     .bind(("old", old_order))
                     .bind(("new", new_order))
@@ -710,22 +810,28 @@ impl KanbanRepository for SurrealKanbanRepository {
         } else {
             // Moving to different column
             // Shift down cards in old column
-            self.pool.client()
-                .query(r#"
+            self.pool
+                .client()
+                .query(
+                    r#"
                     UPDATE kanban_card SET card_order = card_order - 1 
                     WHERE column_id = $col AND card_order > $old
-                "#)
+                "#,
+                )
                 .bind(("col", old_column_id.to_string()))
                 .bind(("old", old_order))
                 .await
                 .map_err(|e| DomainError::database(e.to_string()))?;
 
             // Shift up cards in new column
-            self.pool.client()
-                .query(r#"
+            self.pool
+                .client()
+                .query(
+                    r#"
                     UPDATE kanban_card SET card_order = card_order + 1 
                     WHERE column_id = $col AND card_order >= $new
-                "#)
+                "#,
+                )
                 .bind(("col", new_column_id.to_string()))
                 .bind(("new", new_order))
                 .await
@@ -742,16 +848,19 @@ impl KanbanRepository for SurrealKanbanRepository {
             card_id
         );
 
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("column_id", new_column_id.to_string()))
             .bind(("order", new_order))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<CardRecord> = result.take(0)
+        let record: Option<CardRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(record.map(Card::from))
     }
 
@@ -762,7 +871,10 @@ impl KanbanRepository for SurrealKanbanRepository {
         }
 
         let query = format!("DELETE kanban_card:`{}`", card_id);
-        self.pool.client().query(&query).await
+        self.pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         Ok(true)
@@ -771,7 +883,12 @@ impl KanbanRepository for SurrealKanbanRepository {
 
 impl SurrealKanbanRepository {
     /// Internal helper to create column with specified order
-    async fn create_column_internal(&self, board_id: Uuid, data: CreateColumn, order: i32) -> Result<Column, DomainError> {
+    async fn create_column_internal(
+        &self,
+        board_id: Uuid,
+        data: CreateColumn,
+        order: i32,
+    ) -> Result<Column, DomainError> {
         let id = Uuid::new_v4();
 
         let query = format!(
@@ -787,7 +904,9 @@ impl SurrealKanbanRepository {
             id
         );
 
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("board_id", board_id.to_string()))
             .bind(("name", data.name.clone()))
@@ -797,7 +916,8 @@ impl SurrealKanbanRepository {
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<ColumnRecord> = result.take(0)
+        let record: Option<ColumnRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         record

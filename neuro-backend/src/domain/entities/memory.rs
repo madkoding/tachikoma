@@ -519,8 +519,11 @@ mod tests {
 
     #[test]
     fn test_memory_access_count_increment() {
-        let mut memory =
-            MemoryNode::new("Test content".to_string(), vec![0.1, 0.2], MemoryType::Context);
+        let mut memory = MemoryNode::new(
+            "Test content".to_string(),
+            vec![0.1, 0.2],
+            MemoryType::Context,
+        );
 
         for i in 1..=5 {
             memory.record_access();

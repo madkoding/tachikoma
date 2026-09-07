@@ -46,7 +46,11 @@ impl CoverArtService {
     }
 
     /// Search MusicBrainz for release with cover art
-    async fn search_musicbrainz(&self, title: &str, artist: Option<&str>) -> Option<CoverArtResult> {
+    async fn search_musicbrainz(
+        &self,
+        title: &str,
+        artist: Option<&str>,
+    ) -> Option<CoverArtResult> {
         let query = match artist {
             Some(a) => format!("recording:\"{}\" AND artist:\"{}\"", title, a),
             None => format!("recording:\"{}\"", title),
@@ -60,14 +64,13 @@ impl CoverArtService {
 
         debug!(url = %url, "Searching MusicBrainz");
 
-        let response = self.client
-            .get(&url)
-            .send()
-            .await
-            .ok()?;
+        let response = self.client.get(&url).send().await.ok()?;
 
         if !response.status().is_success() {
-            warn!("MusicBrainz search failed with status: {}", response.status());
+            warn!(
+                "MusicBrainz search failed with status: {}",
+                response.status()
+            );
             return None;
         }
 
@@ -96,11 +99,7 @@ impl CoverArtService {
 
         debug!(release_id = %release_id, "Fetching from Cover Art Archive");
 
-        let response = self.client
-            .get(&url)
-            .send()
-            .await
-            .ok()?;
+        let response = self.client.get(&url).send().await.ok()?;
 
         if !response.status().is_success() {
             return None;
@@ -155,9 +154,9 @@ impl CoverArtService {
 
 #[derive(Debug, Clone, Copy)]
 pub enum ThumbnailQuality {
-    Default,    // 120x90
-    Medium,     // 320x180
-    High,       // 480x360
-    Standard,   // 640x480
-    MaxRes,     // 1280x720
+    Default,  // 120x90
+    Medium,   // 320x180
+    High,     // 480x360
+    Standard, // 640x480
+    MaxRes,   // 1280x720
 }

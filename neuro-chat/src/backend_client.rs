@@ -23,15 +23,24 @@ pub struct ChatMessage {
 
 impl ChatMessage {
     pub fn user(content: impl Into<String>) -> Self {
-        Self { role: "user".to_string(), content: content.into() }
+        Self {
+            role: "user".to_string(),
+            content: content.into(),
+        }
     }
 
     pub fn assistant(content: impl Into<String>) -> Self {
-        Self { role: "assistant".to_string(), content: content.into() }
+        Self {
+            role: "assistant".to_string(),
+            content: content.into(),
+        }
     }
 
     pub fn system(content: impl Into<String>) -> Self {
-        Self { role: "system".to_string(), content: content.into() }
+        Self {
+            role: "system".to_string(),
+            content: content.into(),
+        }
     }
 }
 
@@ -48,28 +57,40 @@ pub struct ChatResponse {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamChunk {
-    Start { model: String },
-    Token { content: String },
-    Done { 
-        prompt_tokens: u64, 
+    Start {
+        model: String,
+    },
+    Token {
+        content: String,
+    },
+    Done {
+        prompt_tokens: u64,
         completion_tokens: u64,
         finish_reason: String,
     },
-    Error { message: String },
+    Error {
+        message: String,
+    },
 }
 
 /// Chunk from speculative streaming
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SpeculativeChunk {
-    Start { 
-        draft_model: String, 
+    Start {
+        draft_model: String,
         target_model: String,
         lookahead: usize,
     },
-    Tokens { content: String },
-    Done { stats: SpeculativeStats },
-    Error { message: String },
+    Tokens {
+        content: String,
+    },
+    Done {
+        stats: SpeculativeStats,
+    },
+    Error {
+        message: String,
+    },
 }
 
 /// Statistics from speculative decoding
@@ -133,12 +154,17 @@ impl BackendLlmClient {
     /// Get detailed LLM health status
     pub async fn health_status(&self) -> Result<LlmHealthStatus, String> {
         let url = format!("{}/api/llm/health", self.base_url);
-        let response = self.client.get(&url).send().await.map_err(|e| e.to_string())?;
-        
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+
         if !response.status().is_success() {
             return Err(format!("Backend error: {}", response.status()));
         }
-        
+
         response.json().await.map_err(|e| e.to_string())
     }
 
@@ -155,7 +181,7 @@ impl BackendLlmClient {
         model: Option<&str>,
     ) -> Result<ChatResponse, String> {
         let url = format!("{}/api/llm/chat", self.base_url);
-        
+
         let body = json!({
             "messages": messages,
             "model": model
@@ -163,7 +189,8 @@ impl BackendLlmClient {
 
         debug!("Sending chat request to backend: {}", url);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&body)
             .send()
@@ -187,7 +214,7 @@ impl BackendLlmClient {
         tx: mpsc::Sender<Result<StreamChunk, String>>,
     ) {
         let url = format!("{}/api/llm/chat/stream", self.base_url);
-        
+
         let body = json!({
             "messages": messages,
             "model": model
@@ -195,12 +222,7 @@ impl BackendLlmClient {
 
         debug!("Starting chat stream via backend: {}", url);
 
-        let response = match self.client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-        {
+        let response = match self.client.post(&url).json(&body).send().await {
             Ok(r) => r,
             Err(e) => {
                 let _ = tx.send(Err(e.to_string())).await;
@@ -211,7 +233,9 @@ impl BackendLlmClient {
         if !response.status().is_success() {
             let status = response.status();
             let body: String = response.text().await.unwrap_or_default();
-            let _ = tx.send(Err(format!("Backend error: {} - {}", status, body))).await;
+            let _ = tx
+                .send(Err(format!("Backend error: {} - {}", status, body)))
+                .await;
             return;
         }
 
@@ -236,7 +260,7 @@ impl BackendLlmClient {
     }
 
     /// Speculative decoding stream via backend SSE
-    /// 
+    ///
     /// Uses Light tier as draft model, Standard tier as target model by default.
     /// The backend handles all the speculative decoding logic.
     pub async fn speculative_stream(
@@ -248,7 +272,7 @@ impl BackendLlmClient {
         tx: mpsc::Sender<SpeculativeChunk>,
     ) {
         let url = format!("{}/api/llm/chat/speculative/stream", self.base_url);
-        
+
         let body = json!({
             "messages": messages,
             "draft_model": draft_model,
@@ -258,15 +282,14 @@ impl BackendLlmClient {
 
         debug!("Starting speculative stream via backend: {}", url);
 
-        let response = match self.client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-        {
+        let response = match self.client.post(&url).json(&body).send().await {
             Ok(r) => r,
             Err(e) => {
-                let _ = tx.send(SpeculativeChunk::Error { message: e.to_string() }).await;
+                let _ = tx
+                    .send(SpeculativeChunk::Error {
+                        message: e.to_string(),
+                    })
+                    .await;
                 return;
             }
         };
@@ -274,9 +297,11 @@ impl BackendLlmClient {
         if !response.status().is_success() {
             let status = response.status();
             let body: String = response.text().await.unwrap_or_default();
-            let _ = tx.send(SpeculativeChunk::Error { 
-                message: format!("Backend error: {} - {}", status, body) 
-            }).await;
+            let _ = tx
+                .send(SpeculativeChunk::Error {
+                    message: format!("Backend error: {} - {}", status, body),
+                })
+                .await;
             return;
         }
 
@@ -289,10 +314,11 @@ impl BackendLlmClient {
     /// Generate embedding for text
     pub async fn embed(&self, text: &str) -> Result<Vec<f32>, String> {
         let url = format!("{}/api/llm/embed", self.base_url);
-        
+
         let body = json!({ "text": text });
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&body)
             .send()

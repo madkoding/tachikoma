@@ -16,8 +16,8 @@ use tracing::{debug, instrument, warn};
 use crate::domain::{
     errors::DomainError,
     ports::llm_provider::{
-        ChatMessage, GenerationResult, LlmHealthStatus, LlmProvider, ModelInfo,
-        SpeculativeChunk, SpeculativeStats, StreamChunk,
+        ChatMessage, GenerationResult, LlmHealthStatus, LlmProvider, ModelInfo, SpeculativeChunk,
+        SpeculativeStats, StreamChunk,
     },
 };
 use crate::infrastructure::config::OpenAiConfig;
@@ -126,8 +126,8 @@ struct ModelEntry {
 
 impl OpenAiClient {
     pub fn new(config: OpenAiConfig) -> Self {
-        let mut builder = Client::builder()
-            .timeout(std::time::Duration::from_secs(config.timeout_secs));
+        let mut builder =
+            Client::builder().timeout(std::time::Duration::from_secs(config.timeout_secs));
         if !config.api_key.is_empty() {
             builder = builder.default_headers({
                 let mut h = reqwest::header::HeaderMap::new();
@@ -144,7 +144,11 @@ impl OpenAiClient {
     }
 
     fn api_url(&self, endpoint: &str) -> String {
-        format!("{}/{}", self.config.base_url.trim_end_matches('/'), endpoint)
+        format!(
+            "{}/{}",
+            self.config.base_url.trim_end_matches('/'),
+            endpoint
+        )
     }
 
     fn default_model(&self) -> &str {
@@ -208,7 +212,11 @@ impl OpenAiClient {
 #[async_trait]
 impl LlmProvider for OpenAiClient {
     #[instrument(skip(self, prompt))]
-    async fn generate(&self, prompt: &str, model: Option<&str>) -> Result<GenerationResult, DomainError> {
+    async fn generate(
+        &self,
+        prompt: &str,
+        model: Option<&str>,
+    ) -> Result<GenerationResult, DomainError> {
         let model_name = model.unwrap_or_else(|| self.default_model());
         let messages = vec![ChatMessage {
             role: "user".to_string(),
@@ -234,7 +242,11 @@ impl LlmProvider for OpenAiClient {
     }
 
     #[instrument(skip(self, messages))]
-    async fn chat(&self, messages: Vec<ChatMessage>, model: Option<&str>) -> Result<GenerationResult, DomainError> {
+    async fn chat(
+        &self,
+        messages: Vec<ChatMessage>,
+        model: Option<&str>,
+    ) -> Result<GenerationResult, DomainError> {
         let model_name = model.unwrap_or_else(|| self.default_model());
         let response = self.chat_inner(messages, model_name, false).await?;
         let parsed: ChatResponse = response
@@ -263,12 +275,20 @@ impl LlmProvider for OpenAiClient {
         tx: mpsc::Sender<StreamChunk>,
     ) {
         let model_name = model.unwrap_or_else(|| self.default_model()).to_string();
-        let _ = tx.send(StreamChunk::Start { model: model_name.clone() }).await;
+        let _ = tx
+            .send(StreamChunk::Start {
+                model: model_name.clone(),
+            })
+            .await;
 
         let response = match self.chat_inner(messages, &model_name, true).await {
             Ok(r) => r,
             Err(e) => {
-                let _ = tx.send(StreamChunk::Error { message: e.to_string() }).await;
+                let _ = tx
+                    .send(StreamChunk::Error {
+                        message: e.to_string(),
+                    })
+                    .await;
                 return;
             }
         };
@@ -292,11 +312,13 @@ impl LlmProvider for OpenAiClient {
                         // Skip SSE "data:" prefix; ignore [DONE]
                         let data = line.strip_prefix("data:").unwrap_or(line).trim();
                         if data == "[DONE]" {
-                            let _ = tx.send(StreamChunk::Done {
-                                prompt_tokens,
-                                completion_tokens,
-                                finish_reason: "stop".to_string(),
-                            }).await;
+                            let _ = tx
+                                .send(StreamChunk::Done {
+                                    prompt_tokens,
+                                    completion_tokens,
+                                    finish_reason: "stop".to_string(),
+                                })
+                                .await;
                             return;
                         }
                         match serde_json::from_str::<StreamChunkResponse>(data) {
@@ -310,11 +332,13 @@ impl LlmProvider for OpenAiClient {
                                     }
                                     if let Some(reason) = choice.finish_reason {
                                         if !reason.is_empty() {
-                                            let _ = tx.send(StreamChunk::Done {
-                                                prompt_tokens,
-                                                completion_tokens,
-                                                finish_reason: reason,
-                                            }).await;
+                                            let _ = tx
+                                                .send(StreamChunk::Done {
+                                                    prompt_tokens,
+                                                    completion_tokens,
+                                                    finish_reason: reason,
+                                                })
+                                                .await;
                                             return;
                                         }
                                     }
@@ -327,7 +351,11 @@ impl LlmProvider for OpenAiClient {
                     }
                 }
                 Err(e) => {
-                    let _ = tx.send(StreamChunk::Error { message: e.to_string() }).await;
+                    let _ = tx
+                        .send(StreamChunk::Error {
+                            message: e.to_string(),
+                        })
+                        .await;
                     return;
                 }
             }
@@ -347,31 +375,41 @@ impl LlmProvider for OpenAiClient {
         // speculative decoding degrades to a plain chat completion.
         let target = target_model.unwrap_or_else(|| self.default_model());
         let lookahead_tokens = lookahead.unwrap_or(5);
-        let _ = tx.send(SpeculativeChunk::Start {
-            draft_model: draft_model.unwrap_or(target).to_string(),
-            target_model: target.to_string(),
-            lookahead: lookahead_tokens,
-        }).await;
+        let _ = tx
+            .send(SpeculativeChunk::Start {
+                draft_model: draft_model.unwrap_or(target).to_string(),
+                target_model: target.to_string(),
+                lookahead: lookahead_tokens,
+            })
+            .await;
 
         let prompt = Self::messages_to_prompt(&messages);
         let result = self.generate(&prompt, Some(target)).await;
         match result {
             Ok(r) => {
-                let _ = tx.send(SpeculativeChunk::Tokens { content: r.content }).await;
-                let _ = tx.send(SpeculativeChunk::Done {
-                    stats: SpeculativeStats {
-                        draft_tokens_generated: 0,
-                        tokens_accepted: 0,
-                        tokens_rejected: 0,
-                        acceptance_rate: 0.0,
-                        draft_model: target.to_string(),
-                        target_model: target.to_string(),
-                        iterations: 0,
-                    },
-                }).await;
+                let _ = tx
+                    .send(SpeculativeChunk::Tokens { content: r.content })
+                    .await;
+                let _ = tx
+                    .send(SpeculativeChunk::Done {
+                        stats: SpeculativeStats {
+                            draft_tokens_generated: 0,
+                            tokens_accepted: 0,
+                            tokens_rejected: 0,
+                            acceptance_rate: 0.0,
+                            draft_model: target.to_string(),
+                            target_model: target.to_string(),
+                            iterations: 0,
+                        },
+                    })
+                    .await;
             }
             Err(e) => {
-                let _ = tx.send(SpeculativeChunk::Error { message: e.to_string() }).await;
+                let _ = tx
+                    .send(SpeculativeChunk::Error {
+                        message: e.to_string(),
+                    })
+                    .await;
             }
         }
     }
@@ -379,14 +417,17 @@ impl LlmProvider for OpenAiClient {
     #[instrument(skip(self, text))]
     async fn embed(&self, text: &str) -> Result<Vec<f32>, DomainError> {
         let mut batch = self.embed_batch(&[text.to_string()]).await?;
-        batch.pop().ok_or_else(|| DomainError::llm_error("No embedding returned"))
+        batch
+            .pop()
+            .ok_or_else(|| DomainError::llm_error("No embedding returned"))
     }
 
     #[instrument(skip(self, texts))]
     async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, DomainError> {
         if texts.len() > 100 {
             return Err(DomainError::llm_error(format!(
-                "Batch too large: {} texts (max 100)", texts.len()
+                "Batch too large: {} texts (max 100)",
+                texts.len()
             )));
         }
         let request = EmbeddingRequest {

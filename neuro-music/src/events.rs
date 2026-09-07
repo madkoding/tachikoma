@@ -14,7 +14,9 @@ pub enum MusicEvent {
     // Playlist events
     PlaylistCreated(PlaylistEventData),
     PlaylistUpdated(PlaylistEventData),
-    PlaylistDeleted { id: String },
+    PlaylistDeleted {
+        id: String,
+    },
 
     // Song events
     SongAdded {

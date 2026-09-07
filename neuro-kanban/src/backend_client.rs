@@ -1,8 +1,8 @@
 //! Backend client - HTTP client to tachikoma-backend data layer
 
 use reqwest::Client;
-use uuid::Uuid;
 use tracing::{debug, error};
+use uuid::Uuid;
 
 use crate::config::Config;
 use crate::models::*;
@@ -21,7 +21,10 @@ impl BackendClient {
     }
 
     pub async fn health_check(&self) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-        let url = format!("{}/health", self.base_url.replace("/api/data/kanban", "/api"));
+        let url = format!(
+            "{}/health",
+            self.base_url.replace("/api/data/kanban", "/api")
+        );
         let response = self.client.get(&url).send().await?;
         Ok(response.status().is_success())
     }
@@ -34,18 +37,21 @@ impl BackendClient {
         &self,
         include_archived: bool,
     ) -> Result<Vec<BoardSummary>, Box<dyn std::error::Error + Send + Sync>> {
-        let url = format!("{}/boards?include_archived={}", self.base_url, include_archived);
+        let url = format!(
+            "{}/boards?include_archived={}",
+            self.base_url, include_archived
+        );
         debug!("GET {}", url);
-        
+
         let response = self.client.get(&url).send().await?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             error!("Backend error {}: {}", status, text);
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let boards: Vec<BoardSummary> = response.json().await?;
         Ok(boards)
     }
@@ -56,20 +62,20 @@ impl BackendClient {
     ) -> Result<Option<Board>, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/boards/{}", self.base_url, id);
         debug!("GET {}", url);
-        
+
         let response = self.client.get(&url).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(None);
         }
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             error!("Backend error {}: {}", status, text);
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let board: Board = response.json().await?;
         Ok(Some(board))
     }
@@ -80,16 +86,16 @@ impl BackendClient {
     ) -> Result<Board, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/boards", self.base_url);
         debug!("POST {}", url);
-        
+
         let response = self.client.post(&url).json(&data).send().await?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             error!("Backend error {}: {}", status, text);
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let board: Board = response.json().await?;
         Ok(board)
     }
@@ -101,20 +107,20 @@ impl BackendClient {
     ) -> Result<Option<Board>, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/boards/{}", self.base_url, id);
         debug!("PATCH {}", url);
-        
+
         let response = self.client.patch(&url).json(&data).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(None);
         }
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             error!("Backend error {}: {}", status, text);
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let board: Board = response.json().await?;
         Ok(Some(board))
     }
@@ -125,13 +131,13 @@ impl BackendClient {
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/boards/{}", self.base_url, id);
         debug!("DELETE {}", url);
-        
+
         let response = self.client.delete(&url).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(false);
         }
-        
+
         Ok(response.status().is_success())
     }
 
@@ -146,16 +152,16 @@ impl BackendClient {
     ) -> Result<Column, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/boards/{}/columns", self.base_url, board_id);
         debug!("POST {}", url);
-        
+
         let response = self.client.post(&url).json(&data).send().await?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             error!("Backend error {}: {}", status, text);
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let column: Column = response.json().await?;
         Ok(column)
     }
@@ -167,20 +173,20 @@ impl BackendClient {
     ) -> Result<Option<Column>, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/columns/{}", self.base_url, column_id);
         debug!("PATCH {}", url);
-        
+
         let response = self.client.patch(&url).json(&data).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(None);
         }
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             error!("Backend error {}: {}", status, text);
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let column: Column = response.json().await?;
         Ok(Some(column))
     }
@@ -192,20 +198,20 @@ impl BackendClient {
     ) -> Result<Option<Column>, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/columns/{}/reorder", self.base_url, column_id);
         debug!("POST {}", url);
-        
+
         let response = self.client.post(&url).json(&data).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(None);
         }
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             error!("Backend error {}: {}", status, text);
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let column: Column = response.json().await?;
         Ok(Some(column))
     }
@@ -216,13 +222,13 @@ impl BackendClient {
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/columns/{}", self.base_url, column_id);
         debug!("DELETE {}", url);
-        
+
         let response = self.client.delete(&url).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(false);
         }
-        
+
         Ok(response.status().is_success())
     }
 
@@ -237,16 +243,16 @@ impl BackendClient {
     ) -> Result<Card, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/columns/{}/cards", self.base_url, column_id);
         debug!("POST {}", url);
-        
+
         let response = self.client.post(&url).json(&data).send().await?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             error!("Backend error {}: {}", status, text);
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let card: Card = response.json().await?;
         Ok(card)
     }
@@ -258,20 +264,20 @@ impl BackendClient {
     ) -> Result<Option<Card>, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/cards/{}", self.base_url, card_id);
         debug!("PATCH {}", url);
-        
+
         let response = self.client.patch(&url).json(&data).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(None);
         }
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             error!("Backend error {}: {}", status, text);
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let card: Card = response.json().await?;
         Ok(Some(card))
     }
@@ -283,20 +289,20 @@ impl BackendClient {
     ) -> Result<Option<Card>, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/cards/{}/move", self.base_url, card_id);
         debug!("POST {}", url);
-        
+
         let response = self.client.post(&url).json(&data).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(None);
         }
-        
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             error!("Backend error {}: {}", status, text);
             return Err(format!("Backend error {}: {}", status, text).into());
         }
-        
+
         let card: Card = response.json().await?;
         Ok(Some(card))
     }
@@ -307,13 +313,13 @@ impl BackendClient {
     ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let url = format!("{}/cards/{}", self.base_url, card_id);
         debug!("DELETE {}", url);
-        
+
         let response = self.client.delete(&url).send().await?;
-        
+
         if response.status().as_u16() == 404 {
             return Ok(false);
         }
-        
+
         Ok(response.status().is_success())
     }
 }

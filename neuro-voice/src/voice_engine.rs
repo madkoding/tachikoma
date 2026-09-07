@@ -18,8 +18,7 @@ use tokio::time::{timeout, Duration};
 use tracing::{debug, error, info, warn};
 
 use crate::audio_effects::{
-    apply_pitch_shift, apply_robot_effect_chain, 
-    mono_to_stereo_dual_voice, StereoBuffer,
+    apply_pitch_shift, apply_robot_effect_chain, mono_to_stereo_dual_voice, StereoBuffer,
     SAMPLE_RATE,
 };
 use crate::config::{EffectsConfig, PiperConfig, VoiceModel};
@@ -66,8 +65,10 @@ impl VoiceEngine {
 
         let voices = self.voices.read().await;
         if voices.is_empty() {
-            warn!("⚠️ No voice models found in {}. Please download Piper models.", 
-                  self.config.models_dir.display());
+            warn!(
+                "⚠️ No voice models found in {}. Please download Piper models.",
+                self.config.models_dir.display()
+            );
         } else {
             info!("✅ Voice Engine ready with {} voices!", voices.len());
         }
@@ -78,7 +79,10 @@ impl VoiceEngine {
     /// Check if Piper binary is installed and working
     async fn check_piper_installed(&self) -> bool {
         if !self.config.binary_path.exists() {
-            error!("Piper binary not found at {}", self.config.binary_path.display());
+            error!(
+                "Piper binary not found at {}",
+                self.config.binary_path.display()
+            );
             return false;
         }
 
@@ -172,11 +176,13 @@ impl VoiceEngine {
         effects: &EffectsConfig,
     ) -> Result<Vec<u8>> {
         if !self.is_ready().await {
-            return Err(anyhow!("Voice engine not ready. No Piper binary or voice models."));
+            return Err(anyhow!(
+                "Voice engine not ready. No Piper binary or voice models."
+            ));
         }
 
         let voices = self.voices.read().await;
-        
+
         // Select voice
         let voice_name = voice.unwrap_or(&self.config.default_voice);
         let voice_model = if let Some(model) = voices.get(voice_name) {
@@ -195,13 +201,21 @@ impl VoiceEngine {
         );
 
         // Run Piper synthesis (outputs at 22050 Hz)
-        let raw_audio = self.run_piper_synthesis(text, voice_model, effects.speed).await?;
+        let raw_audio = self
+            .run_piper_synthesis(text, voice_model, effects.speed)
+            .await?;
 
-        debug!("🔊 Generated {} raw audio samples at 22050 Hz", raw_audio.len());
+        debug!(
+            "🔊 Generated {} raw audio samples at 22050 Hz",
+            raw_audio.len()
+        );
 
         // Upsample from 22050 Hz to 44100 Hz for better quality effects
         let upsampled_audio = Self::upsample_2x(&raw_audio);
-        debug!("📈 Upsampled to {} samples at 44100 Hz", upsampled_audio.len());
+        debug!(
+            "📈 Upsampled to {} samples at 44100 Hz",
+            upsampled_audio.len()
+        );
 
         // Apply pitch shift if needed
         let pitched_audio = if effects.pitch_shift.abs() > 0.01 {
@@ -238,15 +252,18 @@ impl VoiceEngine {
         debug!("🔊 Applying stereo dual-voice effect");
         let stereo = mono_to_stereo_dual_voice(
             &processed_audio,
-            8.0,   // 8ms delay between channels (Haas effect range)
-            25.0,  // 25 cents detune for "second voice" (subtle pitch difference)
-            0.8,   // 0.8 Hz swap rate (voices trade channels ~every 1.25 seconds)
+            8.0,  // 8ms delay between channels (Haas effect range)
+            25.0, // 25 cents detune for "second voice" (subtle pitch difference)
+            0.8,  // 0.8 Hz swap rate (voices trade channels ~every 1.25 seconds)
         );
 
         // Convert to stereo WAV
         let wav_bytes = self.audio_to_wav_stereo(&stereo)?;
 
-        debug!("✅ Generated {} bytes of stereo WAV audio at 44100 Hz", wav_bytes.len());
+        debug!(
+            "✅ Generated {} bytes of stereo WAV audio at 44100 Hz",
+            wav_bytes.len()
+        );
 
         Ok(wav_bytes)
     }
@@ -275,9 +292,12 @@ impl VoiceEngine {
             .spawn()?;
 
         // Write text to stdin
-        let mut stdin = child.stdin.take().ok_or_else(|| anyhow!("Failed to get stdin"))?;
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| anyhow!("Failed to get stdin"))?;
         let text_bytes = text.as_bytes().to_vec();
-        
+
         tokio::spawn(async move {
             if let Err(e) = stdin.write_all(&text_bytes).await {
                 error!("Failed to write to Piper stdin: {}", e);
@@ -301,9 +321,9 @@ impl VoiceEngine {
         // Convert raw PCM to f32 samples
         // Piper outputs 16-bit signed PCM at 22050 Hz mono
         let raw_bytes = output.stdout;
-        let num_samples = raw_bytes.len() >> 1;  // Más rápido que / 2
+        let num_samples = raw_bytes.len() >> 1; // Más rápido que / 2
         let mut samples = Vec::with_capacity(num_samples);
-        
+
         // Constante pre-calculada para normalización (1/32768)
         const INV_32768: f32 = 1.0 / 32768.0;
 
@@ -323,25 +343,25 @@ impl VoiceEngine {
         if len == 0 {
             return Vec::new();
         }
-        
-        let mut upsampled = Vec::with_capacity(len << 1);  // Más rápido que * 2
+
+        let mut upsampled = Vec::with_capacity(len << 1); // Más rápido que * 2
         let last_idx = len - 1;
-        
+
         for i in 0..last_idx {
             let current = samples[i];
             let next = samples[i + 1];
-            
+
             // Original sample
             upsampled.push(current);
             // Interpolated sample (midpoint): optimizado como (a + b) * 0.5
             upsampled.push((current + next) * 0.5);
         }
-        
+
         // Último sample: sin interpolación (o duplicar)
         let last = samples[last_idx];
         upsampled.push(last);
         upsampled.push(last);
-        
+
         upsampled
     }
 
@@ -383,7 +403,7 @@ impl VoiceEngine {
         };
 
         let mut writer = WavWriter::new(cursor, spec)?;
-        
+
         // Constantes pre-calculadas para conversión
         const SCALE: f32 = 32767.0;
         const MIN_VAL: f32 = -32768.0;
@@ -411,11 +431,13 @@ impl VoiceEngine {
         effects: &EffectsConfig,
     ) -> Result<Vec<f32>> {
         if !self.is_ready().await {
-            return Err(anyhow!("Voice engine not ready. No Piper binary or voice models."));
+            return Err(anyhow!(
+                "Voice engine not ready. No Piper binary or voice models."
+            ));
         }
 
         let voices = self.voices.read().await;
-        
+
         // Select voice
         let voice_name = voice.unwrap_or(&self.config.default_voice);
         let voice_model = if let Some(model) = voices.get(voice_name) {
@@ -434,13 +456,21 @@ impl VoiceEngine {
         );
 
         // Run Piper synthesis (outputs at 22050 Hz)
-        let raw_audio = self.run_piper_synthesis(text, voice_model, effects.speed).await?;
+        let raw_audio = self
+            .run_piper_synthesis(text, voice_model, effects.speed)
+            .await?;
 
-        debug!("🔊 Generated {} raw audio samples at 22050 Hz", raw_audio.len());
+        debug!(
+            "🔊 Generated {} raw audio samples at 22050 Hz",
+            raw_audio.len()
+        );
 
         // Upsample from 22050 Hz to 44100 Hz for better quality effects
         let upsampled_audio = Self::upsample_2x(&raw_audio);
-        debug!("📈 Upsampled to {} samples at 44100 Hz", upsampled_audio.len());
+        debug!(
+            "📈 Upsampled to {} samples at 44100 Hz",
+            upsampled_audio.len()
+        );
 
         // Apply pitch shift if needed
         let pitched_audio = if effects.pitch_shift.abs() > 0.01 {
@@ -476,9 +506,9 @@ impl VoiceEngine {
         debug!("🔊 Applying stereo dual-voice effect (raw)");
         let stereo = mono_to_stereo_dual_voice(
             &processed_audio,
-            8.0,   // 8ms delay between channels
-            25.0,  // 25 cents detune
-            0.8,   // 0.8 Hz swap rate
+            8.0,  // 8ms delay between channels
+            25.0, // 25 cents detune
+            0.8,  // 0.8 Hz swap rate
         );
 
         // Return interleaved stereo (L, R, L, R, ...)
@@ -510,7 +540,7 @@ mod tests {
     fn test_audio_to_wav() {
         let config = PiperConfig::default();
         let engine = VoiceEngine::new(config);
-        
+
         let audio = vec![0.0f32; 1000];
         let wav = engine.audio_to_wav(&audio).unwrap();
 
@@ -525,7 +555,7 @@ mod tests {
     async fn test_voice_engine_new() {
         let config = PiperConfig::default();
         let engine = VoiceEngine::new(config);
-        
+
         // Should not be ready without initialization
         assert!(!engine.is_ready().await);
     }

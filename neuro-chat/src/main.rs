@@ -1,21 +1,21 @@
-use std::sync::Arc;
 use anyhow::Result;
 use axum::http::header;
+use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
-use neuro_common::{init_tracing, serve, db::Database};
+use neuro_common::{db::Database, init_tracing, serve};
 
+mod backend_client;
 mod config;
 mod handlers;
+mod memory_client;
 mod models;
 mod routes;
-mod backend_client;
-mod memory_client;
 
-pub use config::Config;
 pub use backend_client::BackendLlmClient;
+pub use config::Config;
 pub use memory_client::MemoryClient;
 
 pub struct AppState {
@@ -40,7 +40,8 @@ async fn main() -> Result<()> {
         &config.database_pass,
         &config.database_ns,
         &config.database_db,
-    ).await?;
+    )
+    .await?;
 
     let schema = vec![
         "DEFINE TABLE conversation SCHEMAFULL",

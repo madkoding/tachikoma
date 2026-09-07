@@ -13,10 +13,8 @@ use tracing::{error, instrument};
 use uuid::Uuid;
 
 use crate::domain::entities::kanban::{
-    Board, BoardSummary, Card, Column,
-    CreateBoard, CreateCard, CreateColumn,
-    MoveCard, ReorderColumn,
-    UpdateBoard, UpdateCard, UpdateColumn,
+    Board, BoardSummary, Card, Column, CreateBoard, CreateCard, CreateColumn, MoveCard,
+    ReorderColumn, UpdateBoard, UpdateCard, UpdateColumn,
 };
 use crate::infrastructure::api::dto::ErrorResponse;
 use crate::AppState;
@@ -37,7 +35,11 @@ pub async fn list_boards(
     State(state): State<Arc<AppState>>,
     Query(params): Query<ListBoardsParams>,
 ) -> Result<Json<Vec<BoardSummary>>, (StatusCode, Json<ErrorResponse>)> {
-    match state.kanban_repository.get_all_boards(params.include_archived).await {
+    match state
+        .kanban_repository
+        .get_all_boards(params.include_archived)
+        .await
+    {
         Ok(boards) => Ok(Json(boards)),
         Err(e) => {
             error!(error = %e, "Failed to list kanban boards");
@@ -187,7 +189,11 @@ pub async fn reorder_column(
     Path(column_id): Path<Uuid>,
     Json(data): Json<ReorderColumn>,
 ) -> Result<Json<Column>, (StatusCode, Json<ErrorResponse>)> {
-    match state.kanban_repository.reorder_column(column_id, data).await {
+    match state
+        .kanban_repository
+        .reorder_column(column_id, data)
+        .await
+    {
         Ok(Some(column)) => Ok(Json(column)),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,

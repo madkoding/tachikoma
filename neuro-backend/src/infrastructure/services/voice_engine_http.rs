@@ -107,8 +107,11 @@ impl VoiceEngine {
 
     /// Initialize the voice engine (check connection to service)
     pub async fn initialize(&self) -> Result<()> {
-        info!("🎙️ Connecting to Voice Service at {}", self.config.service_url);
-        
+        info!(
+            "🎙️ Connecting to Voice Service at {}",
+            self.config.service_url
+        );
+
         match self.check_health().await {
             Ok(_) => {
                 info!("✅ Voice Service connected!");
@@ -120,7 +123,10 @@ impl VoiceEngine {
                 Ok(())
             }
             Err(e) => {
-                warn!("⚠️ Voice Service not available: {}. Voice features disabled.", e);
+                warn!(
+                    "⚠️ Voice Service not available: {}. Voice features disabled.",
+                    e
+                );
                 Ok(()) // Don't fail startup if voice service is unavailable
             }
         }
@@ -130,7 +136,7 @@ impl VoiceEngine {
     async fn check_health(&self) -> Result<()> {
         let url = format!("{}/health", self.config.service_url);
         let response = self.client.get(&url).send().await?;
-        
+
         if response.status().is_success() {
             Ok(())
         } else {
@@ -142,7 +148,7 @@ impl VoiceEngine {
     pub async fn get_status(&self) -> Result<VoiceStatus> {
         let url = format!("{}/status", self.config.service_url);
         let response = self.client.get(&url).send().await?;
-        
+
         if response.status().is_success() {
             let status: VoiceStatus = response.json().await?;
             Ok(status)
@@ -168,13 +174,14 @@ impl VoiceEngine {
 
     /// Synthesize text to audio bytes (WAV format)
     pub async fn synthesize(&self, text: &str) -> Result<Vec<u8>> {
-        self.synthesize_with_voice(text, &self.config.voice_name.clone()).await
+        self.synthesize_with_voice(text, &self.config.voice_name.clone())
+            .await
     }
 
     /// Synthesize text with a specific voice
     pub async fn synthesize_with_voice(&self, text: &str, voice: &str) -> Result<Vec<u8>> {
         let url = format!("{}/synthesize", self.config.service_url);
-        
+
         let request = SynthesizeRequest {
             text: text.to_string(),
             voice: voice.to_string(),
@@ -183,11 +190,7 @@ impl VoiceEngine {
 
         debug!("🗣️ Requesting synthesis: '{}' with voice '{}'", text, voice);
 
-        let response = self.client
-            .post(&url)
-            .json(&request)
-            .send()
-            .await?;
+        let response = self.client.post(&url).json(&request).send().await?;
 
         if response.status().is_success() {
             let bytes = response.bytes().await?;
@@ -213,7 +216,7 @@ impl VoiceEngine {
                 *cache = Some(status.available_voices.clone());
                 status.available_voices
             }
-            Err(_) => Vec::new()
+            Err(_) => Vec::new(),
         }
     }
 
@@ -255,7 +258,7 @@ mod tests {
             voice: "af_bella".to_string(),
             speed: 1.0,
         };
-        
+
         let json = serde_json::to_string(&request).unwrap();
         assert!(json.contains("Hello"));
         assert!(json.contains("af_bella"));

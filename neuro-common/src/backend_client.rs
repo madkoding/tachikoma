@@ -13,7 +13,11 @@ impl BackendClient {
     pub fn new(backend_url: &str, api_prefix: &str) -> Self {
         Self {
             client: Client::new(),
-            base_url: format!("{}/api/data/{}", backend_url.trim_end_matches('/'), api_prefix),
+            base_url: format!(
+                "{}/api/data/{}",
+                backend_url.trim_end_matches('/'),
+                api_prefix
+            ),
         }
     }
 
@@ -95,7 +99,10 @@ impl BackendClient {
 
     pub async fn health_check(&self) -> Result<bool> {
         let url = self.base_url.replace("/api/data/", "/api/");
-        let url = format!("{}/health", url.rsplit_once('/').map(|(b, _)| b).unwrap_or(&url));
+        let url = format!(
+            "{}/health",
+            url.rsplit_once('/').map(|(b, _)| b).unwrap_or(&url)
+        );
         let response = self.client.get(&url).send().await?;
         Ok(response.status().is_success())
     }

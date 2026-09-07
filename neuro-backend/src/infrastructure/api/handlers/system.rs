@@ -4,16 +4,14 @@
 //! HTTP handlers for health checks and system information.
 //! =============================================================================
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, Json};
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::{instrument, warn};
 
-use crate::infrastructure::api::dto::{BuildInfoDto, ErrorResponse, HealthResponse, ModelInfoDto, ServiceStatusDto};
+use crate::infrastructure::api::dto::{
+    BuildInfoDto, ErrorResponse, HealthResponse, ModelInfoDto, ServiceStatusDto,
+};
 use crate::AppState;
 use utoipa::ToSchema;
 
@@ -26,7 +24,10 @@ pub fn init_start_time() {
 }
 
 fn get_uptime_seconds() -> u64 {
-    START_TIME.get().map(|start| start.elapsed().as_secs()).unwrap_or(0)
+    START_TIME
+        .get()
+        .map(|start| start.elapsed().as_secs())
+        .unwrap_or(0)
 }
 
 /// =============================================================================
@@ -48,15 +49,13 @@ pub async fn health_check(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<HealthResponse>, (StatusCode, Json<ErrorResponse>)> {
     // Check database
-    let db_status = match state.database_pool.client()
-        .query("INFO FOR DB")
-        .await {
-            Ok(_) => "healthy".to_string(),
-            Err(e) => {
-                warn!(error = %e, "Database health check failed");
-                format!("unhealthy: {}", e)
-            }
-        };
+    let db_status = match state.database_pool.client().query("INFO FOR DB").await {
+        Ok(_) => "healthy".to_string(),
+        Err(e) => {
+            warn!(error = %e, "Database health check failed");
+            format!("unhealthy: {}", e)
+        }
+    };
 
     // Check LLM provider
     let llm_status = match state.llm_provider.health_check().await {
@@ -96,7 +95,9 @@ pub async fn health_check(
         build_info: BuildInfoDto {
             git_hash: option_env!("GIT_HASH").unwrap_or("unknown").to_string(),
             build_time: option_env!("BUILD_TIME").unwrap_or("unknown").to_string(),
-            rust_version: option_env!("RUSTC_VERSION").unwrap_or(env!("CARGO_PKG_RUST_VERSION")).to_string(),
+            rust_version: option_env!("RUSTC_VERSION")
+                .unwrap_or(env!("CARGO_PKG_RUST_VERSION"))
+                .to_string(),
         },
     }))
 }
@@ -107,16 +108,12 @@ pub async fn health_check(
 /// GET /api/ready
 /// =============================================================================
 #[instrument(skip(state))]
-pub async fn readiness_check(
-    State(state): State<Arc<AppState>>,
-) -> Result<StatusCode, StatusCode> {
+pub async fn readiness_check(State(state): State<Arc<AppState>>) -> Result<StatusCode, StatusCode> {
     // Only check database for readiness
-    match state.database_pool.client()
-        .query("INFO FOR DB")
-        .await {
-            Ok(_) => Ok(StatusCode::OK),
-            Err(_) => Err(StatusCode::SERVICE_UNAVAILABLE),
-        }
+    match state.database_pool.client().query("INFO FOR DB").await {
+        Ok(_) => Ok(StatusCode::OK),
+        Err(_) => Err(StatusCode::SERVICE_UNAVAILABLE),
+    }
 }
 
 /// =============================================================================
@@ -161,12 +158,10 @@ pub async fn list_models(
 
             Ok(Json(dtos))
         }
-        Err(e) => {
-            Err((
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(ErrorResponse::new("LLM_ERROR", e.to_string())),
-            ))
-        }
+        Err(e) => Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse::new("LLM_ERROR", e.to_string())),
+        )),
     }
 }
 
@@ -190,7 +185,7 @@ pub async fn system_info(
 ) -> Result<Json<SystemInfoDto>, (StatusCode, Json<ErrorResponse>)> {
     // Get memory stats
     let memory_count = state.memory_service.count_memories().await.unwrap_or(0);
-    
+
     // Get graph stats
     let graph_stats = state.memory_service.get_graph_stats().await.ok();
 
@@ -281,7 +276,10 @@ pub async fn hardware_profile() -> Json<HardwareProfileDto> {
 
 fn detect_gpu() -> (String, String, f64) {
     let out = std::process::Command::new("nvidia-smi")
-        .args(["--query-gpu=name,memory.total", "--format=csv,noheader,nounits"])
+        .args([
+            "--query-gpu=name,memory.total",
+            "--format=csv,noheader,nounits",
+        ])
         .output();
     if let Ok(o) = out {
         if o.status.success() {

@@ -38,7 +38,10 @@ pub struct PluginRegistry {
 
 impl PluginRegistry {
     pub fn new(dir: PathBuf) -> Self {
-        Self { dir, plugins: HashMap::new() }
+        Self {
+            dir,
+            plugins: HashMap::new(),
+        }
     }
 
     pub fn plugins(&self) -> Vec<&LoadedPlugin> {
@@ -96,8 +99,7 @@ impl PluginRegistry {
 /// (`.tachikoma` extension) holding the manifest, and treat the WASM entry as
 /// metadata. Swap for `zip` + `wasmtime` behind a `wasm` feature.
 fn load_package(path: &std::path::Path) -> anyhow::Result<LoadedPlugin> {
-    let data = fs::read(path)
-        .with_context(|| format!("read plugin package {}", path.display()))?;
+    let data = fs::read(path).with_context(|| format!("read plugin package {}", path.display()))?;
     let manifest: PluginManifest = serde_json::from_slice(&data)
         .with_context(|| format!("parse manifest in {}", path.display()))?;
     manifest.validate()?;

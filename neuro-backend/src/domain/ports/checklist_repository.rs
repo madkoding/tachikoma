@@ -6,8 +6,8 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use crate::domain::entities::checklist::{
-    Checklist, ChecklistItem, CreateChecklist, CreateChecklistItem,
-    UpdateChecklist, UpdateChecklistItem,
+    Checklist, ChecklistItem, CreateChecklist, CreateChecklistItem, UpdateChecklist,
+    UpdateChecklistItem,
 };
 use crate::domain::errors::DomainError;
 
@@ -17,7 +17,7 @@ pub trait ChecklistRepository: Send + Sync {
     // =========================================================================
     // Checklist CRUD
     // =========================================================================
-    
+
     /// Get all checklists with pagination
     async fn get_all_checklists(
         &self,

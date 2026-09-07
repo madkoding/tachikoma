@@ -14,9 +14,9 @@ use uuid::Uuid;
 /// =============================================================================
 /// Represents a single message in a conversation.
 /// Can be from a user, assistant, or system.
-/// 
+///
 /// # Fields
-/// 
+///
 /// * `id` - Unique identifier for the message
 /// * `conversation_id` - ID of the parent conversation
 /// * `role` - The role of the message sender (user/assistant/system)
@@ -51,14 +51,14 @@ impl ChatMessage {
     /// Create a new user message
     /// =========================================================================
     /// Creates a message from the user role.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `conversation_id` - The ID of the conversation
     /// * `content` - The message content
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new `ChatMessage` with user role
     /// =========================================================================
     pub fn user(conversation_id: Uuid, content: String) -> Self {
@@ -76,14 +76,14 @@ impl ChatMessage {
     /// Create a new assistant message
     /// =========================================================================
     /// Creates a message from the assistant role.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `conversation_id` - The ID of the conversation
     /// * `content` - The message content
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new `ChatMessage` with assistant role
     /// =========================================================================
     pub fn assistant(conversation_id: Uuid, content: String) -> Self {
@@ -101,14 +101,14 @@ impl ChatMessage {
     /// Create a new system message
     /// =========================================================================
     /// Creates a message from the system role (instructions, context).
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `conversation_id` - The ID of the conversation
     /// * `content` - The system instruction content
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new `ChatMessage` with system role
     /// =========================================================================
     pub fn system(conversation_id: Uuid, content: String) -> Self {

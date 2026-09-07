@@ -90,24 +90,22 @@ pub fn create_event_stream(
     broadcaster: Arc<EventBroadcaster>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let stream = broadcaster.subscribe();
-    
+
     // Map broadcast events to SSE events
-    let event_stream = stream
-        .filter_map(|result| {
-            match result {
-                Ok(event) => {
-                    let json = serde_json::to_string(&event).ok()?;
-                    Some(Ok(Event::default().data(json)))
-                }
-                Err(_) => None, // Skip lagged events
+    let event_stream = stream.filter_map(|result| {
+        match result {
+            Ok(event) => {
+                let json = serde_json::to_string(&event).ok()?;
+                Some(Ok(Event::default().data(json)))
             }
-        });
+            Err(_) => None, // Skip lagged events
+        }
+    });
 
     // Add periodic heartbeat to keep connection alive
-    let heartbeat = tokio_stream::wrappers::IntervalStream::new(
-        tokio::time::interval(Duration::from_secs(30))
-    )
-    .map(|_| Ok(Event::default().comment("heartbeat")));
+    let heartbeat =
+        tokio_stream::wrappers::IntervalStream::new(tokio::time::interval(Duration::from_secs(30)))
+            .map(|_| Ok(Event::default().comment("heartbeat")));
 
     // Merge event stream with heartbeat
     let merged = futures::stream::select(event_stream, heartbeat);

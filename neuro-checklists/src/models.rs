@@ -245,15 +245,10 @@ mod tests {
     fn checklist_response_progress_half_done() {
         let c = sample_checklist();
         let id = c.id;
-        let items = vec![
-            sample_item(id, true),
-            sample_item(id, false),
-        ];
+        let items = vec![sample_item(id, true), sample_item(id, false)];
         let resp = ChecklistResponse::from_checklist_with_items(c, items);
         assert_eq!(resp.progress.completed, 1);
         assert_eq!(resp.progress.total, 2);
         assert_eq!(resp.progress.percentage, 50.0);
     }
 }
-
-

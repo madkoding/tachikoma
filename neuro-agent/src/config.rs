@@ -13,8 +13,8 @@ impl Config {
         let base = neuro_common::Config::from_env(3005);
 
         let default_allowed = vec![
-            "ls", "cat", "head", "tail", "wc", "grep", "find", "which",
-            "date", "cal", "uptime", "whoami", "pwd", "echo", "df", "du",
+            "ls", "cat", "head", "tail", "wc", "grep", "find", "which", "date", "cal", "uptime",
+            "whoami", "pwd", "echo", "df", "du",
         ];
 
         let allowed_commands = env::var("ALLOWED_COMMANDS")

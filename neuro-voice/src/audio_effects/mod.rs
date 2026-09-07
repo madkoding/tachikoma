@@ -9,13 +9,13 @@ pub const SAMPLE_RATE: u32 = 44100;
 #[allow(dead_code)]
 pub const PIPER_SAMPLE_RATE: u32 = 22050;
 
-mod pitch_shift;
-mod chorus;
-mod reverb;
-mod limiter;
 mod chain;
+mod chorus;
+mod limiter;
+mod pitch_shift;
+mod reverb;
 mod stereo;
 
-pub use pitch_shift::apply_pitch_shift;
 pub use chain::apply_robot_effect_chain;
+pub use pitch_shift::apply_pitch_shift;
 pub use stereo::{mono_to_stereo_dual_voice, StereoBuffer};

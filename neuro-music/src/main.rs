@@ -37,7 +37,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     init_tracing("tachikoma_music=info,tower_http=debug");
 
     let config = Config::from_env();
-    info!("Music service | port={} backend={}", config.port, config.backend_url);
+    info!(
+        "Music service | port={} backend={}",
+        config.port, config.backend_url
+    );
 
     check_dependencies(&config).await?;
 
@@ -73,7 +76,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn check_dependencies(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     use tokio::process::Command;
 
-    let ytdlp_check = Command::new(&config.ytdlp_path).arg("--version").output().await;
+    let ytdlp_check = Command::new(&config.ytdlp_path)
+        .arg("--version")
+        .output()
+        .await;
     match ytdlp_check {
         Ok(output) if output.status.success() => {
             let version = String::from_utf8_lossy(&output.stdout);
@@ -82,7 +88,10 @@ async fn check_dependencies(config: &Config) -> Result<(), Box<dyn std::error::E
         _ => return Err("yt-dlp not found. Install with: pip install yt-dlp".into()),
     }
 
-    let ffmpeg_check = Command::new(&config.ffmpeg_path).arg("-version").output().await;
+    let ffmpeg_check = Command::new(&config.ffmpeg_path)
+        .arg("-version")
+        .output()
+        .await;
     match ffmpeg_check {
         Ok(output) if output.status.success() => {
             let version = String::from_utf8_lossy(&output.stdout);

@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use std::collections::HashSet;
 use std::process::Stdio;
 use tokio::process::Command;
-use tracing::{debug, warn, instrument};
+use tracing::{debug, instrument, warn};
 
 use crate::domain::{
     errors::DomainError,
@@ -37,12 +37,11 @@ impl SafeCommandExecutor {
 
         // Safe read-only commands
         for cmd in &[
-            "ls", "cat", "head", "tail", "grep", "find", "wc", "pwd", "echo",
-            "date", "whoami", "uname", "df", "du", "free", "uptime", "which",
-            "type", "file", "stat", "tree", "env", "hostname",
-            // Dev tools
-            "git", "cargo", "npm", "node", "python", "python3", "rustc",
-            "rg", "fd", "jq", "curl", "wget",
+            "ls", "cat", "head", "tail", "grep", "find", "wc", "pwd", "echo", "date", "whoami",
+            "uname", "df", "du", "free", "uptime", "which", "type", "file", "stat", "tree", "env",
+            "hostname", // Dev tools
+            "git", "cargo", "npm", "node", "python", "python3", "rustc", "rg", "fd", "jq", "curl",
+            "wget",
         ] {
             allowed_commands.insert(cmd.to_string());
         }
@@ -86,7 +85,9 @@ impl SafeCommandExecutor {
     }
 
     fn is_safe_git_command(args: &[&str]) -> bool {
-        let safe_git_commands = ["status", "log", "diff", "show", "branch", "remote", "fetch", "pull", "clone"];
+        let safe_git_commands = [
+            "status", "log", "diff", "show", "branch", "remote", "fetch", "pull", "clone",
+        ];
         if let Some(subcommand) = args.first() {
             safe_git_commands.contains(subcommand)
         } else {
@@ -98,7 +99,11 @@ impl SafeCommandExecutor {
 #[async_trait]
 impl CommandExecutor for SafeCommandExecutor {
     #[instrument(skip(self))]
-    async fn execute(&self, command: &str, options: Option<ExecutionOptions>) -> Result<CommandOutput, DomainError> {
+    async fn execute(
+        &self,
+        command: &str,
+        options: Option<ExecutionOptions>,
+    ) -> Result<CommandOutput, DomainError> {
         let opts = options.unwrap_or_default();
         let timeout = opts.timeout_secs.unwrap_or(self.default_timeout);
 
@@ -118,9 +123,7 @@ impl CommandExecutor for SafeCommandExecutor {
         let program = parts[0];
         let args = &parts[1..];
         let mut cmd = Command::new(program);
-        cmd.args(args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+        cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
 
         if let Some(dir) = &opts.working_dir {
             cmd.current_dir(dir);
@@ -130,11 +133,8 @@ impl CommandExecutor for SafeCommandExecutor {
             cmd.env(key, value);
         }
 
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(timeout),
-            cmd.output(),
-        )
-        .await;
+        let result =
+            tokio::time::timeout(std::time::Duration::from_secs(timeout), cmd.output()).await;
 
         let elapsed = start.elapsed().as_millis() as u64;
 
@@ -161,9 +161,10 @@ impl CommandExecutor for SafeCommandExecutor {
                     timed_out: false,
                 })
             }
-            Ok(Err(e)) => {
-                Err(DomainError::command_error(format!("Failed to execute command: {}", e)))
-            }
+            Ok(Err(e)) => Err(DomainError::command_error(format!(
+                "Failed to execute command: {}",
+                e
+            ))),
             Err(_) => {
                 warn!(command = %command, timeout = timeout, "Command timed out");
                 Ok(CommandOutput {
@@ -278,7 +279,10 @@ mod tests {
     async fn test_validate_blocked_patterns() {
         let executor = SafeCommandExecutor::new();
         assert!(!executor.validate("chmod 777 /etc").await.unwrap());
-        assert!(!executor.validate("dd if=/dev/zero of=/dev/sda").await.unwrap());
+        assert!(!executor
+            .validate("dd if=/dev/zero of=/dev/sda")
+            .await
+            .unwrap());
         assert!(!executor.validate("shutdown -h now").await.unwrap());
     }
 

@@ -3,7 +3,7 @@
 //! =============================================================================
 //! Implements the LlmProvider port using the Ollama API.
 //! Handles chat completions, embeddings, speculative decoding, and model management.
-//! 
+//!
 //! This is the ONLY component that talks directly to Ollama.
 //! All other services must use this through the backend API.
 //! =============================================================================
@@ -18,8 +18,8 @@ use tracing::{debug, error, info, instrument, warn};
 use crate::domain::{
     errors::DomainError,
     ports::llm_provider::{
-        ChatMessage, GenerationResult, LlmHealthStatus, LlmProvider, ModelInfo,
-        SpeculativeChunk, SpeculativeStats, StreamChunk,
+        ChatMessage, GenerationResult, LlmHealthStatus, LlmProvider, ModelInfo, SpeculativeChunk,
+        SpeculativeStats, StreamChunk,
     },
 };
 use crate::infrastructure::config::OllamaConfig;
@@ -177,14 +177,26 @@ impl OllamaClient {
     /// Extract parameter count from model name (heuristic)
     fn extract_parameters(model_name: &str) -> Option<u64> {
         let lower = model_name.to_lowercase();
-        
-        if lower.contains("70b") { return Some(70_000_000_000); }
-        if lower.contains("34b") || lower.contains("35b") { return Some(34_000_000_000); }
-        if lower.contains("14b") || lower.contains("13b") { return Some(14_000_000_000); }
-        if lower.contains("7b") || lower.contains("8b") { return Some(7_000_000_000); }
-        if lower.contains("3b") || lower.contains("4b") { return Some(3_000_000_000); }
-        if lower.contains("1b") || lower.contains("1.5b") { return Some(1_000_000_000); }
-        
+
+        if lower.contains("70b") {
+            return Some(70_000_000_000);
+        }
+        if lower.contains("34b") || lower.contains("35b") {
+            return Some(34_000_000_000);
+        }
+        if lower.contains("14b") || lower.contains("13b") {
+            return Some(14_000_000_000);
+        }
+        if lower.contains("7b") || lower.contains("8b") {
+            return Some(7_000_000_000);
+        }
+        if lower.contains("3b") || lower.contains("4b") {
+            return Some(3_000_000_000);
+        }
+        if lower.contains("1b") || lower.contains("1.5b") {
+            return Some(1_000_000_000);
+        }
+
         None
     }
 
@@ -198,7 +210,11 @@ impl OllamaClient {
     /// Light models (3b) and embedding models stay loaded forever, others unload after 5 minutes
     fn get_keep_alive_for_model(model_name: &str) -> serde_json::Value {
         let lower = model_name.to_lowercase();
-        if lower.contains("3b") || lower.contains("ministral") || lower.contains("embed") || lower.contains("nomic") {
+        if lower.contains("3b")
+            || lower.contains("ministral")
+            || lower.contains("embed")
+            || lower.contains("nomic")
+        {
             serde_json::json!(-1)
         } else {
             serde_json::json!("5m")
@@ -214,7 +230,7 @@ impl OllamaClient {
     /// Convert chat messages to a prompt string (for speculative decoding)
     fn messages_to_prompt(messages: &[ChatMessage]) -> String {
         let mut prompt = String::new();
-        
+
         for msg in messages {
             match msg.role.as_str() {
                 "system" => prompt.push_str(&format!("System: {}\n\n", msg.content)),
@@ -223,7 +239,7 @@ impl OllamaClient {
                 _ => {}
             }
         }
-        
+
         prompt.push_str("Assistant: ");
         prompt
     }
@@ -256,7 +272,8 @@ impl OllamaClient {
         let url = self.api_url("api/chat");
         debug!(url = %url, model = %model_name, keep_alive = %keep_alive, "Sending streaming chat request");
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&request)
             .send()
@@ -283,7 +300,7 @@ impl OllamaClient {
         num_tokens: Option<i32>,
     ) -> Result<String, DomainError> {
         let url = self.api_url("api/generate");
-        
+
         let request = OllamaGenerateRequest {
             model: model.to_string(),
             prompt: prompt.to_string(),
@@ -296,7 +313,8 @@ impl OllamaClient {
             }),
         };
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&request)
             .send()
@@ -312,9 +330,10 @@ impl OllamaClient {
             )));
         }
 
-        let result: OllamaGenerateResponse = response.json().await
-            .map_err(|e| DomainError::llm_error(format!("Failed to parse generate response: {}", e)))?;
-        
+        let result: OllamaGenerateResponse = response.json().await.map_err(|e| {
+            DomainError::llm_error(format!("Failed to parse generate response: {}", e))
+        })?;
+
         Ok(result.response)
     }
 }
@@ -327,7 +346,11 @@ impl LlmProvider for OllamaClient {
 
     /// Generate text completion from a simple prompt
     #[instrument(skip(self, prompt))]
-    async fn generate(&self, prompt: &str, model: Option<&str>) -> Result<GenerationResult, DomainError> {
+    async fn generate(
+        &self,
+        prompt: &str,
+        model: Option<&str>,
+    ) -> Result<GenerationResult, DomainError> {
         let model_name = model.unwrap_or(&self.config.default_model);
         let keep_alive = Self::get_keep_alive_for_model(model_name);
 
@@ -349,7 +372,8 @@ impl LlmProvider for OllamaClient {
         let url = self.api_url("api/chat");
         debug!(url = %url, model = %model_name, keep_alive = %keep_alive, "Sending chat request");
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&request)
             .send()
@@ -365,7 +389,9 @@ impl LlmProvider for OllamaClient {
             )));
         }
 
-        let ollama_response: OllamaChatResponse = response.json().await
+        let ollama_response: OllamaChatResponse = response
+            .json()
+            .await
             .map_err(|e| DomainError::llm_error(format!("Failed to parse response: {}", e)))?;
 
         debug!(
@@ -380,7 +406,12 @@ impl LlmProvider for OllamaClient {
             model: ollama_response.model,
             prompt_tokens: ollama_response.prompt_eval_count,
             completion_tokens: ollama_response.eval_count,
-            finish_reason: if ollama_response.done { "stop" } else { "length" }.to_string(),
+            finish_reason: if ollama_response.done {
+                "stop"
+            } else {
+                "length"
+            }
+            .to_string(),
         })
     }
 
@@ -390,11 +421,16 @@ impl LlmProvider for OllamaClient {
 
     /// Chat completion with message history
     #[instrument(skip(self, messages))]
-    async fn chat(&self, messages: Vec<ChatMessage>, model: Option<&str>) -> Result<GenerationResult, DomainError> {
+    async fn chat(
+        &self,
+        messages: Vec<ChatMessage>,
+        model: Option<&str>,
+    ) -> Result<GenerationResult, DomainError> {
         let model_name = model.unwrap_or(&self.config.default_model);
         let keep_alive = Self::get_keep_alive_for_model(model_name);
 
-        let ollama_messages: Vec<OllamaChatMessage> = messages.into_iter().map(Into::into).collect();
+        let ollama_messages: Vec<OllamaChatMessage> =
+            messages.into_iter().map(Into::into).collect();
 
         let request = OllamaChatRequest {
             model: model_name.to_string(),
@@ -411,7 +447,8 @@ impl LlmProvider for OllamaClient {
         let url = self.api_url("api/chat");
         debug!(url = %url, model = %model_name, "Sending chat request with messages");
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&request)
             .send()
@@ -427,7 +464,9 @@ impl LlmProvider for OllamaClient {
             )));
         }
 
-        let ollama_response: OllamaChatResponse = response.json().await
+        let ollama_response: OllamaChatResponse = response
+            .json()
+            .await
             .map_err(|e| DomainError::llm_error(format!("Failed to parse response: {}", e)))?;
 
         Ok(GenerationResult {
@@ -435,7 +474,12 @@ impl LlmProvider for OllamaClient {
             model: ollama_response.model,
             prompt_tokens: ollama_response.prompt_eval_count,
             completion_tokens: ollama_response.eval_count,
-            finish_reason: if ollama_response.done { "stop" } else { "length" }.to_string(),
+            finish_reason: if ollama_response.done {
+                "stop"
+            } else {
+                "length"
+            }
+            .to_string(),
         })
     }
 
@@ -450,7 +494,8 @@ impl LlmProvider for OllamaClient {
         let model_name = model.unwrap_or(&self.config.default_model).to_string();
         let keep_alive = Self::get_keep_alive_for_model(&model_name);
 
-        let ollama_messages: Vec<OllamaChatMessage> = messages.into_iter().map(Into::into).collect();
+        let ollama_messages: Vec<OllamaChatMessage> =
+            messages.into_iter().map(Into::into).collect();
 
         let request = OllamaChatRequest {
             model: model_name.clone(),
@@ -468,12 +513,20 @@ impl LlmProvider for OllamaClient {
         debug!(url = %url, model = %model_name, "Starting chat stream");
 
         // Send start event
-        let _ = tx.send(StreamChunk::Start { model: model_name.clone() }).await;
+        let _ = tx
+            .send(StreamChunk::Start {
+                model: model_name.clone(),
+            })
+            .await;
 
         let response = match self.client.post(&url).json(&request).send().await {
             Ok(r) => r,
             Err(e) => {
-                let _ = tx.send(StreamChunk::Error { message: e.to_string() }).await;
+                let _ = tx
+                    .send(StreamChunk::Error {
+                        message: e.to_string(),
+                    })
+                    .await;
                 return;
             }
         };
@@ -481,9 +534,11 @@ impl LlmProvider for OllamaClient {
         if !response.status().is_success() {
             let status = response.status();
             let body: String = response.text().await.unwrap_or_default();
-            let _ = tx.send(StreamChunk::Error { 
-                message: format!("Ollama error: {} - {}", status, body) 
-            }).await;
+            let _ = tx
+                .send(StreamChunk::Error {
+                    message: format!("Ollama error: {} - {}", status, body),
+                })
+                .await;
             return;
         }
 
@@ -496,12 +551,12 @@ impl LlmProvider for OllamaClient {
             match chunk_result {
                 Ok(bytes) => {
                     buffer.push_str(&String::from_utf8_lossy(&bytes));
-                    
+
                     // Process complete JSON lines
                     while let Some(pos) = buffer.find('\n') {
                         let line = buffer[..pos].to_string();
                         buffer = buffer[pos + 1..].to_string();
-                        
+
                         if line.trim().is_empty() {
                             continue;
                         }
@@ -510,9 +565,11 @@ impl LlmProvider for OllamaClient {
                             Ok(chunk) => {
                                 if let Some(msg) = &chunk.message {
                                     if !msg.content.is_empty() {
-                                        let _ = tx.send(StreamChunk::Token { 
-                                            content: msg.content.clone() 
-                                        }).await;
+                                        let _ = tx
+                                            .send(StreamChunk::Token {
+                                                content: msg.content.clone(),
+                                            })
+                                            .await;
                                     }
                                 }
 
@@ -524,11 +581,13 @@ impl LlmProvider for OllamaClient {
                                 }
 
                                 if chunk.done {
-                                    let _ = tx.send(StreamChunk::Done {
-                                        prompt_tokens,
-                                        completion_tokens,
-                                        finish_reason: "stop".to_string(),
-                                    }).await;
+                                    let _ = tx
+                                        .send(StreamChunk::Done {
+                                            prompt_tokens,
+                                            completion_tokens,
+                                            finish_reason: "stop".to_string(),
+                                        })
+                                        .await;
                                     return;
                                 }
                             }
@@ -539,7 +598,11 @@ impl LlmProvider for OllamaClient {
                     }
                 }
                 Err(e) => {
-                    let _ = tx.send(StreamChunk::Error { message: e.to_string() }).await;
+                    let _ = tx
+                        .send(StreamChunk::Error {
+                            message: e.to_string(),
+                        })
+                        .await;
                     return;
                 }
             }
@@ -566,11 +629,13 @@ impl LlmProvider for OllamaClient {
         let lookahead_tokens = lookahead.unwrap_or(5);
 
         // Send start event
-        let _ = tx.send(SpeculativeChunk::Start {
-            draft_model: draft.to_string(),
-            target_model: target.to_string(),
-            lookahead: lookahead_tokens,
-        }).await;
+        let _ = tx
+            .send(SpeculativeChunk::Start {
+                draft_model: draft.to_string(),
+                target_model: target.to_string(),
+                lookahead: lookahead_tokens,
+            })
+            .await;
 
         // Build initial prompt from messages
         let mut prompt = Self::messages_to_prompt(&messages);
@@ -597,13 +662,19 @@ impl LlmProvider for OllamaClient {
             stats.iterations += 1;
 
             // Step 1: Draft model generates K tokens
-            let draft_result = self.generate_raw(&prompt, draft, Some(lookahead_tokens as i32)).await;
-            
+            let draft_result = self
+                .generate_raw(&prompt, draft, Some(lookahead_tokens as i32))
+                .await;
+
             let draft_tokens = match draft_result {
                 Ok(tokens) => tokens,
                 Err(e) => {
                     error!("Draft model error: {}", e);
-                    let _ = tx.send(SpeculativeChunk::Error { message: e.to_string() }).await;
+                    let _ = tx
+                        .send(SpeculativeChunk::Error {
+                            message: e.to_string(),
+                        })
+                        .await;
                     break;
                 }
             };
@@ -625,7 +696,7 @@ impl LlmProvider for OllamaClient {
             while let Some(draft_char) = chars.next() {
                 // Target model generates its own prediction
                 let target_result = self.generate_raw(&current_prompt, target, Some(1)).await;
-                
+
                 let target_token = match target_result {
                     Ok(t) => t,
                     Err(e) => {
@@ -639,14 +710,22 @@ impl LlmProvider for OllamaClient {
                 };
 
                 // Check for end of sequence
-                if target_token.is_empty() || target_token.contains("<|endoftext|>") || target_token.contains("</s>") {
+                if target_token.is_empty()
+                    || target_token.contains("<|endoftext|>")
+                    || target_token.contains("</s>")
+                {
                     debug!("Target model signaled end of sequence");
                     if !accepted_text.is_empty() {
-                        let _ = tx.send(SpeculativeChunk::Tokens { content: accepted_text.clone() }).await;
+                        let _ = tx
+                            .send(SpeculativeChunk::Tokens {
+                                content: accepted_text.clone(),
+                            })
+                            .await;
                     }
                     // Calculate final stats
                     if stats.draft_tokens_generated > 0 {
-                        stats.acceptance_rate = stats.tokens_accepted as f32 / stats.draft_tokens_generated as f32;
+                        stats.acceptance_rate =
+                            stats.tokens_accepted as f32 / stats.draft_tokens_generated as f32;
                     }
                     let _ = tx.send(SpeculativeChunk::Done { stats }).await;
                     return;
@@ -668,12 +747,12 @@ impl LlmProvider for OllamaClient {
                         draft_char, target_char
                     );
                     stats.tokens_rejected += 1;
-                    
+
                     // Add target's token instead
                     accepted_text.push(target_char);
                     current_prompt.push(target_char);
                     rejected = true;
-                    
+
                     // Count remaining draft tokens as rejected
                     let remaining: usize = chars.count();
                     stats.tokens_rejected += remaining;
@@ -685,8 +764,12 @@ impl LlmProvider for OllamaClient {
             if !accepted_text.is_empty() {
                 prompt.push_str(&accepted_text);
                 total_tokens += accepted_text.len();
-                
-                let _ = tx.send(SpeculativeChunk::Tokens { content: accepted_text }).await;
+
+                let _ = tx
+                    .send(SpeculativeChunk::Tokens {
+                        content: accepted_text,
+                    })
+                    .await;
             }
 
             // Check for natural end (draft produced fewer tokens than requested)
@@ -701,7 +784,8 @@ impl LlmProvider for OllamaClient {
 
         // Calculate final acceptance rate
         if stats.draft_tokens_generated > 0 {
-            stats.acceptance_rate = stats.tokens_accepted as f32 / stats.draft_tokens_generated as f32;
+            stats.acceptance_rate =
+                stats.tokens_accepted as f32 / stats.draft_tokens_generated as f32;
         }
 
         info!(
@@ -730,7 +814,8 @@ impl LlmProvider for OllamaClient {
         let url = self.api_url("api/embed");
         debug!(url = %url, "Generating embedding");
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&request)
             .send()
@@ -746,10 +831,13 @@ impl LlmProvider for OllamaClient {
             )));
         }
 
-        let ollama_response: OllamaEmbeddingResponse = response.json().await
+        let ollama_response: OllamaEmbeddingResponse = response
+            .json()
+            .await
             .map_err(|e| DomainError::llm_error(format!("Failed to parse response: {}", e)))?;
 
-        ollama_response.embeddings
+        ollama_response
+            .embeddings
             .into_iter()
             .next()
             .ok_or_else(|| DomainError::llm_error("No embedding returned"))
@@ -760,13 +848,15 @@ impl LlmProvider for OllamaClient {
     async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, DomainError> {
         if texts.len() > 100 {
             return Err(DomainError::llm_error(format!(
-                "Batch too large: {} texts (max 100)", texts.len()
+                "Batch too large: {} texts (max 100)",
+                texts.len()
             )));
         }
         let total_chars: usize = texts.iter().map(|t| t.len()).sum();
         if total_chars > 1_000_000 {
             return Err(DomainError::llm_error(format!(
-                "Batch too large: {} total chars (max 1,000,000)", total_chars
+                "Batch too large: {} total chars (max 1,000,000)",
+                total_chars
             )));
         }
         let request = OllamaEmbeddingRequest {
@@ -777,7 +867,8 @@ impl LlmProvider for OllamaClient {
         let url = self.api_url("api/embed");
         debug!(url = %url, count = texts.len(), "Generating batch embeddings");
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&request)
             .send()
@@ -793,7 +884,9 @@ impl LlmProvider for OllamaClient {
             )));
         }
 
-        let ollama_response: OllamaEmbeddingResponse = response.json().await
+        let ollama_response: OllamaEmbeddingResponse = response
+            .json()
+            .await
             .map_err(|e| DomainError::llm_error(format!("Failed to parse response: {}", e)))?;
 
         Ok(ollama_response.embeddings)
@@ -809,7 +902,8 @@ impl LlmProvider for OllamaClient {
         let url = self.api_url("api/tags");
         debug!(url = %url, "Listing available models");
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .send()
             .await
@@ -824,10 +918,13 @@ impl LlmProvider for OllamaClient {
             )));
         }
 
-        let ollama_response: OllamaModelListResponse = response.json().await
+        let ollama_response: OllamaModelListResponse = response
+            .json()
+            .await
             .map_err(|e| DomainError::llm_error(format!("Failed to parse response: {}", e)))?;
 
-        let models: Vec<ModelInfo> = ollama_response.models
+        let models: Vec<ModelInfo> = ollama_response
+            .models
             .into_iter()
             .map(|m| ModelInfo {
                 name: m.name.clone(),
@@ -855,7 +952,8 @@ impl LlmProvider for OllamaClient {
 
         debug!(model = %model_name, "Pulling model");
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&PullRequest {
                 name: model_name.to_string(),
@@ -887,7 +985,8 @@ impl LlmProvider for OllamaClient {
     async fn health_check(&self) -> Result<bool, DomainError> {
         let url = self.api_url("api/tags");
 
-        let result = self.client
+        let result = self
+            .client
             .get(&url)
             .timeout(std::time::Duration::from_secs(5))
             .send()
@@ -907,7 +1006,8 @@ impl LlmProvider for OllamaClient {
     async fn health_status(&self) -> Result<LlmHealthStatus, DomainError> {
         let url = self.api_url("api/tags");
 
-        let result = self.client
+        let result = self
+            .client
             .get(&url)
             .timeout(std::time::Duration::from_secs(5))
             .send()
@@ -918,7 +1018,7 @@ impl LlmProvider for OllamaClient {
                 if response.status().is_success() {
                     let models = self.list_models().await.unwrap_or_default();
                     let model_names: Vec<String> = models.iter().map(|m| m.name.clone()).collect();
-                    
+
                     Ok(LlmHealthStatus {
                         healthy: true,
                         models_count: models.len(),
@@ -938,16 +1038,14 @@ impl LlmProvider for OllamaClient {
                     })
                 }
             }
-            Err(e) => {
-                Ok(LlmHealthStatus {
-                    healthy: false,
-                    models_count: 0,
-                    models: vec![],
-                    provider_url: self.config.url.clone(),
-                    provider: "ollama".to_string(),
-                    error: Some(e.to_string()),
-                })
-            }
+            Err(e) => Ok(LlmHealthStatus {
+                healthy: false,
+                models_count: 0,
+                models: vec![],
+                provider_url: self.config.url.clone(),
+                provider: "ollama".to_string(),
+                error: Some(e.to_string()),
+            }),
         }
     }
 }
@@ -969,8 +1067,14 @@ mod tests {
 
     #[test]
     fn test_extract_parameters() {
-        assert_eq!(OllamaClient::extract_parameters("llama3:70b"), Some(70_000_000_000));
-        assert_eq!(OllamaClient::extract_parameters("qwen3:7b"), Some(7_000_000_000));
+        assert_eq!(
+            OllamaClient::extract_parameters("llama3:70b"),
+            Some(70_000_000_000)
+        );
+        assert_eq!(
+            OllamaClient::extract_parameters("qwen3:7b"),
+            Some(7_000_000_000)
+        );
         assert_eq!(OllamaClient::extract_parameters("unknown"), None);
     }
 
@@ -995,8 +1099,14 @@ mod tests {
     #[test]
     fn test_messages_to_prompt() {
         let messages = vec![
-            ChatMessage { role: "system".to_string(), content: "You are helpful".to_string() },
-            ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+            ChatMessage {
+                role: "system".to_string(),
+                content: "You are helpful".to_string(),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: "Hello".to_string(),
+            },
         ];
         let prompt = OllamaClient::messages_to_prompt(&messages);
         assert!(prompt.contains("System: You are helpful"));

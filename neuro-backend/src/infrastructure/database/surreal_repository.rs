@@ -9,7 +9,7 @@ use tracing::{debug, instrument};
 use uuid::Uuid;
 
 use crate::domain::{
-    entities::memory::{MemoryNode, MemoryQuery, MemoryType, MemoryMetadata},
+    entities::memory::{MemoryMetadata, MemoryNode, MemoryQuery, MemoryType},
     errors::DomainError,
     ports::memory_repository::{GraphExport, GraphStats, MemoryRepository, RelationDirection},
     value_objects::relation::{GraphEdge, Relation},
@@ -56,7 +56,7 @@ impl SurrealDbRepository {
 
     fn from_record(record: MemoryRecord) -> Result<MemoryNode, DomainError> {
         use chrono::{DateTime, Utc};
-        
+
         let memory_type = match record.memory_type.as_str() {
             "fact" => MemoryType::Fact,
             "preference" => MemoryType::Preference,
@@ -67,7 +67,7 @@ impl SurrealDbRepository {
         };
 
         let metadata: MemoryMetadata = serde_json::from_value(record.metadata).unwrap_or_default();
-        
+
         // Convert surrealdb::Datetime to chrono::DateTime<Utc>
         let created_at: DateTime<Utc> = record.created_at.0.into();
         let updated_at: DateTime<Utc> = record.updated_at.0.into();
@@ -106,13 +106,21 @@ impl MemoryRepository for SurrealDbRepository {
                 importance_score = $importance_score
         "#;
 
-        let mut response = self.pool.client()
+        let mut response = self
+            .pool
+            .client()
             .query(sql)
             .bind(("id", memory.id.to_string()))
             .bind(("content", memory.content.clone()))
             .bind(("vector", memory.vector.clone()))
-            .bind(("memory_type", format!("{:?}", memory.memory_type).to_lowercase()))
-            .bind(("metadata", serde_json::to_value(&memory.metadata).unwrap_or_default()))
+            .bind((
+                "memory_type",
+                format!("{:?}", memory.memory_type).to_lowercase(),
+            ))
+            .bind((
+                "metadata",
+                serde_json::to_value(&memory.metadata).unwrap_or_default(),
+            ))
             .bind(("created_at", Datetime::from(memory.created_at)))
             .bind(("updated_at", Datetime::from(memory.updated_at)))
             .bind(("access_count", memory.access_count))
@@ -122,11 +130,15 @@ impl MemoryRepository for SurrealDbRepository {
                 tracing::error!(error = %e, "SurrealDB query failed");
                 DomainError::database(e.to_string())
             })?;
-        
+
         // Check for query errors
         let errors: Vec<surrealdb::Error> = response.take_errors().into_values().collect();
         if !errors.is_empty() {
-            let error_msg = errors.iter().map(|e| e.to_string()).collect::<Vec<_>>().join(", ");
+            let error_msg = errors
+                .iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
             tracing::error!(errors = %error_msg, "SurrealDB CREATE returned errors");
             return Err(DomainError::database(error_msg));
         }
@@ -138,14 +150,17 @@ impl MemoryRepository for SurrealDbRepository {
     #[instrument(skip(self))]
     async fn get_by_id(&self, id: Uuid) -> Result<Option<MemoryNode>, DomainError> {
         let sql = "SELECT meta::id(id) as id, content, vector, memory_type, metadata, created_at, updated_at, access_count, importance_score FROM type::thing('memory', $id)";
-        
-        let mut response = self.pool.client()
+
+        let mut response = self
+            .pool
+            .client()
             .query(sql)
             .bind(("id", id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let records: Vec<MemoryRecord> = response.take(0)
+        let records: Vec<MemoryRecord> = response
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         match records.into_iter().next() {
@@ -159,7 +174,8 @@ impl MemoryRepository for SurrealDbRepository {
         let record = Self::to_record(&memory);
 
         // Use raw query to avoid deserialization issues
-        self.pool.client()
+        self.pool
+            .client()
             .query("UPDATE type::thing('memory', $id) CONTENT $record")
             .bind(("id", memory.id.to_string()))
             .bind(("record", record))
@@ -173,7 +189,8 @@ impl MemoryRepository for SurrealDbRepository {
     #[instrument(skip(self))]
     async fn delete(&self, id: Uuid) -> Result<bool, DomainError> {
         // Use raw query to avoid deserialization issues
-        self.pool.client()
+        self.pool
+            .client()
             .query("DELETE type::thing('memory', $id)")
             .bind(("id", id.to_string()))
             .await
@@ -193,7 +210,7 @@ impl MemoryRepository for SurrealDbRepository {
         // Simple implementation: fetch all and compute similarity in memory
         // In production, use SurrealDB's vector search capabilities
         let all_memories = self.get_all(1000, 0).await?;
-        
+
         let mut results: Vec<(MemoryNode, f64)> = all_memories
             .into_iter()
             .map(|m| {
@@ -202,10 +219,10 @@ impl MemoryRepository for SurrealDbRepository {
             })
             .filter(|(_, sim)| *sim >= min_similarity)
             .collect();
-        
+
         results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         results.truncate(limit);
-        
+
         Ok(results)
     }
 
@@ -215,27 +232,35 @@ impl MemoryRepository for SurrealDbRepository {
             limit, offset
         );
 
-        let mut response = self.pool.client()
+        let mut response = self
+            .pool
+            .client()
             .query(&sql)
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let records: Vec<MemoryRecord> = response.take(0)
+        let records: Vec<MemoryRecord> = response
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         records.into_iter().map(Self::from_record).collect()
     }
 
     async fn count(&self) -> Result<usize, DomainError> {
-        let mut response = self.pool.client()
+        let mut response = self
+            .pool
+            .client()
             .query("SELECT count() FROM memory GROUP ALL")
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         #[derive(Debug, Deserialize)]
-        struct CountResult { count: usize }
+        struct CountResult {
+            count: usize,
+        }
 
-        let result: Option<CountResult> = response.take(0)
+        let result: Option<CountResult> = response
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         Ok(result.map(|r| r.count).unwrap_or(0))
@@ -245,7 +270,7 @@ impl MemoryRepository for SurrealDbRepository {
         // For simplicity, we'll store relations inline
         // In production, use SurrealDB's graph edges
         debug!(from = %edge.from_id, to = %edge.to_id, relation = ?edge.relation, "Relation created");
-        
+
         Ok(edge)
     }
 
@@ -271,7 +296,9 @@ impl MemoryRepository for SurrealDbRepository {
     }
 
     async fn query(&self, query: MemoryQuery) -> Result<Vec<MemoryNode>, DomainError> {
-        let mut results = self.get_all(query.limit.unwrap_or(100), query.offset.unwrap_or(0)).await?;
+        let mut results = self
+            .get_all(query.limit.unwrap_or(100), query.offset.unwrap_or(0))
+            .await?;
 
         if !query.memory_types.is_empty() {
             results.retain(|m| query.memory_types.contains(&m.memory_type));
@@ -297,37 +324,49 @@ impl MemoryRepository for SurrealDbRepository {
     async fn get_graph_stats(&self) -> Result<GraphStats, DomainError> {
         // Get total nodes count
         let total_nodes = self.count().await?;
-        
+
         // Get nodes by type
         let sql_by_type = "SELECT memory_type, count() as cnt FROM memory GROUP BY memory_type";
-        let mut response = self.pool.client()
+        let mut response = self
+            .pool
+            .client()
             .query(sql_by_type)
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         #[derive(Debug, serde::Deserialize)]
         struct TypeCount {
             memory_type: String,
             cnt: i64,
         }
-        
-        let type_counts: Vec<TypeCount> = response.take(0)
+
+        let type_counts: Vec<TypeCount> = response
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         let mut nodes_by_type = std::collections::HashMap::new();
         for tc in type_counts {
             nodes_by_type.insert(tc.memory_type, tc.cnt as usize);
         }
-        
+
         // Count edges from relation tables
         let relation_tables = [
-            "related_to", "causes", "part_of", "follows", "contradicts",
-            "supports", "derived_from", "same_as", "context_of", "references_rel", "supersedes"
+            "related_to",
+            "causes",
+            "part_of",
+            "follows",
+            "contradicts",
+            "supports",
+            "derived_from",
+            "same_as",
+            "context_of",
+            "references_rel",
+            "supersedes",
         ];
-        
+
         let mut total_edges = 0usize;
         let mut edges_by_type = std::collections::HashMap::new();
-        
+
         for table in relation_tables {
             let sql = format!("SELECT count() as cnt FROM {}", table);
             if let Ok(mut resp) = self.pool.client().query(&sql).await {
@@ -345,14 +384,14 @@ impl MemoryRepository for SurrealDbRepository {
                 }
             }
         }
-        
+
         // Calculate average connections
         let avg_connections = if total_nodes > 0 {
             (total_edges as f64 * 2.0) / total_nodes as f64
         } else {
             0.0
         };
-        
+
         Ok(GraphStats {
             total_nodes,
             total_edges,
@@ -423,7 +462,7 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
     // Combine norms: sqrt(a) * sqrt(b) = sqrt(a * b)
     // This saves one sqrt() call
     let norm_product_sq = norm_a_sq * norm_b_sq;
-    
+
     if norm_product_sq <= 0.0 {
         0.0
     } else {
@@ -436,7 +475,7 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
 // Conversation Repository Methods
 // =============================================================================
 
-use crate::domain::entities::chat::{Conversation, ChatMessage, MessageRole, MessageMetadata};
+use crate::domain::entities::chat::{ChatMessage, Conversation, MessageMetadata, MessageRole};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ConversationRecord {
@@ -479,15 +518,21 @@ impl SurrealDbRepository {
             "Executing save_conversation SQL"
         );
 
-        let result = self.pool.client()
+        let result = self
+            .pool
+            .client()
             .query(&sql)
             .bind(("title", conversation.title.clone()))
             .bind(("archived", conversation.archived))
             .await;
 
         match &result {
-            Ok(_) => tracing::info!(conversation_id = %conversation.id, "save_conversation query succeeded"),
-            Err(e) => tracing::error!(conversation_id = %conversation.id, error = %e, "save_conversation query failed"),
+            Ok(_) => {
+                tracing::info!(conversation_id = %conversation.id, "save_conversation query succeeded")
+            }
+            Err(e) => {
+                tracing::error!(conversation_id = %conversation.id, error = %e, "save_conversation query failed")
+            }
         }
 
         result.map_err(|e| {
@@ -520,12 +565,16 @@ impl SurrealDbRepository {
             MessageRole::Tool => "tool",
         };
 
-        self.pool.client()
+        self.pool
+            .client()
             .query(&sql)
             .bind(("conversation_id", message.conversation_id.to_string()))
             .bind(("role", role))
             .bind(("content", message.content.clone()))
-            .bind(("metadata", serde_json::to_value(&message.metadata).unwrap_or_default()))
+            .bind((
+                "metadata",
+                serde_json::to_value(&message.metadata).unwrap_or_default(),
+            ))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
@@ -539,13 +588,16 @@ impl SurrealDbRepository {
             "SELECT meta::id(id) as id, title, created_at, updated_at, archived FROM conversation:`{}`",
             id
         );
-        
-        let mut response = self.pool.client()
+
+        let mut response = self
+            .pool
+            .client()
             .query(&sql)
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let records: Vec<ConversationRecord> = response.take(0)
+        let records: Vec<ConversationRecord> = response
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         let record = match records.into_iter().next() {
@@ -571,7 +623,10 @@ impl SurrealDbRepository {
     }
 
     /// Get all messages for a conversation
-    async fn get_messages_for_conversation(&self, conversation_id: Uuid) -> Result<Vec<ChatMessage>, DomainError> {
+    async fn get_messages_for_conversation(
+        &self,
+        conversation_id: Uuid,
+    ) -> Result<Vec<ChatMessage>, DomainError> {
         let sql = r#"
             SELECT meta::id(id) as id, conversation_id, role, content, metadata, created_at 
             FROM chat_message 
@@ -579,20 +634,23 @@ impl SurrealDbRepository {
             ORDER BY created_at ASC
         "#;
 
-        let mut response = self.pool.client()
+        let mut response = self
+            .pool
+            .client()
             .query(sql)
             .bind(("conversation_id", conversation_id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let records: Vec<ChatMessageRecord> = response.take(0)
+        let records: Vec<ChatMessageRecord> = response
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         let mut messages = Vec::new();
         for record in records {
             use chrono::{DateTime, Utc};
             let created_at: DateTime<Utc> = record.created_at.0.into();
-            
+
             let role = match record.role.as_str() {
                 "user" => MessageRole::User,
                 "assistant" => MessageRole::Assistant,
@@ -601,11 +659,14 @@ impl SurrealDbRepository {
                 _ => MessageRole::User,
             };
 
-            let metadata: MessageMetadata = serde_json::from_value(record.metadata).unwrap_or_default();
+            let metadata: MessageMetadata =
+                serde_json::from_value(record.metadata).unwrap_or_default();
 
             messages.push(ChatMessage {
-                id: Uuid::parse_str(&record.id).map_err(|e| DomainError::database(e.to_string()))?,
-                conversation_id: Uuid::parse_str(&record.conversation_id).map_err(|e| DomainError::database(e.to_string()))?,
+                id: Uuid::parse_str(&record.id)
+                    .map_err(|e| DomainError::database(e.to_string()))?,
+                conversation_id: Uuid::parse_str(&record.conversation_id)
+                    .map_err(|e| DomainError::database(e.to_string()))?,
                 role,
                 content: record.content,
                 metadata,
@@ -617,18 +678,17 @@ impl SurrealDbRepository {
     }
 
     /// List all conversations (without messages)
-    pub async fn list_conversations(&self) -> Result<Vec<(Uuid, Option<String>, chrono::DateTime<chrono::Utc>)>, DomainError> {
+    pub async fn list_conversations(
+        &self,
+    ) -> Result<Vec<(Uuid, Option<String>, chrono::DateTime<chrono::Utc>)>, DomainError> {
         let sql = "SELECT meta::id(id) as id, title, updated_at FROM conversation ORDER BY updated_at DESC";
 
         tracing::debug!("Executing list_conversations query");
 
-        let mut response = self.pool.client()
-            .query(sql)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to execute list_conversations query");
-                DomainError::database(e.to_string())
-            })?;
+        let mut response = self.pool.client().query(sql).await.map_err(|e| {
+            tracing::error!(error = %e, "Failed to execute list_conversations query");
+            DomainError::database(e.to_string())
+        })?;
 
         // Use a simpler struct for the response since we're only selecting 3 fields
         #[derive(Debug, Deserialize)]
@@ -638,11 +698,10 @@ impl SurrealDbRepository {
             updated_at: Datetime,
         }
 
-        let records: Vec<ListRecord> = response.take(0)
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to deserialize list_conversations response");
-                DomainError::database(e.to_string())
-            })?;
+        let records: Vec<ListRecord> = response.take(0).map_err(|e| {
+            tracing::error!(error = %e, "Failed to deserialize list_conversations response");
+            DomainError::database(e.to_string())
+        })?;
 
         tracing::debug!(count = records.len(), "Found conversations");
 
@@ -664,14 +723,16 @@ impl SurrealDbRepository {
     /// Delete a conversation and its messages
     pub async fn delete_conversation(&self, id: Uuid) -> Result<bool, DomainError> {
         // Delete messages first
-        self.pool.client()
+        self.pool
+            .client()
             .query("DELETE chat_message WHERE conversation_id = $id")
             .bind(("id", id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         // Delete conversation
-        self.pool.client()
+        self.pool
+            .client()
             .query("DELETE type::thing('conversation', $id)")
             .bind(("id", id.to_string()))
             .await
@@ -680,4 +741,3 @@ impl SurrealDbRepository {
         Ok(true)
     }
 }
-

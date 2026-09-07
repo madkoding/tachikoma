@@ -20,8 +20,7 @@ use uuid::Uuid;
 use crate::domain::ports::memory_repository::RelationDirection;
 use crate::domain::value_objects::relation::{GraphEdge, Relation};
 use crate::infrastructure::api::dto::{
-    CreateRelationRequest, ErrorResponse, GraphEdgeDto, GraphExportDto,
-    GraphStatsDto, MemoryDto,
+    CreateRelationRequest, ErrorResponse, GraphEdgeDto, GraphExportDto, GraphStatsDto, MemoryDto,
 };
 use crate::infrastructure::api::events;
 use crate::AppState;
@@ -62,15 +61,13 @@ pub async fn get_graph_stats(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<GraphStatsDto>, (StatusCode, Json<ErrorResponse>)> {
     match state.memory_service.get_graph_stats().await {
-        Ok(stats) => {
-            Ok(Json(GraphStatsDto {
-                total_nodes: stats.total_nodes,
-                total_edges: stats.total_edges,
-                nodes_by_type: stats.nodes_by_type,
-                edges_by_type: stats.edges_by_type,
-                avg_connections: stats.avg_connections,
-            }))
-        }
+        Ok(stats) => Ok(Json(GraphStatsDto {
+            total_nodes: stats.total_nodes,
+            total_edges: stats.total_edges,
+            nodes_by_type: stats.nodes_by_type,
+            edges_by_type: stats.edges_by_type,
+            avg_connections: stats.avg_connections,
+        })),
         Err(e) => {
             error!(error = %e, "Failed to get graph stats");
             Err((
@@ -101,7 +98,8 @@ pub async fn export_graph(
 ) -> Result<Json<GraphExportDto>, (StatusCode, Json<ErrorResponse>)> {
     match state.memory_service.export_graph().await {
         Ok(export) => {
-            let nodes: Vec<MemoryDto> = export.nodes
+            let nodes: Vec<MemoryDto> = export
+                .nodes
                 .into_iter()
                 .map(|m| MemoryDto {
                     id: m.id,
@@ -115,10 +113,7 @@ pub async fn export_graph(
                 })
                 .collect();
 
-            let edges: Vec<GraphEdgeDto> = export.edges
-                .into_iter()
-                .map(edge_to_dto)
-                .collect();
+            let edges: Vec<GraphEdgeDto> = export.edges.into_iter().map(edge_to_dto).collect();
 
             Ok(Json(GraphExportDto {
                 nodes,
@@ -147,10 +142,17 @@ pub async fn get_memory_relations(
     Path(memory_id): Path<Uuid>,
     Query(params): Query<GetRelationsParams>,
 ) -> Result<Json<Vec<GraphEdgeDto>>, (StatusCode, Json<ErrorResponse>)> {
-    let relation_type = params.relation_type.as_ref().and_then(|r| parse_relation(r));
+    let relation_type = params
+        .relation_type
+        .as_ref()
+        .and_then(|r| parse_relation(r));
     let direction = parse_direction(&params.direction);
 
-    match state.memory_service.get_relations(memory_id, relation_type, direction).await {
+    match state
+        .memory_service
+        .get_relations(memory_id, relation_type, direction)
+        .await
+    {
         Ok(edges) => {
             let dtos: Vec<GraphEdgeDto> = edges.into_iter().map(edge_to_dto).collect();
             Ok(Json(dtos))
@@ -188,15 +190,12 @@ pub async fn create_relation(
         }
     };
 
-    match state.memory_service.create_relation(
-        request.from_id,
-        request.to_id,
-        relation,
-        request.confidence,
-    ).await {
-        Ok(created_edge) => {
-            Ok((StatusCode::CREATED, Json(edge_to_dto(created_edge))))
-        }
+    match state
+        .memory_service
+        .create_relation(request.from_id, request.to_id, relation, request.confidence)
+        .await
+    {
+        Ok(created_edge) => Ok((StatusCode::CREATED, Json(edge_to_dto(created_edge)))),
         Err(e) => {
             error!(error = %e, "Failed to create relation");
             Err((
@@ -223,12 +222,19 @@ pub async fn delete_relation(
         None => {
             return Err((
                 StatusCode::BAD_REQUEST,
-                Json(ErrorResponse::new("INVALID_RELATION", "Unknown relation type")),
+                Json(ErrorResponse::new(
+                    "INVALID_RELATION",
+                    "Unknown relation type",
+                )),
             ));
         }
     };
 
-    match state.memory_service.delete_relation(from_id, to_id, relation).await {
+    match state
+        .memory_service
+        .delete_relation(from_id, to_id, relation)
+        .await
+    {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err((
             StatusCode::NOT_FOUND,
@@ -260,11 +266,11 @@ pub async fn get_related_memories(
     Path(memory_id): Path<Uuid>,
     Query(params): Query<RelatedMemoriesParams>,
 ) -> Result<Json<Vec<RelatedMemoryDto>>, (StatusCode, Json<ErrorResponse>)> {
-    match state.memory_service.get_related_memories(
-        memory_id,
-        params.max_depth.unwrap_or(2),
-        None,
-    ).await {
+    match state
+        .memory_service
+        .get_related_memories(memory_id, params.max_depth.unwrap_or(2), None)
+        .await
+    {
         Ok(results) => {
             let dtos: Vec<RelatedMemoryDto> = results
                 .into_iter()

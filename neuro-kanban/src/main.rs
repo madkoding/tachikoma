@@ -22,10 +22,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     init_tracing("tachikoma_kanban=info,tower_http=debug");
 
     let config = Config::from_env(3006);
-    info!("🗂️  Kanban service | port={} backend={}", config.port, config.backend_url);
+    info!(
+        "🗂️  Kanban service | port={} backend={}",
+        config.port, config.backend_url
+    );
 
     let client = BackendClient::new(&config);
-    let state = Arc::new(AppState { client, config: config.clone() });
+    let state = Arc::new(AppState {
+        client,
+        config: config.clone(),
+    });
     let app = routes::create_router(state);
 
     let addr = format!("0.0.0.0:{}", config.port);

@@ -1,11 +1,11 @@
-use std::sync::Arc;
 use anyhow::Result;
 use axum::http::header;
+use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
-use neuro_common::{init_tracing, serve, db::Database};
+use neuro_common::{db::Database, init_tracing, serve};
 
 mod config;
 mod handlers;
@@ -33,7 +33,8 @@ async fn main() -> Result<()> {
         &config.database_pass,
         &config.database_ns,
         &config.database_db,
-    ).await?;
+    )
+    .await?;
 
     let schema = vec![
         "DEFINE TABLE memory SCHEMAFULL",

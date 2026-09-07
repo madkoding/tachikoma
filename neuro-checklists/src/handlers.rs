@@ -56,8 +56,12 @@ pub struct ListParams {
     pub include_archived: bool,
 }
 
-fn default_page() -> usize { 1 }
-fn default_per_page() -> usize { 50 }
+fn default_page() -> usize {
+    1
+}
+fn default_per_page() -> usize {
+    50
+}
 
 // =============================================================================
 // Health Check
@@ -80,21 +84,39 @@ pub async fn list_checklists(
     State(state): State<Arc<AppState>>,
     Query(params): Query<ListParams>,
 ) -> Result<Json<PaginatedResponse<ChecklistResponse>>, (StatusCode, Json<ErrorResponse>)> {
-    debug!(page = params.page, per_page = params.per_page, "Listing checklists");
+    debug!(
+        page = params.page,
+        per_page = params.per_page,
+        "Listing checklists"
+    );
 
     let offset = (params.page.saturating_sub(1)) * params.per_page;
-    
-    match state.client.get_all_checklists(params.per_page, offset, params.include_archived).await {
+
+    match state
+        .client
+        .get_all_checklists(params.per_page, offset, params.include_archived)
+        .await
+    {
         Ok(checklists) => {
             // Get total count for pagination
-            let total = state.client.count_checklists(params.include_archived).await.unwrap_or(checklists.len());
+            let total = state
+                .client
+                .count_checklists(params.include_archived)
+                .await
+                .unwrap_or(checklists.len());
             let total_pages = (total + params.per_page - 1) / params.per_page.max(1);
 
             // Get items for each checklist
             let mut responses = Vec::new();
             for checklist in checklists {
-                let items = state.client.get_items(checklist.id).await.unwrap_or_default();
-                responses.push(ChecklistResponse::from_checklist_with_items(checklist, items));
+                let items = state
+                    .client
+                    .get_items(checklist.id)
+                    .await
+                    .unwrap_or_default();
+                responses.push(ChecklistResponse::from_checklist_with_items(
+                    checklist, items,
+                ));
             }
 
             Ok(Json(PaginatedResponse {
@@ -125,7 +147,9 @@ pub async fn get_checklist(
     match state.client.get_checklist(id).await {
         Ok(Some(checklist)) => {
             let items = state.client.get_items(id).await.unwrap_or_default();
-            Ok(Json(ChecklistResponse::from_checklist_with_items(checklist, items)))
+            Ok(Json(ChecklistResponse::from_checklist_with_items(
+                checklist, items,
+            )))
         }
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
@@ -160,7 +184,13 @@ pub async fn create_checklist(
                 }
             }
 
-            Ok((StatusCode::CREATED, Json(ChecklistResponse::from_checklist_with_items(checklist, created_items))))
+            Ok((
+                StatusCode::CREATED,
+                Json(ChecklistResponse::from_checklist_with_items(
+                    checklist,
+                    created_items,
+                )),
+            ))
         }
         Err(e) => {
             error!(error = %e, "Failed to create checklist");
@@ -183,7 +213,9 @@ pub async fn update_checklist(
     match state.client.update_checklist(id, request).await {
         Ok(Some(checklist)) => {
             let items = state.client.get_items(id).await.unwrap_or_default();
-            Ok(Json(ChecklistResponse::from_checklist_with_items(checklist, items)))
+            Ok(Json(ChecklistResponse::from_checklist_with_items(
+                checklist, items,
+            )))
         }
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
@@ -346,11 +378,14 @@ pub async fn import_from_markdown(
     debug!("Importing checklist from markdown");
 
     let (parsed_title, items) = parse_markdown_checklist(&request.markdown);
-    
+
     if items.is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("INVALID_MARKDOWN", "No checkbox items found in markdown")),
+            Json(ErrorResponse::new(
+                "INVALID_MARKDOWN",
+                "No checkbox items found in markdown",
+            )),
         ));
     }
 
@@ -379,7 +414,7 @@ fn parse_markdown_checklist(markdown: &str) -> (String, Vec<CreateChecklistItem>
 
     for line in markdown.lines() {
         let trimmed = line.trim();
-        
+
         // Check for title (# header)
         if trimmed.starts_with("# ") {
             title = trimmed[2..].trim().to_string();

@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use anyhow::Result;
 use axum::http::header;
+use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
@@ -8,14 +8,14 @@ use tracing::info;
 use neuro_common::{init_tracing, serve};
 
 mod config;
+mod executor;
 mod handlers;
 mod routes;
 mod searxng;
-mod executor;
 
 pub use config::Config;
-pub use searxng::SearxngClient;
 pub use executor::CommandExecutor;
+pub use searxng::SearxngClient;
 
 pub struct AppState {
     pub searxng: SearxngClient,

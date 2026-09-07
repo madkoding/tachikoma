@@ -32,13 +32,13 @@ pub const OPUS_BITRATE: i32 = 64000;
 /// Configured for stereo (2 channels)
 fn create_opus_head() -> Vec<u8> {
     let mut head = Vec::with_capacity(19);
-    head.extend_from_slice(b"OpusHead");      // Magic signature
-    head.push(1);                              // Version
-    head.push(2);                              // Channel count (stereo)
+    head.extend_from_slice(b"OpusHead"); // Magic signature
+    head.push(1); // Version
+    head.push(2); // Channel count (stereo)
     head.extend_from_slice(&0u16.to_le_bytes()); // Pre-skip (samples)
     head.extend_from_slice(&OPUS_SAMPLE_RATE.to_le_bytes()); // Input sample rate
     head.extend_from_slice(&0i16.to_le_bytes()); // Output gain
-    head.push(0);                              // Channel mapping family (0 = mono/stereo)
+    head.push(0); // Channel mapping family (0 = mono/stereo)
     head
 }
 
@@ -54,10 +54,10 @@ fn create_opus_tags() -> Vec<u8> {
 }
 
 /// Encode stereo PCM samples to OGG/Opus format (browser-compatible)
-/// 
+///
 /// # Arguments
 /// * `pcm_samples` - Input PCM samples (stereo interleaved L,R,L,R, f32, 48kHz expected)
-/// 
+///
 /// # Returns
 /// * `Vec<u8>` - OGG/Opus encoded stereo audio that browsers can decode natively
 pub fn encode_pcm_to_opus(pcm_samples: &[f32]) -> Result<Vec<u8>> {
@@ -70,11 +70,13 @@ pub fn encode_pcm_to_opus(pcm_samples: &[f32]) -> Result<Vec<u8>> {
         .map_err(|e| anyhow!("Failed to create Opus encoder: {}", e))?;
 
     // Set bitrate (higher for stereo)
-    encoder.set_bitrate(opus::Bitrate::Bits(OPUS_BITRATE))
+    encoder
+        .set_bitrate(opus::Bitrate::Bits(OPUS_BITRATE))
         .map_err(|e| anyhow!("Failed to set bitrate: {}", e))?;
 
     // Enable variable bitrate for better quality
-    encoder.set_vbr(true)
+    encoder
+        .set_vbr(true)
         .map_err(|e| anyhow!("Failed to enable VBR: {}", e))?;
 
     // Output buffer for OGG
@@ -87,12 +89,24 @@ pub fn encode_pcm_to_opus(pcm_samples: &[f32]) -> Result<Vec<u8>> {
 
     // Write OpusHead header (BOS - beginning of stream)
     let opus_head = create_opus_head();
-    writer.write_packet(Cow::Owned(opus_head), serial, ogg::writing::PacketWriteEndInfo::EndPage, 0)
+    writer
+        .write_packet(
+            Cow::Owned(opus_head),
+            serial,
+            ogg::writing::PacketWriteEndInfo::EndPage,
+            0,
+        )
         .map_err(|e| anyhow!("Failed to write OpusHead: {}", e))?;
 
     // Write OpusTags header
     let opus_tags = create_opus_tags();
-    writer.write_packet(Cow::Owned(opus_tags), serial, ogg::writing::PacketWriteEndInfo::EndPage, 0)
+    writer
+        .write_packet(
+            Cow::Owned(opus_tags),
+            serial,
+            ogg::writing::PacketWriteEndInfo::EndPage,
+            0,
+        )
         .map_err(|e| anyhow!("Failed to write OpusTags: {}", e))?;
 
     // Buffer for encoded frame (max ~4KB per frame, but typically much smaller)
@@ -104,7 +118,7 @@ pub fn encode_pcm_to_opus(pcm_samples: &[f32]) -> Result<Vec<u8>> {
     // For stereo: each frame needs OPUS_FRAME_SIZE samples per channel
     // Interleaved format: [L0, R0, L1, R1, ...] so we need OPUS_FRAME_SIZE * 2 values per frame
     let stereo_frame_size = OPUS_STEREO_FRAME_SIZE;
-    
+
     // Contar chunks sin collect para evitar allocación
     let total_chunks = (pcm_samples.len() + stereo_frame_size - 1) / stereo_frame_size;
     let mut chunk_idx = 0;
@@ -119,13 +133,13 @@ pub fn encode_pcm_to_opus(pcm_samples: &[f32]) -> Result<Vec<u8>> {
             chunk.to_vec()
         };
 
-        // Encode stereo frame (encoder expects OPUS_FRAME_SIZE samples, 
+        // Encode stereo frame (encoder expects OPUS_FRAME_SIZE samples,
         // but input has 2x for stereo interleaved)
         match encoder.encode_float(&input, &mut frame_buffer) {
             Ok(len) => {
                 // Granule position tracks samples per channel (not total samples)
                 granule_pos += OPUS_FRAME_SIZE as u64;
-                
+
                 // Determine if this is the last packet
                 let end_info = if chunk_idx == total_chunks - 1 {
                     ogg::writing::PacketWriteEndInfo::EndStream
@@ -133,25 +147,27 @@ pub fn encode_pcm_to_opus(pcm_samples: &[f32]) -> Result<Vec<u8>> {
                     ogg::writing::PacketWriteEndInfo::NormalPacket
                 };
 
-                writer.write_packet(
-                    Cow::Owned(frame_buffer[..len].to_vec()),
-                    serial,
-                    end_info,
-                    granule_pos,
-                ).map_err(|e| anyhow!("Failed to write Opus frame: {}", e))?;
+                writer
+                    .write_packet(
+                        Cow::Owned(frame_buffer[..len].to_vec()),
+                        serial,
+                        end_info,
+                        granule_pos,
+                    )
+                    .map_err(|e| anyhow!("Failed to write Opus frame: {}", e))?;
             }
             Err(e) => {
                 error!("Opus encoding error: {}", e);
                 return Err(anyhow!("Opus encoding failed: {}", e));
             }
         }
-        
+
         chunk_idx += 1;
     }
 
     // Get the final output
     drop(writer);
-    
+
     debug!(
         "Encoded {} stereo samples to {} bytes OGG/Opus (compression: {:.1}x)",
         pcm_samples.len() / 2, // Samples per channel
@@ -204,7 +220,7 @@ pub fn resample_stereo(samples: &[f32], source_rate: u32, target_rate: u32) -> V
     let num_frames = samples.len() / 2;
     let mut left = Vec::with_capacity(num_frames);
     let mut right = Vec::with_capacity(num_frames);
-    
+
     for frame in samples.chunks_exact(2) {
         left.push(frame[0]);
         right.push(frame[1]);
@@ -233,10 +249,14 @@ mod tests {
         // 1 second of stereo silence at 48kHz (48000 samples * 2 channels)
         let silence = vec![0.0f32; 96000];
         let encoded = encode_pcm_to_opus(&silence).unwrap();
-        
+
         // Should be much smaller than raw PCM (96000 * 4 = 384KB)
-        assert!(encoded.len() < 20000, "Encoded size should be < 20KB, got {}", encoded.len());
-        
+        assert!(
+            encoded.len() < 20000,
+            "Encoded size should be < 20KB, got {}",
+            encoded.len()
+        );
+
         // Should start with OGG magic header
         assert_eq!(&encoded[0..4], b"OggS");
     }
@@ -245,7 +265,7 @@ mod tests {
     fn test_resample_mono() {
         let input = vec![0.0, 1.0, 0.0, -1.0]; // Simple wave at source rate
         let resampled = resample(&input, 22050, 24000);
-        
+
         // Should have approximately (24000/22050) * 4 samples
         let expected_len = (4.0 * 24000.0 / 22050.0) as usize;
         assert!((resampled.len() as i32 - expected_len as i32).abs() <= 1);
@@ -256,12 +276,12 @@ mod tests {
         // Simple stereo wave: L=[0, 1, 0, -1], R=[1, 0, -1, 0]
         let input = vec![0.0, 1.0, 1.0, 0.0, 0.0, -1.0, -1.0, 0.0];
         let resampled = resample_stereo(&input, 22050, 24000);
-        
+
         // Should have approximately (24000/22050) * 4 frames * 2 channels
         let expected_frames = (4.0 * 24000.0 / 22050.0) as usize;
         let expected_samples = expected_frames * 2;
         assert!((resampled.len() as i32 - expected_samples as i32).abs() <= 2);
-        
+
         // Should still be even (stereo pairs)
         assert_eq!(resampled.len() % 2, 0);
     }

@@ -3,9 +3,9 @@
 //! =============================================================================
 //! Application service for managing memories in the GraphRAG system.
 //! Handles memory creation, retrieval, search, and graph operations.
-//! 
+//!
 //! # Responsibilities
-//! 
+//!
 //! * Memory CRUD operations
 //! * Semantic search with embedding generation
 //! * Graph relation management
@@ -32,19 +32,19 @@ use crate::infrastructure::api::events::{EventBroadcaster, MemoryEvent, MemoryEv
 /// =============================================================================
 /// Orchestrates memory operations by coordinating between the memory repository
 /// and the LLM provider (for embeddings).
-/// 
+///
 /// # Example Usage
-/// 
+///
 /// ```rust
 /// let service = MemoryService::new(memory_repo, llm_provider);
-/// 
+///
 /// // Create a memory with auto-generated embedding
 /// let memory = service.create_memory(
 ///     "User prefers dark mode".to_string(),
 ///     MemoryType::Preference,
 ///     None,
 /// ).await?;
-/// 
+///
 /// // Search memories semantically
 /// let results = service.search("interface preferences", 5).await?;
 /// ```
@@ -52,10 +52,10 @@ use crate::infrastructure::api::events::{EventBroadcaster, MemoryEvent, MemoryEv
 pub struct MemoryService {
     /// Repository for memory persistence
     repository: Arc<dyn MemoryRepository>,
-    
+
     /// LLM provider for embedding generation
     llm_provider: Arc<dyn LlmProvider>,
-    
+
     /// Optional event broadcaster for SSE notifications
     event_broadcaster: Option<Arc<EventBroadcaster>>,
 }
@@ -65,27 +65,24 @@ impl MemoryService {
     /// Create a new MemoryService
     /// =========================================================================
     /// Initializes the service with required dependencies.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `repository` - Memory repository for persistence
     /// * `llm_provider` - LLM provider for embeddings
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new MemoryService instance
     /// =========================================================================
-    pub fn new(
-        repository: Arc<dyn MemoryRepository>,
-        llm_provider: Arc<dyn LlmProvider>,
-    ) -> Self {
+    pub fn new(repository: Arc<dyn MemoryRepository>, llm_provider: Arc<dyn LlmProvider>) -> Self {
         Self {
             repository,
             llm_provider,
             event_broadcaster: None,
         }
     }
-    
+
     /// =========================================================================
     /// Create a new MemoryService with event broadcasting
     /// =========================================================================
@@ -100,7 +97,7 @@ impl MemoryService {
             event_broadcaster: Some(broadcaster),
         }
     }
-    
+
     /// Emit a memory event if broadcaster is configured
     fn emit_event(&self, event: MemoryEvent) {
         if let Some(broadcaster) = &self.event_broadcaster {
@@ -119,20 +116,20 @@ impl MemoryService {
     /// Create a new memory
     /// =========================================================================
     /// Creates a memory with auto-generated embedding vector.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `content` - The memory content text
     /// * `memory_type` - Classification of the memory
     /// * `metadata` - Optional additional metadata
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(MemoryNode)` - The created or merged memory with ID and embedding
     /// * `Err(DomainError)` - If creation fails
-    /// 
+    ///
     /// # Behavior
-    /// 
+    ///
     /// This function implements smart memory deduplication:
     /// 1. Generates embedding for the new content
     /// 2. Searches for similar existing memories (similarity > 0.50)
@@ -149,27 +146,37 @@ impl MemoryService {
     ) -> Result<MemoryNode, DomainError> {
         // Validate content
         if content.trim().is_empty() {
-            return Err(DomainError::validation("content", "Content cannot be empty"));
+            return Err(DomainError::validation(
+                "content",
+                "Content cannot be empty",
+            ));
         }
 
         // Generate embedding
-        debug!("Generating embedding for content: {}...", &content[..content.len().min(50)]);
+        debug!(
+            "Generating embedding for content: {}...",
+            &content[..content.len().min(50)]
+        );
         let vector = self.llm_provider.embed(&content).await?;
         debug!("Embedding generated with {} dimensions", vector.len());
 
         // Search for similar existing memories (low threshold to find candidates)
-        let similar_memories = self.repository
+        let similar_memories = self
+            .repository
             .semantic_search(vector.clone(), 10, 0.30)
             .await?;
-        
-        info!("Found {} similar memories with threshold 0.30", similar_memories.len());
+
+        info!(
+            "Found {} similar memories with threshold 0.30",
+            similar_memories.len()
+        );
 
         // Filter by same memory type
         let candidates: Vec<_> = similar_memories
             .into_iter()
             .filter(|(m, _)| m.memory_type == memory_type)
             .collect();
-        
+
         info!("After filtering by type: {} candidates", candidates.len());
 
         // Determine if we should merge based on similarity and LLM analysis
@@ -179,9 +186,9 @@ impl MemoryService {
                 .iter()
                 .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
                 .unwrap();
-            
+
             info!("Best match similarity: {:.2}", best_similarity);
-            
+
             // High similarity (>0.60) = automatic merge without asking LLM
             // This catches cases like "Me gusta el morado" and "También me gusta el verde"
             let should_merge = if *best_similarity > 0.60 {
@@ -190,9 +197,11 @@ impl MemoryService {
             } else {
                 // Medium similarity (0.30-0.60) = ask LLM
                 info!("Medium similarity ({:.2}), asking LLM", best_similarity);
-                self.should_merge_memories(&content, &best_match.content).await.unwrap_or(false)
+                self.should_merge_memories(&content, &best_match.content)
+                    .await
+                    .unwrap_or(false)
             };
-            
+
             if should_merge {
                 let existing_memory = best_match.clone();
                 let similarity = *best_similarity;
@@ -203,23 +212,22 @@ impl MemoryService {
                 );
 
                 // Merge the content - combine old and new information
-                let merged_content = self.merge_memory_content(
-                    &existing_memory.content,
-                    &content,
-                ).await?;
+                let merged_content = self
+                    .merge_memory_content(&existing_memory.content, &content)
+                    .await?;
 
                 // Only update if content actually changed
                 if merged_content != existing_memory.content {
                     // Re-generate embedding for merged content
                     let merged_vector = self.llm_provider.embed(&merged_content).await?;
-                    
+
                     // Update the existing memory
                     let mut updated_memory = existing_memory.clone();
                     updated_memory.content = merged_content;
                     updated_memory.vector = merged_vector;
                     updated_memory.updated_at = chrono::Utc::now();
                     updated_memory.access_count += 1;
-                    
+
                     // Merge metadata if provided
                     if let Some(new_meta) = metadata {
                         // Merge tags
@@ -232,7 +240,7 @@ impl MemoryService {
 
                     let result = self.repository.update(updated_memory).await?;
                     info!(memory_id = %result.id, "Memory merged and updated successfully");
-                    
+
                     // Emit event for updated memory
                     self.emit_event(MemoryEvent::Updated(MemoryEventData {
                         id: result.id.to_string(),
@@ -240,7 +248,7 @@ impl MemoryService {
                         memory_type: format!("{:?}", result.memory_type),
                         created_at: result.created_at.to_rfc3339(),
                     }));
-                    
+
                     return Ok(result);
                 } else {
                     // Content is essentially the same, just return the existing memory
@@ -256,14 +264,17 @@ impl MemoryService {
         } else {
             MemoryNode::new(content, vector, memory_type)
         };
-        
-        info!("Memory node created with vector length: {}", memory.vector.len());
+
+        info!(
+            "Memory node created with vector length: {}",
+            memory.vector.len()
+        );
 
         // Persist to database
         let created = self.repository.create(memory).await?;
 
         info!(memory_id = %created.id, "Memory created successfully");
-        
+
         // Emit event for new memory
         self.emit_event(MemoryEvent::Created(MemoryEventData {
             id: created.id.to_string(),
@@ -296,19 +307,18 @@ FRASE 1: "{}"
 FRASE 2: "{}"
 
 Responde SOLO "SI" o "NO"."#,
-            new_content,
-            existing_content
+            new_content, existing_content
         );
 
         let response = self.llm_provider.generate(&prompt, None).await?;
         let response_text = response.content.trim().to_uppercase();
-        
+
         info!("LLM merge check response: '{}'", response_text);
-        
+
         // Check if response contains "SI" or "SÍ"
         let should_merge = response_text.contains("SI") || response_text.contains("SÍ");
         info!("Should merge: {}", should_merge);
-        
+
         Ok(should_merge)
     }
 
@@ -335,13 +345,11 @@ Merged result (just the merged text, nothing else):"#,
             existing_content, new_content
         );
 
-        let result = self.llm_provider
-            .generate(&merge_prompt, None)
-            .await?;
+        let result = self.llm_provider.generate(&merge_prompt, None).await?;
 
         // Clean up the response
         let merged = result.content.trim().trim_matches('"').to_string();
-        
+
         info!(
             existing = %existing_content,
             new = %new_content,
@@ -356,13 +364,13 @@ Merged result (just the merged text, nothing else):"#,
     /// Get a memory by ID
     /// =========================================================================
     /// Retrieves a single memory by its unique identifier.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `id` - The memory UUID
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(MemoryNode)` - The found memory
     /// * `Err(DomainError::NotFound)` - If memory doesn't exist
     /// =========================================================================
@@ -379,16 +387,16 @@ Merged result (just the merged text, nothing else):"#,
     /// =========================================================================
     /// Updates the content and/or metadata of an existing memory.
     /// Re-generates the embedding if content changes.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `id` - The memory ID to update
     /// * `content` - Optional new content
     /// * `memory_type` - Optional new type
     /// * `metadata` - Optional new metadata
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(MemoryNode)` - The updated memory
     /// * `Err(DomainError)` - If update fails
     /// =========================================================================
@@ -428,7 +436,7 @@ Merged result (just the merged text, nothing else):"#,
         let updated = self.repository.update(memory).await?;
 
         info!(memory_id = %id, "Memory updated successfully");
-        
+
         // Emit event for updated memory
         self.emit_event(MemoryEvent::Updated(MemoryEventData {
             id: updated.id.to_string(),
@@ -444,13 +452,13 @@ Merged result (just the merged text, nothing else):"#,
     /// Delete a memory
     /// =========================================================================
     /// Removes a memory and all its relations from the database.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `id` - The memory ID to delete
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(true)` - Memory was deleted
     /// * `Err(DomainError)` - If deletion fails
     /// =========================================================================
@@ -460,7 +468,7 @@ Merged result (just the merged text, nothing else):"#,
 
         if deleted {
             info!(memory_id = %id, "Memory deleted successfully");
-            
+
             // Emit event for deleted memory
             self.emit_event(MemoryEvent::Deleted { id: id.to_string() });
         } else {
@@ -478,14 +486,14 @@ Merged result (just the merged text, nothing else):"#,
     /// Semantic search for memories
     /// =========================================================================
     /// Finds memories similar to the query using vector similarity.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `query` - The search query text
     /// * `limit` - Maximum number of results
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Vec<(MemoryNode, f64)>)` - Memories with similarity scores
     /// * `Err(DomainError)` - If search fails
     /// =========================================================================
@@ -504,7 +512,11 @@ Merged result (just the merged text, nothing else):"#,
             .semantic_search(query_vector, limit, 0.5)
             .await?;
 
-        debug!(query = query, results = results.len(), "Semantic search completed");
+        debug!(
+            query = query,
+            results = results.len(),
+            "Semantic search completed"
+        );
 
         Ok(results)
     }
@@ -513,13 +525,13 @@ Merged result (just the merged text, nothing else):"#,
     /// Advanced memory query
     /// =========================================================================
     /// Queries memories with various filters and options.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `query` - Query parameters
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Vec<MemoryNode>)` - Matching memories
     /// * `Err(DomainError)` - If query fails
     /// =========================================================================
@@ -541,14 +553,14 @@ Merged result (just the merged text, nothing else):"#,
     /// Get all memories with pagination
     /// =========================================================================
     /// Retrieves all memories with pagination support.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `limit` - Maximum number of results
     /// * `offset` - Number of results to skip
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Vec<MemoryNode>)` - List of memories
     /// * `Err(DomainError)` - If query fails
     /// =========================================================================
@@ -577,16 +589,16 @@ Merged result (just the merged text, nothing else):"#,
     /// Create a relation between memories
     /// =========================================================================
     /// Adds a directed edge between two memory nodes.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `from_id` - Source memory ID
     /// * `to_id` - Target memory ID
     /// * `relation` - Type of relation
     /// * `confidence` - Confidence score (0.0 - 1.0)
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(GraphEdge)` - The created edge
     /// * `Err(DomainError)` - If creation fails
     /// =========================================================================
@@ -620,15 +632,15 @@ Merged result (just the merged text, nothing else):"#,
     /// Get relations for a memory
     /// =========================================================================
     /// Retrieves all relations connected to a memory.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `memory_id` - The memory ID
     /// * `relation_type` - Optional filter by relation type
     /// * `direction` - Incoming, outgoing, or both
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Vec<GraphEdge>)` - List of relations
     /// * `Err(DomainError)` - If query fails
     /// =========================================================================
@@ -647,15 +659,15 @@ Merged result (just the merged text, nothing else):"#,
     /// Get related memories with graph traversal
     /// =========================================================================
     /// Finds memories related to a given memory through graph edges.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `memory_id` - Starting memory ID
     /// * `max_depth` - Maximum traversal depth
     /// * `relation_types` - Optional filter for relation types
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Vec<(MemoryNode, GraphEdge)>)` - Related memories with edges
     /// * `Err(DomainError)` - If traversal fails
     /// =========================================================================
@@ -674,15 +686,15 @@ Merged result (just the merged text, nothing else):"#,
     /// Delete a relation
     /// =========================================================================
     /// Removes a relation between two memories.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `from_id` - Source memory ID
     /// * `to_id` - Target memory ID
     /// * `relation` - Type of relation to delete
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(true)` - Relation was deleted
     /// * `Ok(false)` - Relation didn't exist
     /// * `Err(DomainError)` - If deletion fails
@@ -693,7 +705,9 @@ Merged result (just the merged text, nothing else):"#,
         to_id: Uuid,
         relation: Relation,
     ) -> Result<bool, DomainError> {
-        self.repository.delete_relation(from_id, to_id, relation).await
+        self.repository
+            .delete_relation(from_id, to_id, relation)
+            .await
     }
 
     // =========================================================================
@@ -704,9 +718,9 @@ Merged result (just the merged text, nothing else):"#,
     /// Get graph statistics
     /// =========================================================================
     /// Returns statistics about the memory graph for the admin dashboard.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(GraphStats)` - Graph statistics
     /// * `Err(DomainError)` - If query fails
     /// =========================================================================
@@ -718,9 +732,9 @@ Merged result (just the merged text, nothing else):"#,
     /// Export the full graph
     /// =========================================================================
     /// Exports all nodes and edges for visualization or backup.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(GraphExport)` - Full graph data
     /// * `Err(DomainError)` - If export fails
     /// =========================================================================

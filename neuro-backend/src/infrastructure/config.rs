@@ -14,10 +14,10 @@ use serde::Deserialize;
 pub struct Config {
     /// Server configuration
     pub server: ServerConfig,
-    
+
     /// Database configuration
     pub database: DatabaseConfig,
-    
+
     /// LLM provider selection ("ollama" | "openai")
     pub llm_provider: String,
 
@@ -29,7 +29,7 @@ pub struct Config {
 
     /// Searxng configuration
     pub searxng: SearxngConfig,
-    
+
     /// Microservices configuration (API Gateway)
     pub microservices: MicroservicesConfig,
 }
@@ -39,9 +39,9 @@ impl Config {
     /// Load configuration from environment variables
     /// =========================================================================
     /// Reads configuration from environment variables with sensible defaults.
-    /// 
+    ///
     /// # Environment Variables
-    /// 
+    ///
     /// * `SERVER_HOST` - Server bind address (default: 0.0.0.0)
     /// * `SERVER_PORT` - Server port (default: 3000)
     /// * `DATABASE_URL` - SurrealDB connection URL
@@ -51,9 +51,9 @@ impl Config {
     /// * `DATABASE_PASS` - SurrealDB password
     /// * `OLLAMA_URL` - Ollama API URL
     /// * `SEARXNG_URL` - Searxng API URL
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Config)` - Loaded configuration
     /// * `Err` - If required environment variables are missing
     /// =========================================================================
@@ -61,8 +61,7 @@ impl Config {
         Ok(Self {
             server: ServerConfig::from_env()?,
             database: DatabaseConfig::from_env()?,
-            llm_provider: std::env::var("LLM_PROVIDER")
-                .unwrap_or_else(|_| "ollama".to_string()),
+            llm_provider: std::env::var("LLM_PROVIDER").unwrap_or_else(|_| "ollama".to_string()),
             ollama: OllamaConfig::from_env()?,
             openai: OpenAiConfig::from_env()?,
             searxng: SearxngConfig::from_env()?,
@@ -78,14 +77,14 @@ impl Config {
 pub struct ServerConfig {
     /// Host address to bind to
     pub host: String,
-    
+
     /// Port to listen on
     pub port: u16,
-    
+
     /// Request timeout in seconds
     #[allow(dead_code)]
     pub request_timeout_secs: u64,
-    
+
     /// Maximum request body size in bytes
     #[allow(dead_code)]
     pub max_body_size: usize,
@@ -119,16 +118,16 @@ impl ServerConfig {
 pub struct DatabaseConfig {
     /// Database connection URL (ws://host:port)
     pub url: String,
-    
+
     /// Namespace
     pub namespace: String,
-    
+
     /// Database name
     pub database: String,
-    
+
     /// Username
     pub username: String,
-    
+
     /// Password
     pub password: String,
 }
@@ -139,14 +138,10 @@ impl DatabaseConfig {
         Ok(Self {
             url: std::env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "ws://localhost:8000".to_string()),
-            namespace: std::env::var("DATABASE_NS")
-                .unwrap_or_else(|_| "tachikoma".to_string()),
-            database: std::env::var("DATABASE_DB")
-                .unwrap_or_else(|_| "memories".to_string()),
-            username: std::env::var("DATABASE_USER")
-                .unwrap_or_else(|_| "root".to_string()),
-            password: std::env::var("DATABASE_PASS")
-                .unwrap_or_else(|_| "root".to_string()),
+            namespace: std::env::var("DATABASE_NS").unwrap_or_else(|_| "tachikoma".to_string()),
+            database: std::env::var("DATABASE_DB").unwrap_or_else(|_| "memories".to_string()),
+            username: std::env::var("DATABASE_USER").unwrap_or_else(|_| "root".to_string()),
+            password: std::env::var("DATABASE_PASS").unwrap_or_else(|_| "root".to_string()),
         })
     }
 }
@@ -158,13 +153,13 @@ impl DatabaseConfig {
 pub struct OllamaConfig {
     /// Ollama API URL
     pub url: String,
-    
+
     /// Request timeout in seconds
     pub timeout_secs: u64,
-    
+
     /// Default model for generation
     pub default_model: String,
-    
+
     /// Embedding model
     pub embedding_model: String,
 }
@@ -222,8 +217,7 @@ impl OpenAiConfig {
                 .unwrap_or_else(|_| "120".to_string())
                 .parse()
                 .unwrap_or(120),
-            provider: std::env::var("OPENAI_PROVIDER")
-                .unwrap_or_else(|_| "openai".to_string()),
+            provider: std::env::var("OPENAI_PROVIDER").unwrap_or_else(|_| "openai".to_string()),
         })
     }
 }
@@ -235,10 +229,10 @@ impl OpenAiConfig {
 pub struct SearxngConfig {
     /// Searxng API URL
     pub url: String,
-    
+
     /// Request timeout in seconds
     pub timeout_secs: u64,
-    
+
     /// Maximum results per search
     pub max_results: usize,
 }

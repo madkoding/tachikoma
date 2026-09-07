@@ -14,8 +14,8 @@ use tracing::{debug, error, instrument};
 use uuid::Uuid;
 
 use crate::domain::entities::music::{
-    CreatePlaylist, CreateSong, EqualizerSettings, ListeningEntry, Playlist,
-    PlaylistWithSongs, Song, UpdatePlaylist, UpdateSong, YouTubeMetadata,
+    CreatePlaylist, CreateSong, EqualizerSettings, ListeningEntry, Playlist, PlaylistWithSongs,
+    Song, UpdatePlaylist, UpdateSong, YouTubeMetadata,
 };
 use crate::infrastructure::api::dto::ErrorResponse;
 use crate::AppState;
@@ -136,7 +136,11 @@ pub async fn list_playlist_songs(
     State(state): State<Arc<AppState>>,
     Path(playlist_id): Path<Uuid>,
 ) -> Result<Json<Vec<Song>>, (StatusCode, Json<ErrorResponse>)> {
-    match state.music_repository.get_songs_by_playlist(playlist_id).await {
+    match state
+        .music_repository
+        .get_songs_by_playlist(playlist_id)
+        .await
+    {
         Ok(songs) => Ok(Json(songs)),
         Err(e) => {
             error!(error = %e, "Failed to list songs");
@@ -183,7 +187,11 @@ pub async fn get_song_by_youtube_id(
     State(state): State<Arc<AppState>>,
     Query(query): Query<FindSongByYoutubeQuery>,
 ) -> Result<Json<Option<Song>>, (StatusCode, Json<ErrorResponse>)> {
-    match state.music_repository.get_song_by_youtube_id(&query.youtube_id, query.playlist_id).await {
+    match state
+        .music_repository
+        .get_song_by_youtube_id(&query.youtube_id, query.playlist_id)
+        .await
+    {
         Ok(song) => Ok(Json(song)),
         Err(e) => {
             error!(error = %e, "Failed to find song by YouTube ID");
@@ -214,16 +222,15 @@ pub async fn create_song(
     // Log raw body for debugging
     let body_str = String::from_utf8_lossy(&body);
     debug!(body = %body_str, "Received create song request");
-    
+
     // Parse the JSON manually into a flexible structure
-    let data: CreateSongRequest = serde_json::from_slice(&body)
-        .map_err(|e| {
-            error!(error = %e, body = %body_str, "Failed to parse create song request");
-            (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(ErrorResponse::new("PARSE_ERROR", e.to_string())),
-            )
-        })?;
+    let data: CreateSongRequest = serde_json::from_slice(&body).map_err(|e| {
+        error!(error = %e, body = %body_str, "Failed to parse create song request");
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse::new("PARSE_ERROR", e.to_string())),
+        )
+    })?;
 
     // Normalize metadata: accept either { "youtube_id": "..." } or { "id": "..." },
     // also accept youtube_url and strip noisy fields like `description`.
@@ -244,10 +251,20 @@ pub async fn create_song(
     // Ensure youtube_id is present
     if metadata.youtube_id.is_empty() {
         error!("Missing youtube_id in metadata after normalization");
-        return Err((StatusCode::UNPROCESSABLE_ENTITY, Json(ErrorResponse::new("MISSING_FIELD", "metadata.youtube_id is required"))));
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse::new(
+                "MISSING_FIELD",
+                "metadata.youtube_id is required",
+            )),
+        ));
     }
 
-    match state.music_repository.create_song(playlist_id, data.song, metadata).await {
+    match state
+        .music_repository
+        .create_song(playlist_id, data.song, metadata)
+        .await
+    {
         Ok(song) => Ok((StatusCode::CREATED, Json(song))),
         Err(e) => {
             error!(error = %e, "Failed to create song");
@@ -335,7 +352,11 @@ pub async fn reorder_songs(
     Path(playlist_id): Path<Uuid>,
     Json(data): Json<ReorderSongsRequest>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    match state.music_repository.reorder_songs(playlist_id, data.song_ids).await {
+    match state
+        .music_repository
+        .reorder_songs(playlist_id, data.song_ids)
+        .await
+    {
         Ok(_) => Ok(StatusCode::OK),
         Err(e) => {
             error!(error = %e, "Failed to reorder songs");
@@ -357,7 +378,9 @@ pub struct HistoryParams {
     pub limit: usize,
 }
 
-fn default_limit() -> usize { 50 }
+fn default_limit() -> usize {
+    50
+}
 
 /// GET /api/data/music/history
 #[instrument(skip(state))]
@@ -365,7 +388,11 @@ pub async fn get_listening_history(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HistoryParams>,
 ) -> Result<Json<Vec<ListeningEntry>>, (StatusCode, Json<ErrorResponse>)> {
-    match state.music_repository.get_listening_history(params.limit).await {
+    match state
+        .music_repository
+        .get_listening_history(params.limit)
+        .await
+    {
         Ok(history) => Ok(Json(history)),
         Err(e) => {
             error!(error = %e, "Failed to get listening history");
@@ -401,7 +428,11 @@ pub async fn get_most_played_songs(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HistoryParams>,
 ) -> Result<Json<Vec<Song>>, (StatusCode, Json<ErrorResponse>)> {
-    match state.music_repository.get_most_played_songs(params.limit).await {
+    match state
+        .music_repository
+        .get_most_played_songs(params.limit)
+        .await
+    {
         Ok(songs) => Ok(Json(songs)),
         Err(e) => {
             error!(error = %e, "Failed to get most played songs");
@@ -440,7 +471,11 @@ pub async fn save_equalizer_settings(
     State(state): State<Arc<AppState>>,
     Json(settings): Json<EqualizerSettings>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    match state.music_repository.save_equalizer_settings(settings).await {
+    match state
+        .music_repository
+        .save_equalizer_settings(settings)
+        .await
+    {
         Ok(_) => Ok(StatusCode::OK),
         Err(e) => {
             error!(error = %e, "Failed to save equalizer settings");
@@ -475,7 +510,11 @@ pub async fn update_suggestions_timestamp(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    match state.music_repository.update_suggestions_timestamp(id).await {
+    match state
+        .music_repository
+        .update_suggestions_timestamp(id)
+        .await
+    {
         Ok(()) => Ok(StatusCode::OK),
         Err(e) => {
             error!(error = %e, "Failed to update suggestions timestamp");
@@ -496,7 +535,11 @@ pub async fn update_suggestions_timestamp(
 fn normalize_metadata(mut meta: serde_json::Value) -> serde_json::Value {
     // 1) Map `id` -> `youtube_id` if missing
     if meta.get("youtube_id").is_none() {
-        if let Some(id) = meta.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+        if let Some(id) = meta
+            .get("id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+        {
             if let Some(obj) = meta.as_object_mut() {
                 obj.insert("youtube_id".to_string(), serde_json::Value::String(id));
             }
@@ -505,7 +548,11 @@ fn normalize_metadata(mut meta: serde_json::Value) -> serde_json::Value {
 
     // 2) Extract from youtube_url if still missing
     if meta.get("youtube_id").is_none() {
-        if let Some(url) = meta.get("youtube_url").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+        if let Some(url) = meta
+            .get("youtube_url")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+        {
             if let Some(id) = extract_youtube_id(&url) {
                 if let Some(obj) = meta.as_object_mut() {
                     obj.insert("youtube_id".to_string(), serde_json::Value::String(id));
@@ -585,7 +632,10 @@ mod tests {
         });
 
         let out = normalize_metadata(input);
-        assert_eq!(out.get("youtube_id").and_then(|v| v.as_str()), Some("XYZ123"));
+        assert_eq!(
+            out.get("youtube_id").and_then(|v| v.as_str()),
+            Some("XYZ123")
+        );
         assert!(out.get("description").is_none());
         assert!(out.get("uploader_url").is_none());
     }
@@ -598,7 +648,10 @@ mod tests {
         });
 
         let out = normalize_metadata(input);
-        assert_eq!(out.get("youtube_id").and_then(|v| v.as_str()), Some("ABC987"));
+        assert_eq!(
+            out.get("youtube_id").and_then(|v| v.as_str()),
+            Some("ABC987")
+        );
     }
 
     #[test]
@@ -616,7 +669,15 @@ mod tests {
 
         let out = normalize_metadata(input);
         assert_eq!(out.get("youtube_id").and_then(|v| v.as_str()), Some("ID1"));
-        for f in &["description","uploader","uploader_id","webpage_url","extractor","tags","categories"] {
+        for f in &[
+            "description",
+            "uploader",
+            "uploader_id",
+            "webpage_url",
+            "extractor",
+            "tags",
+            "categories",
+        ] {
             assert!(out.get(*f).is_none(), "{} should be removed", f);
         }
     }

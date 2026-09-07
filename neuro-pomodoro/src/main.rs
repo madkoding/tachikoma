@@ -25,7 +25,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Pomodoro service | port={}", config.port);
 
     let store = MemoryStore::new();
-    let state = Arc::new(AppState { store, config: config.clone() });
+    let state = Arc::new(AppState {
+        store,
+        config: config.clone(),
+    });
     let app = routes::create_router(state);
 
     let addr = format!("0.0.0.0:{}", config.port);

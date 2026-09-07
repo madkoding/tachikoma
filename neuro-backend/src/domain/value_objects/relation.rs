@@ -3,9 +3,9 @@
 //! =============================================================================
 //! Represents the types of relations between memory nodes in the graph.
 //! These relations enable the GraphRAG pattern by connecting memories.
-//! 
+//!
 //! # Graph Structure
-//! 
+//!
 //! ```text
 //!   ┌─────────────┐         CAUSES          ┌─────────────┐
 //!   │   Memory A  │ ───────────────────────▶│   Memory B  │
@@ -28,9 +28,9 @@ use serde::{Deserialize, Serialize};
 /// =============================================================================
 /// Defines the semantic relationships that can exist between memories.
 /// These relations are stored as graph edges in SurrealDB.
-/// 
+///
 /// # Relation Types
-/// 
+///
 /// * `RelatedTo` - General semantic relationship
 /// * `Causes` - Causal relationship (A causes B)
 /// * `PartOf` - Composition relationship (A is part of B)
@@ -49,7 +49,7 @@ pub enum Relation {
     /// =======================================================================
     /// Used when two memories are related but the specific type of
     /// relationship is not clearly defined.
-    /// 
+    ///
     /// # Example
     /// - "User works with Rust" ←→ "User prefers functional programming"
     /// =======================================================================
@@ -60,7 +60,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that one memory is a cause or reason for another.
     /// Direction: Source CAUSES Target
-    /// 
+    ///
     /// # Example
     /// - "Server crashed" → CAUSES → "Data was lost"
     /// =======================================================================
@@ -71,7 +71,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that one memory is a component or subset of another.
     /// Direction: Source PART_OF Target (Source is contained in Target)
-    /// 
+    ///
     /// # Example
     /// - "User authentication" → PART_OF → "Security system"
     /// =======================================================================
@@ -82,7 +82,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates temporal or logical sequence.
     /// Direction: Source FOLLOWS Target (Source comes after Target)
-    /// 
+    ///
     /// # Example
     /// - "Deploy to production" → FOLLOWS → "Run tests"
     /// =======================================================================
@@ -93,7 +93,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that two memories contain contradictory information.
     /// This is important for maintaining consistency.
-    /// 
+    ///
     /// # Example
     /// - "API uses REST" ←→ CONTRADICTS ←→ "API uses GraphQL"
     /// =======================================================================
@@ -104,7 +104,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that one memory supports or confirms another.
     /// Direction: Source SUPPORTS Target
-    /// 
+    ///
     /// # Example
     /// - "Performance tests passed" → SUPPORTS → "System is stable"
     /// =======================================================================
@@ -115,7 +115,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that one memory was inferred or derived from another.
     /// Direction: Target DERIVED_FROM Source
-    /// 
+    ///
     /// # Example
     /// - "User is a developer" → DERIVED_FROM → "User writes Rust code"
     /// =======================================================================
@@ -126,7 +126,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that two memories contain the same or equivalent information.
     /// Used for deduplication and consolidation.
-    /// 
+    ///
     /// # Example
     /// - "Server runs on port 8080" ←→ SAME_AS ←→ "API available at :8080"
     /// =======================================================================
@@ -137,7 +137,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that one memory provides context for understanding another.
     /// Direction: Source CONTEXT_OF Target
-    /// 
+    ///
     /// # Example
     /// - "Working on NEURO-OS project" → CONTEXT_OF → "Need GraphRAG system"
     /// =======================================================================
@@ -147,7 +147,7 @@ pub enum Relation {
     /// Reference relationship
     /// =======================================================================
     /// Indicates that one memory references or mentions another.
-    /// 
+    ///
     /// # Example
     /// - "See documentation for API" → REFERENCES → "API Documentation"
     /// =======================================================================
@@ -158,7 +158,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that one memory replaces or supersedes another.
     /// Direction: Source SUPERSEDES Target (Source is newer/better)
-    /// 
+    ///
     /// # Example
     /// - "Use Rust 2021 edition" → SUPERSEDES → "Use Rust 2018 edition"
     /// =======================================================================
@@ -169,7 +169,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that something has a property or attribute.
     /// Direction: Source HAS_PROPERTY Target
-    /// 
+    ///
     /// # Example
     /// - "El usuario" → HAS_PROPERTY → "Le gusta el morado"
     /// =======================================================================
@@ -180,7 +180,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that something is used for a purpose.
     /// Direction: Source USED_FOR Target
-    /// 
+    ///
     /// # Example
     /// - "Python" → USED_FOR → "Machine Learning"
     /// =======================================================================
@@ -191,7 +191,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that something is capable of doing something.
     /// Direction: Source CAPABLE_OF Target
-    /// 
+    ///
     /// # Example
     /// - "El usuario" → CAPABLE_OF → "Programar en Rust"
     /// =======================================================================
@@ -202,7 +202,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that something is located in a place.
     /// Direction: Source LOCATED_IN Target
-    /// 
+    ///
     /// # Example
     /// - "El usuario" → LOCATED_IN → "Santiago, Chile"
     /// =======================================================================
@@ -213,7 +213,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that something was created by someone/something.
     /// Direction: Source CREATED_BY Target
-    /// 
+    ///
     /// # Example
     /// - "Este proyecto" → CREATED_BY → "El usuario"
     /// =======================================================================
@@ -224,7 +224,7 @@ pub enum Relation {
     /// =======================================================================
     /// Indicates that two things are similar but not the same.
     /// This is symmetric.
-    /// 
+    ///
     /// # Example
     /// - "Me gusta el morado" ←→ SIMILAR_TO ←→ "Me gusta el violeta"
     /// =======================================================================
@@ -237,9 +237,9 @@ impl Relation {
     /// =========================================================================
     /// Returns the inverse relation when traversing the graph in reverse.
     /// Some relations are symmetric (same in both directions).
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// =========================================================================
     /// Get all relation types as a list
     /// =========================================================================
@@ -330,11 +330,7 @@ impl GraphEdge {
     /// =========================================================================
     /// Create a new graph edge
     /// =========================================================================
-    pub fn new(
-        from_id: uuid::Uuid,
-        to_id: uuid::Uuid,
-        relation: Relation,
-    ) -> Self {
+    pub fn new(from_id: uuid::Uuid, to_id: uuid::Uuid, relation: Relation) -> Self {
         Self {
             from_id,
             to_id,

@@ -3,11 +3,11 @@
 //! =============================================================================
 //! This is the main entry point for the TACHIKOMA-OS backend server.
 //! It initializes all infrastructure components and starts the Axum HTTP server.
-//! 
+//!
 //! # Architecture
-//! 
+//!
 //! The application follows Hexagonal Architecture (Ports & Adapters):
-//! 
+//!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────┐
 //! │                      INFRASTRUCTURE LAYER                       │
@@ -35,31 +35,31 @@
 //! =============================================================================
 
 use anyhow::Result;
-use std::sync::Arc;
 use std::io::{self, Write};
+use std::sync::Arc;
 use utoipa::OpenApi;
 
 mod application;
 mod domain;
 mod infrastructure;
 
-use crate::application::services::{
-    AgentOrchestrator, ChatService, MemoryService,
-};
+use crate::application::services::{AgentOrchestrator, ChatService, MemoryService};
 use crate::domain::ports::{
-    command_executor::CommandExecutor,
-    llm_provider::LlmProvider,
-    memory_repository::MemoryRepository,
+    checklist_repository::ChecklistRepository, command_executor::CommandExecutor,
+    kanban_repository::KanbanRepository, llm_provider::LlmProvider,
+    memory_repository::MemoryRepository, music_repository::MusicRepository,
     search_provider::SearchProvider,
-    checklist_repository::ChecklistRepository,
-    kanban_repository::KanbanRepository,
-    music_repository::MusicRepository,
 };
 use crate::infrastructure::{
     api::{create_router, handlers::system::init_start_time},
     config::Config,
-    database::{DatabasePool, SurrealDbRepository, SurrealChecklistRepository, SurrealKanbanRepository, SurrealMusicRepository},
-    services::{OllamaClient, OpenAiClient, SafeCommandExecutor, SearxngClient, VoiceEngine, VoiceConfig},
+    database::{
+        DatabasePool, SurrealChecklistRepository, SurrealDbRepository, SurrealKanbanRepository,
+        SurrealMusicRepository,
+    },
+    services::{
+        OllamaClient, OpenAiClient, SafeCommandExecutor, SearxngClient, VoiceConfig, VoiceEngine,
+    },
 };
 
 // ANSI color codes for terminal output
@@ -86,23 +86,23 @@ fn print_done(step: u8, total: u8, message: &str) {
 
 /// Warm up the LLM model by sending a simple request
 /// This preloads the model into GPU memory for faster first response
-async fn warm_up_model(llm_provider: &Arc<dyn crate::domain::ports::llm_provider::LlmProvider + Send + Sync>) -> Result<()> {
+async fn warm_up_model(
+    llm_provider: &Arc<dyn crate::domain::ports::llm_provider::LlmProvider + Send + Sync>,
+) -> Result<()> {
     use std::time::Instant;
     use tokio::time::{interval, Duration};
-    
+
     let start = Instant::now();
     let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-    
+
     // Spawn warmup task
     let llm = llm_provider.clone();
-    let warmup_handle = tokio::spawn(async move {
-        llm.generate("hi", None).await
-    });
-    
+    let warmup_handle = tokio::spawn(async move { llm.generate("hi", None).await });
+
     // Animate spinner while waiting
     let mut ticker = interval(Duration::from_millis(80));
     let mut frame_idx = 0;
-    
+
     loop {
         tokio::select! {
             result = &mut Box::pin(async { warmup_handle.is_finished() }) => {
@@ -118,12 +118,12 @@ async fn warm_up_model(llm_provider: &Arc<dyn crate::domain::ports::llm_provider
                 frame_idx += 1;
             }
         }
-        
+
         if warmup_handle.is_finished() {
             break;
         }
     }
-    
+
     // Get result
     match warmup_handle.await {
         Ok(Ok(_)) => Ok(()),
@@ -169,7 +169,7 @@ pub struct AppState {
 /// Main Entry Point
 /// =============================================================================
 /// Initializes the TACHIKOMA-OS backend server with all required services.
-/// 
+///
 /// # Initialization Order
 /// 1. Load configuration from environment
 /// 2. Initialize tracing/logging
@@ -185,7 +185,9 @@ async fn main() -> Result<()> {
     // --openapi: print OpenAPI JSON and exit
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--openapi") {
-        let json = crate::infrastructure::api::ApiDoc::openapi().to_pretty_json().unwrap();
+        let json = crate::infrastructure::api::ApiDoc::openapi()
+            .to_pretty_json()
+            .unwrap();
         println!("{}", json);
         return Ok(());
     }
@@ -265,12 +267,15 @@ async fn main() -> Result<()> {
             Arc::new(client)
         }
     };
-    
+
     // Warm up the model (preload to GPU memory)
     print_step(3, TOTAL_STEPS, "Preloading LLM model to GPU...");
     io::stdout().flush().ok();
     if let Err(e) = warm_up_model(&llm_provider).await {
-        println!("\r{CYAN}[███░░░░]{RESET} {YELLOW}⚠{RESET} Model warmup skipped: {}", e);
+        println!(
+            "\r{CYAN}[███░░░░]{RESET} {YELLOW}⚠{RESET} Model warmup skipped: {}",
+            e
+        );
     } else {
         print_done(3, TOTAL_STEPS, "LLM model loaded to GPU");
     }
@@ -281,7 +286,7 @@ async fn main() -> Result<()> {
     print_done(4, TOTAL_STEPS, "Searxng client ready");
 
     print_step(5, TOTAL_STEPS, "Initializing command executor...");
-    let command_executor: Arc<dyn CommandExecutor + Send + Sync> = 
+    let command_executor: Arc<dyn CommandExecutor + Send + Sync> =
         Arc::new(SafeCommandExecutor::new());
     print_done(5, TOTAL_STEPS, "Command executor ready");
 
@@ -291,13 +296,13 @@ async fn main() -> Result<()> {
     print_step(6, TOTAL_STEPS, "Initializing repositories...");
     let surreal_repository = Arc::new(SurrealDbRepository::new(database_pool.clone()));
     let memory_repository: Arc<dyn MemoryRepository + Send + Sync> = surreal_repository.clone();
-    
+
     // Create checklist and music repositories
-    let checklist_repository: Arc<dyn ChecklistRepository + Send + Sync> = 
+    let checklist_repository: Arc<dyn ChecklistRepository + Send + Sync> =
         Arc::new(SurrealChecklistRepository::new(database_pool.clone()));
-    let kanban_repository: Arc<dyn KanbanRepository + Send + Sync> = 
+    let kanban_repository: Arc<dyn KanbanRepository + Send + Sync> =
         Arc::new(SurrealKanbanRepository::new(database_pool.clone()));
-    let music_repository: Arc<dyn MusicRepository + Send + Sync> = 
+    let music_repository: Arc<dyn MusicRepository + Send + Sync> =
         Arc::new(SurrealMusicRepository::new(database_pool.clone()));
     print_done(6, TOTAL_STEPS, "All repositories ready");
 
@@ -310,7 +315,7 @@ async fn main() -> Result<()> {
     // Create application services
     // -------------------------------------------------------------------------
     print_step(7, TOTAL_STEPS, "Creating application services...");
-    
+
     let memory_service = Arc::new(MemoryService::with_broadcaster(
         memory_repository,
         llm_provider.clone(),
@@ -339,12 +344,15 @@ async fn main() -> Result<()> {
     print_step(8, TOTAL_STEPS, "Initializing Voice Engine...");
     let voice_config = VoiceConfig::default();
     let voice_engine = Arc::new(VoiceEngine::new(voice_config));
-    
+
     // Initialize in background (non-blocking)
     let ve_clone = voice_engine.clone();
     tokio::spawn(async move {
         if let Err(e) = ve_clone.initialize().await {
-            tracing::warn!("Voice engine initialization failed: {}. TTS will be disabled.", e);
+            tracing::warn!(
+                "Voice engine initialization failed: {}. TTS will be disabled.",
+                e
+            );
         }
     });
     print_done(8, TOTAL_STEPS, "Voice Engine initialized");
@@ -377,7 +385,7 @@ async fn main() -> Result<()> {
     // -------------------------------------------------------------------------
     let bind_addr = format!("{}:{}", config.server.host, config.server.port);
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
-    
+
     println!("\n{GREEN}{BOLD}✓ TACHIKOMA-OS Backend ready!{RESET}");
     println!("{DIM}─────────────────────────────────────────────────────────{RESET}");
     println!("  {CYAN}▸{RESET} Server:   {YELLOW}http://{bind_addr}{RESET}");

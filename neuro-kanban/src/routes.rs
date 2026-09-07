@@ -10,7 +10,10 @@ use crate::handlers;
 use crate::AppState;
 
 pub fn create_router(state: Arc<AppState>) -> Router {
-    let cors = CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any);
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
 
     let api_routes = Router::new()
         .route("/health", get(handlers::health_check))
@@ -19,14 +22,38 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/kanban/boards/:board_id", get(handlers::get_board))
         .route("/kanban/boards/:board_id", patch(handlers::update_board))
         .route("/kanban/boards/:board_id", delete(handlers::delete_board))
-        .route("/kanban/boards/:board_id/columns", post(handlers::create_column))
-        .route("/kanban/boards/:board_id/columns/:column_id", patch(handlers::update_column))
-        .route("/kanban/boards/:board_id/columns/:column_id", delete(handlers::delete_column))
-        .route("/kanban/boards/:board_id/columns/:column_id/reorder", put(handlers::reorder_column))
-        .route("/kanban/boards/:board_id/columns/:column_id/cards", post(handlers::create_card))
-        .route("/kanban/boards/:board_id/columns/:column_id/cards/:card_id", patch(handlers::update_card))
-        .route("/kanban/boards/:board_id/columns/:column_id/cards/:card_id", delete(handlers::delete_card))
-        .route("/kanban/boards/:board_id/columns/:column_id/cards/:card_id/move", put(handlers::move_card));
+        .route(
+            "/kanban/boards/:board_id/columns",
+            post(handlers::create_column),
+        )
+        .route(
+            "/kanban/boards/:board_id/columns/:column_id",
+            patch(handlers::update_column),
+        )
+        .route(
+            "/kanban/boards/:board_id/columns/:column_id",
+            delete(handlers::delete_column),
+        )
+        .route(
+            "/kanban/boards/:board_id/columns/:column_id/reorder",
+            put(handlers::reorder_column),
+        )
+        .route(
+            "/kanban/boards/:board_id/columns/:column_id/cards",
+            post(handlers::create_card),
+        )
+        .route(
+            "/kanban/boards/:board_id/columns/:column_id/cards/:card_id",
+            patch(handlers::update_card),
+        )
+        .route(
+            "/kanban/boards/:board_id/columns/:column_id/cards/:card_id",
+            delete(handlers::delete_card),
+        )
+        .route(
+            "/kanban/boards/:board_id/columns/:column_id/cards/:card_id/move",
+            put(handlers::move_card),
+        );
 
     Router::new()
         .nest("/api", api_routes)

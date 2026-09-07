@@ -2,8 +2,8 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::process::Command;
 use tokio::fs;
+use tokio::process::Command;
 use tracing::{info, warn};
 
 use crate::config::Config;
@@ -47,11 +47,15 @@ impl Downloader {
         }
 
         // Ensure downloads directory exists
-        self.ensure_downloads_dir().await
+        self.ensure_downloads_dir()
+            .await
             .map_err(|e| format!("Failed to create downloads directory: {}", e))?;
 
         // Get stream URL from YouTube
-        let stream_info = self.youtube.get_audio_stream_url(youtube_id).await
+        let stream_info = self
+            .youtube
+            .get_audio_stream_url(youtube_id)
+            .await
             .map_err(|e| format!("Failed to get stream URL: {}", e))?;
 
         info!(youtube_id = %youtube_id, "Starting download");
@@ -63,17 +67,26 @@ impl Downloader {
         // 256kbps Opus VBR is perceptually equivalent to 320kbps MP3
         let status = Command::new(&self.config.ffmpeg_path)
             .args([
-                "-y",                           // Overwrite output
-                "-i", &stream_info.url,         // Input from stream URL
-                "-vn",                          // No video
-                "-acodec", "libopus",           // Use Opus codec
-                "-b:a", "256k",                 // 256kbps (equivalent to 320kbps MP3)
-                "-vbr", "on",                   // Variable bitrate for better quality
-                "-compression_level", "10",     // Best compression quality
-                "-ar", "48000",                 // 48kHz sample rate
-                "-ac", "2",                     // Stereo
-                "-af", "loudnorm=I=-14:TP=-1:LRA=11",  // Normalize loudness
-                "-f", "ogg",                    // OGG container
+                "-y", // Overwrite output
+                "-i",
+                &stream_info.url, // Input from stream URL
+                "-vn",            // No video
+                "-acodec",
+                "libopus", // Use Opus codec
+                "-b:a",
+                "256k", // 256kbps (equivalent to 320kbps MP3)
+                "-vbr",
+                "on", // Variable bitrate for better quality
+                "-compression_level",
+                "10", // Best compression quality
+                "-ar",
+                "48000", // 48kHz sample rate
+                "-ac",
+                "2", // Stereo
+                "-af",
+                "loudnorm=I=-14:TP=-1:LRA=11", // Normalize loudness
+                "-f",
+                "ogg", // OGG container
                 temp_path.to_str().unwrap(),
             ])
             .stdout(std::process::Stdio::null())
@@ -91,7 +104,8 @@ impl Downloader {
         }
 
         // Rename temp file to final path
-        fs::rename(&temp_path, &output_path).await
+        fs::rename(&temp_path, &output_path)
+            .await
             .map_err(|e| format!("Failed to rename temp file: {}", e))?;
 
         info!(youtube_id = %youtube_id, path = %output_path.display(), "Download complete");
@@ -102,7 +116,9 @@ impl Downloader {
     pub fn download_in_background(self: Arc<Self>, youtube_id: String) {
         tokio::spawn(async move {
             match self.download_song(&youtube_id).await {
-                Ok(path) => info!(youtube_id = %youtube_id, path = %path.display(), "Background download completed"),
+                Ok(path) => {
+                    info!(youtube_id = %youtube_id, path = %path.display(), "Background download completed")
+                }
                 Err(e) => warn!(youtube_id = %youtube_id, error = %e, "Background download failed"),
             }
         });

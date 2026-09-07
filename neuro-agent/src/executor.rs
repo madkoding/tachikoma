@@ -2,10 +2,10 @@
 //! Command Executor - Safe Shell Command Execution
 //! =============================================================================
 
+use serde::{Deserialize, Serialize};
 use std::process::Stdio;
 use tokio::process::Command;
-use serde::{Deserialize, Serialize};
-use tracing::{debug, warn, error};
+use tracing::{debug, error, warn};
 
 /// Command executor with safety restrictions
 pub struct CommandExecutor {
@@ -38,29 +38,55 @@ pub struct ExecuteResult {
 
 /// Blocked commands that should never be executed
 const BLOCKED_COMMANDS: &[&str] = &[
-    "rm", "rmdir", "dd", "mkfs", "fdisk", "format",
-    "shutdown", "reboot", "poweroff", "halt", "init",
-    "kill", "killall", "pkill",
-    "chmod", "chown", "chgrp",
-    "sudo", "su", "doas",
-    "passwd", "useradd", "userdel", "usermod",
-    "wget", "curl", // Network downloads can be dangerous
-    "nc", "netcat", "ncat",
-    "ssh", "scp", "rsync",
-    "mount", "umount",
-    "iptables", "ip6tables", "nft",
-    "systemctl", "service",
-    "docker", "podman",
-    "eval", "exec",
+    "rm",
+    "rmdir",
+    "dd",
+    "mkfs",
+    "fdisk",
+    "format",
+    "shutdown",
+    "reboot",
+    "poweroff",
+    "halt",
+    "init",
+    "kill",
+    "killall",
+    "pkill",
+    "chmod",
+    "chown",
+    "chgrp",
+    "sudo",
+    "su",
+    "doas",
+    "passwd",
+    "useradd",
+    "userdel",
+    "usermod",
+    "wget",
+    "curl", // Network downloads can be dangerous
+    "nc",
+    "netcat",
+    "ncat",
+    "ssh",
+    "scp",
+    "rsync",
+    "mount",
+    "umount",
+    "iptables",
+    "ip6tables",
+    "nft",
+    "systemctl",
+    "service",
+    "docker",
+    "podman",
+    "eval",
+    "exec",
 ];
 
 /// Dangerous patterns in arguments
 const DANGEROUS_PATTERNS: &[&str] = &[
-    "|", ";", "&&", "||", "`", "$(", "${",
-    ">", ">>", "<", "<<",
-    "/dev/", "/proc/", "/sys/",
-    "../", "/..",
-    "~root", "/root",
+    "|", ";", "&&", "||", "`", "$(", "${", ">", ">>", "<", "<<", "/dev/", "/proc/", "/sys/", "../",
+    "/..", "~root", "/root",
 ];
 
 impl CommandExecutor {
@@ -72,13 +98,21 @@ impl CommandExecutor {
     }
 
     /// Check if a command is allowed to run
-    pub fn is_command_allowed(&self, command: &str, args: &[String], allowed_list: &[String]) -> Result<(), String> {
+    pub fn is_command_allowed(
+        &self,
+        command: &str,
+        args: &[String],
+        allowed_list: &[String],
+    ) -> Result<(), String> {
         // Get the base command (without path)
         let base_command = command.rsplit('/').next().unwrap_or(command);
 
         // Check against blocklist
         if BLOCKED_COMMANDS.contains(&base_command) {
-            return Err(format!("Command '{}' is blocked for security reasons", base_command));
+            return Err(format!(
+                "Command '{}' is blocked for security reasons",
+                base_command
+            ));
         }
 
         // Check if command is in the allowed list (if list is not empty)
@@ -174,9 +208,8 @@ impl CommandExecutor {
         };
 
         // Wait with timeout
-        let timeout = std::time::Duration::from_secs(
-            request.timeout_secs.unwrap_or(self.timeout_secs)
-        );
+        let timeout =
+            std::time::Duration::from_secs(request.timeout_secs.unwrap_or(self.timeout_secs));
 
         let result = tokio::time::timeout(timeout, child.wait_with_output()).await;
 
@@ -226,7 +259,10 @@ impl CommandExecutor {
                     stdout: String::new(),
                     stderr: String::new(),
                     truncated: false,
-                    error: Some(format!("Command timed out after {} seconds", timeout.as_secs())),
+                    error: Some(format!(
+                        "Command timed out after {} seconds",
+                        timeout.as_secs()
+                    )),
                 }
             }
         }
@@ -253,14 +289,17 @@ mod tests {
     #[test]
     fn blocked_command_with_path_rejected() {
         let exec = CommandExecutor::new();
-        let err = exec.is_command_allowed("/usr/bin/rm", &[], &[]).unwrap_err();
+        let err = exec
+            .is_command_allowed("/usr/bin/rm", &[], &[])
+            .unwrap_err();
         assert!(err.contains("blocked"));
     }
 
     #[test]
     fn allowed_command_passes() {
         let exec = CommandExecutor::new();
-        exec.is_command_allowed("ls", &[], &[]).expect("ls should be allowed");
+        exec.is_command_allowed("ls", &[], &[])
+            .expect("ls should be allowed");
     }
 
     #[test]
@@ -283,7 +322,9 @@ mod tests {
     #[test]
     fn dangerous_pattern_in_command_rejected() {
         let exec = CommandExecutor::new();
-        let err = exec.is_command_allowed("ls$(whoami)", &[], &[]).unwrap_err();
+        let err = exec
+            .is_command_allowed("ls$(whoami)", &[], &[])
+            .unwrap_err();
         assert!(err.contains("dangerous pattern"));
     }
 

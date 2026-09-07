@@ -8,8 +8,8 @@ use surrealdb::sql::Thing;
 use uuid::Uuid;
 
 use crate::domain::entities::checklist::{
-    Checklist, ChecklistItem, CreateChecklist, CreateChecklistItem,
-    UpdateChecklist, UpdateChecklistItem,
+    Checklist, ChecklistItem, CreateChecklist, CreateChecklistItem, UpdateChecklist,
+    UpdateChecklistItem,
 };
 use crate::domain::errors::DomainError;
 use crate::domain::ports::checklist_repository::ChecklistRepository;
@@ -133,12 +133,17 @@ impl ChecklistRepository for SurrealChecklistRepository {
             )
         };
 
-        let mut result = self.pool.client().query(&query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let records: Vec<ChecklistRecord> = result.take(0)
+
+        let records: Vec<ChecklistRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(records.into_iter().map(Checklist::from).collect())
     }
 
@@ -149,23 +154,33 @@ impl ChecklistRepository for SurrealChecklistRepository {
             "SELECT count() FROM checklist WHERE is_archived = false GROUP ALL"
         };
 
-        let mut result = self.pool.client().query(query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let count: Option<CountResult> = result.take(0)
+
+        let count: Option<CountResult> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(count.map(|c| c.count).unwrap_or(0))
     }
 
     async fn get_checklist(&self, id: Uuid) -> Result<Option<Checklist>, DomainError> {
         let query = format!("SELECT * FROM checklist:`{}`", id);
-        let mut result = self.pool.client().query(&query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let record: Option<ChecklistRecord> = result.take(0)
+
+        let record: Option<ChecklistRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(record.map(Checklist::from))
     }
 
@@ -187,7 +202,9 @@ impl ChecklistRepository for SurrealChecklistRepository {
             id
         );
 
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("title", data.title.clone()))
             .bind(("description", data.description.clone()))
@@ -196,9 +213,10 @@ impl ChecklistRepository for SurrealChecklistRepository {
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<ChecklistRecord> = result.take(0)
+        let record: Option<ChecklistRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         record
             .map(Checklist::from)
             .ok_or_else(|| DomainError::database("Failed to create checklist"))
@@ -228,20 +246,30 @@ impl ChecklistRepository for SurrealChecklistRepository {
             id
         );
 
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("title", data.title.unwrap_or(existing.title)))
             .bind(("description", data.description.or(existing.description)))
             .bind(("priority", data.priority.unwrap_or(existing.priority)))
             .bind(("due_date", data.due_date.or(existing.due_date)))
-            .bind(("notification_interval", data.notification_interval.or(existing.notification_interval)))
-            .bind(("is_archived", data.is_archived.unwrap_or(existing.is_archived)))
+            .bind((
+                "notification_interval",
+                data.notification_interval
+                    .or(existing.notification_interval),
+            ))
+            .bind((
+                "is_archived",
+                data.is_archived.unwrap_or(existing.is_archived),
+            ))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<ChecklistRecord> = result.take(0)
+        let record: Option<ChecklistRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(record.map(Checklist::from))
     }
 
@@ -252,7 +280,8 @@ impl ChecklistRepository for SurrealChecklistRepository {
         }
 
         // Delete all items first
-        self.pool.client()
+        self.pool
+            .client()
             .query("DELETE FROM checklist_item WHERE checklist_id = $id")
             .bind(("id", id.to_string()))
             .await
@@ -260,22 +289,28 @@ impl ChecklistRepository for SurrealChecklistRepository {
 
         // Delete checklist
         let query = format!("DELETE checklist:`{}`", id);
-        self.pool.client().query(&query).await
+        self.pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         Ok(true)
     }
 
     async fn get_items(&self, checklist_id: Uuid) -> Result<Vec<ChecklistItem>, DomainError> {
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query("SELECT * FROM checklist_item WHERE checklist_id = $id ORDER BY item_order ASC")
             .bind(("id", checklist_id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let records: Vec<ChecklistItemRecord> = result.take(0)
+        let records: Vec<ChecklistItemRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(records.into_iter().map(ChecklistItem::from).collect())
     }
 
@@ -292,10 +327,13 @@ impl ChecklistRepository for SurrealChecklistRepository {
             .bind(("id", checklist_id.to_string()))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let max_order: Option<MaxOrderResult> = result.take(0)
+
+        let max_order: Option<MaxOrderResult> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        let order = data.order.unwrap_or_else(|| max_order.map(|m| m.max_order + 1).unwrap_or(0));
+        let order = data
+            .order
+            .unwrap_or_else(|| max_order.map(|m| m.max_order + 1).unwrap_or(0));
 
         let query = format!(
             r#"CREATE checklist_item:`{}` SET
@@ -309,7 +347,9 @@ impl ChecklistRepository for SurrealChecklistRepository {
             id
         );
 
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("checklist_id", checklist_id.to_string()))
             .bind(("content", data.content.clone()))
@@ -317,12 +357,17 @@ impl ChecklistRepository for SurrealChecklistRepository {
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<ChecklistItemRecord> = result.take(0)
+        let record: Option<ChecklistItemRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         // Update checklist's updated_at
-        self.pool.client()
-            .query(format!("UPDATE checklist:`{}` SET updated_at = time::now()", checklist_id))
+        self.pool
+            .client()
+            .query(format!(
+                "UPDATE checklist:`{}` SET updated_at = time::now()",
+                checklist_id
+            ))
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
@@ -337,10 +382,15 @@ impl ChecklistRepository for SurrealChecklistRepository {
         data: UpdateChecklistItem,
     ) -> Result<Option<ChecklistItem>, DomainError> {
         let query = format!("SELECT * FROM checklist_item:`{}`", item_id);
-        let mut result = self.pool.client().query(&query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let existing: Option<ChecklistItemRecord> = result.take(0)
+
+        let existing: Option<ChecklistItemRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         if existing.is_none() {
@@ -349,7 +399,7 @@ impl ChecklistRepository for SurrealChecklistRepository {
         let existing = ChecklistItem::from(existing.unwrap());
 
         let is_completed = data.is_completed.unwrap_or(existing.is_completed);
-        
+
         let query = if is_completed && existing.completed_at.is_none() {
             format!(
                 r#"UPDATE checklist_item:`{}` SET
@@ -381,7 +431,9 @@ impl ChecklistRepository for SurrealChecklistRepository {
             )
         };
 
-        let mut result = self.pool.client()
+        let mut result = self
+            .pool
+            .client()
             .query(&query)
             .bind(("content", data.content.unwrap_or(existing.content)))
             .bind(("is_completed", is_completed))
@@ -389,27 +441,37 @@ impl ChecklistRepository for SurrealChecklistRepository {
             .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
-        let record: Option<ChecklistItemRecord> = result.take(0)
+        let record: Option<ChecklistItemRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         Ok(record.map(ChecklistItem::from))
     }
 
     async fn toggle_item(&self, item_id: Uuid) -> Result<Option<ChecklistItem>, DomainError> {
         let query = format!("SELECT * FROM checklist_item:`{}`", item_id);
-        let mut result = self.pool.client().query(&query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let existing: Option<ChecklistItemRecord> = result.take(0)
+
+        let existing: Option<ChecklistItemRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         if let Some(record) = existing {
             let item = ChecklistItem::from(record);
-            self.update_item(item_id, UpdateChecklistItem {
-                content: None,
-                is_completed: Some(!item.is_completed),
-                order: None,
-            }).await
+            self.update_item(
+                item_id,
+                UpdateChecklistItem {
+                    content: None,
+                    is_completed: Some(!item.is_completed),
+                    order: None,
+                },
+            )
+            .await
         } else {
             Ok(None)
         }
@@ -417,18 +479,26 @@ impl ChecklistRepository for SurrealChecklistRepository {
 
     async fn delete_item(&self, item_id: Uuid) -> Result<bool, DomainError> {
         let query = format!("SELECT * FROM checklist_item:`{}`", item_id);
-        let mut result = self.pool.client().query(&query).await
+        let mut result = self
+            .pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
-        let existing: Option<ChecklistItemRecord> = result.take(0)
+
+        let existing: Option<ChecklistItemRecord> = result
+            .take(0)
             .map_err(|e| DomainError::database(e.to_string()))?;
-        
+
         if existing.is_none() {
             return Ok(false);
         }
 
         let query = format!("DELETE checklist_item:`{}`", item_id);
-        self.pool.client().query(&query).await
+        self.pool
+            .client()
+            .query(&query)
+            .await
             .map_err(|e| DomainError::database(e.to_string()))?;
 
         Ok(true)

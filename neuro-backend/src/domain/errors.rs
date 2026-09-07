@@ -97,13 +97,18 @@ impl DomainError {
     }
 
     pub fn is_retriable(&self) -> bool {
-        matches!(self, Self::DatabaseError { .. } | Self::InternalError { .. })
+        matches!(
+            self,
+            Self::DatabaseError { .. } | Self::InternalError { .. }
+        )
     }
 
     pub fn is_user_error(&self) -> bool {
         matches!(
             self,
-            Self::ValidationError { .. } | Self::CommandBlocked { .. } | Self::CommandParseError { .. }
+            Self::ValidationError { .. }
+                | Self::CommandBlocked { .. }
+                | Self::CommandParseError { .. }
         )
     }
 
@@ -120,7 +125,10 @@ impl DomainError {
     pub fn user_message(&self) -> String {
         match self {
             Self::NotFound { entity_type, .. } => {
-                format!("The requested {} could not be found.", entity_type.to_lowercase())
+                format!(
+                    "The requested {} could not be found.",
+                    entity_type.to_lowercase()
+                )
             }
             Self::ValidationError { field, message } => {
                 format!("Invalid {}: {}", field, message)
@@ -191,7 +199,10 @@ mod tests {
     #[test]
     fn test_is_retriable() {
         assert!(DomainError::database("conn lost").is_retriable());
-        assert!(DomainError::InternalError { message: "oops".to_string() }.is_retriable());
+        assert!(DomainError::InternalError {
+            message: "oops".to_string()
+        }
+        .is_retriable());
         assert!(!DomainError::not_found("Memory", "x").is_retriable());
     }
 

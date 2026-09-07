@@ -5,7 +5,10 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::{sse::{Event, Sse}, IntoResponse},
+    response::{
+        sse::{Event, Sse},
+        IntoResponse,
+    },
     Json,
 };
 use chrono::Utc;
@@ -16,10 +19,7 @@ use surrealdb::sql::Datetime;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::{
-    models::*,
-    AppState,
-};
+use crate::{models::*, AppState};
 
 // ============================================================================
 // Health Check
@@ -46,7 +46,7 @@ pub async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoRespon
 /// List all memories
 pub async fn list_memories(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let sql = "SELECT * FROM memory ORDER BY created_at DESC LIMIT 100";
-    
+
     match state.db.client().query(sql).await {
         Ok(mut response) => {
             let records: Vec<MemoryRecord> = response.take(0).unwrap_or_default();
@@ -55,7 +55,11 @@ pub async fn list_memories(State(state): State<Arc<AppState>>) -> impl IntoRespo
         }
         Err(e) => {
             error!("Failed to list memories: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -66,18 +70,32 @@ pub async fn get_memory(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     let sql = "SELECT * FROM type::thing('memory', $id)";
-    
-    match state.db.client().query(sql).bind(("id", id.to_string())).await {
+
+    match state
+        .db
+        .client()
+        .query(sql)
+        .bind(("id", id.to_string()))
+        .await
+    {
         Ok(mut response) => {
             let records: Vec<MemoryRecord> = response.take(0).unwrap_or_default();
             match records.into_iter().next() {
                 Some(record) => Json(record.to_memory()).into_response(),
-                None => (StatusCode::NOT_FOUND, Json(json!({ "error": "Memory not found" }))).into_response(),
+                None => (
+                    StatusCode::NOT_FOUND,
+                    Json(json!({ "error": "Memory not found" })),
+                )
+                    .into_response(),
             }
         }
         Err(e) => {
             error!("Failed to get memory: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -91,7 +109,7 @@ pub async fn create_memory(
     let now = Utc::now();
     let memory_type = request.memory_type.unwrap_or_else(|| "fact".to_string());
     let importance = request.importance_score.unwrap_or(0.5);
-    
+
     // Generate embedding vector
     let vector = match generate_embedding(&state.backend_url, &request.content).await {
         Ok(v) => v,
@@ -116,7 +134,9 @@ pub async fn create_memory(
             importance_score = $importance_score
     "#;
 
-    match state.db.client()
+    match state
+        .db
+        .client()
         .query(sql)
         .bind(("id", id.to_string()))
         .bind(("content", request.content.clone()))
@@ -145,7 +165,11 @@ pub async fn create_memory(
         }
         Err(e) => {
             error!("Failed to create memory: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -158,7 +182,7 @@ pub async fn update_memory(
 ) -> impl IntoResponse {
     let now = Utc::now();
     let mut updates = vec!["updated_at = $updated_at".to_string()];
-    
+
     if request.content.is_some() {
         updates.push("content = $content".to_string());
     }
@@ -177,7 +201,10 @@ pub async fn update_memory(
         updates.join(", ")
     );
 
-    let mut query = state.db.client().query(&sql)
+    let mut query = state
+        .db
+        .client()
+        .query(&sql)
         .bind(("id", id.to_string()))
         .bind(("updated_at", Datetime::from(now)));
 
@@ -191,7 +218,10 @@ pub async fn update_memory(
         query = query.bind(("importance_score", importance));
     }
     if let Some(metadata) = &request.metadata {
-        query = query.bind(("metadata", serde_json::to_value(metadata).unwrap_or_default()));
+        query = query.bind((
+            "metadata",
+            serde_json::to_value(metadata).unwrap_or_default(),
+        ));
     }
 
     match query.await {
@@ -199,12 +229,20 @@ pub async fn update_memory(
             let records: Vec<MemoryRecord> = response.take(0).unwrap_or_default();
             match records.into_iter().next() {
                 Some(record) => Json(record.to_memory()).into_response(),
-                None => (StatusCode::NOT_FOUND, Json(json!({ "error": "Memory not found" }))).into_response(),
+                None => (
+                    StatusCode::NOT_FOUND,
+                    Json(json!({ "error": "Memory not found" })),
+                )
+                    .into_response(),
             }
         }
         Err(e) => {
             error!("Failed to update memory: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -216,28 +254,52 @@ pub async fn delete_memory(
 ) -> impl IntoResponse {
     // First check if it exists
     let check_sql = "SELECT * FROM type::thing('memory', $id)";
-    match state.db.client().query(check_sql).bind(("id", id.to_string())).await {
+    match state
+        .db
+        .client()
+        .query(check_sql)
+        .bind(("id", id.to_string()))
+        .await
+    {
         Ok(mut response) => {
             let records: Vec<MemoryRecord> = response.take(0).unwrap_or_default();
             if records.is_empty() {
-                return (StatusCode::NOT_FOUND, Json(json!({ "error": "Memory not found" }))).into_response();
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(json!({ "error": "Memory not found" })),
+                )
+                    .into_response();
             }
         }
         Err(e) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
         }
     }
 
     // Delete the memory
     let sql = "DELETE type::thing('memory', $id)";
-    match state.db.client().query(sql).bind(("id", id.to_string())).await {
+    match state
+        .db
+        .client()
+        .query(sql)
+        .bind(("id", id.to_string()))
+        .await
+    {
         Ok(_) => {
             info!("Deleted memory {}", id);
             StatusCode::NO_CONTENT.into_response()
         }
         Err(e) => {
             error!("Failed to delete memory: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -259,7 +321,11 @@ pub async fn search_memories(
         Ok(v) => v,
         Err(e) => {
             error!("Failed to generate query embedding: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
         }
     };
 
@@ -276,7 +342,7 @@ pub async fn search_memories(
     match state.db.client().query(&sql).await {
         Ok(mut response) => {
             let records: Vec<MemoryRecord> = response.take(0).unwrap_or_default();
-            
+
             // Calculate similarities and filter
             let mut results: Vec<SearchResult> = records
                 .into_iter()
@@ -301,7 +367,11 @@ pub async fn search_memories(
         }
         Err(e) => {
             error!("Failed to search memories: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -320,7 +390,13 @@ pub async fn get_memory_relations(
         WHERE in = type::thing('memory', $id) OR out = type::thing('memory', $id)
     "#;
 
-    match state.db.client().query(sql).bind(("id", id.to_string())).await {
+    match state
+        .db
+        .client()
+        .query(sql)
+        .bind(("id", id.to_string()))
+        .await
+    {
         Ok(mut response) => {
             let records: Vec<RelationRecord> = response.take(0).unwrap_or_default();
             let relations: Vec<Relation> = records.into_iter().map(|r| r.to_relation()).collect();
@@ -328,7 +404,11 @@ pub async fn get_memory_relations(
         }
         Err(e) => {
             error!("Failed to get relations: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -343,7 +423,13 @@ pub async fn get_related_memories(
         WHERE in = type::thing('memory', $id)
     "#;
 
-    match state.db.client().query(sql).bind(("id", id.to_string())).await {
+    match state
+        .db
+        .client()
+        .query(sql)
+        .bind(("id", id.to_string()))
+        .await
+    {
         Ok(mut response) => {
             let records: Vec<MemoryRecord> = response.take(0).unwrap_or_default();
             let memories: Vec<Memory> = records.into_iter().map(|r| r.to_memory()).collect();
@@ -351,7 +437,11 @@ pub async fn get_related_memories(
         }
         Err(e) => {
             error!("Failed to get related memories: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -376,7 +466,9 @@ pub async fn create_relation(
         request.from_id, request.to_id
     );
 
-    match state.db.client()
+    match state
+        .db
+        .client()
         .query(&sql)
         .bind(("relation_type", request.relation_type.clone()))
         .bind(("confidence", confidence))
@@ -398,7 +490,11 @@ pub async fn create_relation(
         }
         Err(e) => {
             error!("Failed to create relation: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -420,7 +516,11 @@ pub async fn delete_relation(
         }
         Err(e) => {
             error!("Failed to delete relation: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }

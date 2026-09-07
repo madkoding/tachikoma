@@ -19,16 +19,16 @@ use crate::domain::{
 /// =============================================================================
 /// Defines all operations for storing, retrieving, and managing memory nodes
 /// in the GraphRAG system. Implementations handle the actual persistence.
-/// 
+///
 /// # Responsibilities
-/// 
+///
 /// * CRUD operations for memory nodes
 /// * Semantic search using vector embeddings
 /// * Graph traversal for related memories
 /// * Relation management between nodes
-/// 
+///
 /// # Implementation Notes
-/// 
+///
 /// Implementations should handle:
 /// - Connection pooling and retry logic
 /// - Vector index optimization
@@ -46,18 +46,18 @@ pub trait MemoryRepository: Send + Sync {
     /// =========================================================================
     /// Persists a new memory node to the database. The node should have a
     /// unique ID and valid vector embedding.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `memory` - The memory node to create
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(MemoryNode)` - The created memory with any server-generated fields
     /// * `Err(DomainError)` - If creation fails
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// * `DomainError::DatabaseError` - Database connection or query failed
     /// * `DomainError::DuplicateEntry` - Memory with same ID already exists
     /// =========================================================================
@@ -67,13 +67,13 @@ pub trait MemoryRepository: Send + Sync {
     /// Get a memory by its unique ID
     /// =========================================================================
     /// Retrieves a single memory node by its UUID.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `id` - The unique identifier of the memory
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Some(MemoryNode))` - The found memory
     /// * `Ok(None)` - No memory found with the given ID
     /// * `Err(DomainError)` - If the query fails
@@ -85,18 +85,18 @@ pub trait MemoryRepository: Send + Sync {
     /// =========================================================================
     /// Updates all fields of an existing memory node. The node must already
     /// exist in the database.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `memory` - The memory node with updated fields
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(MemoryNode)` - The updated memory
     /// * `Err(DomainError)` - If update fails
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// * `DomainError::NotFound` - Memory with given ID doesn't exist
     /// * `DomainError::DatabaseError` - Database operation failed
     /// =========================================================================
@@ -106,13 +106,13 @@ pub trait MemoryRepository: Send + Sync {
     /// Delete a memory by ID
     /// =========================================================================
     /// Removes a memory node and all its relations from the database.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `id` - The unique identifier of the memory to delete
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(true)` - Memory was deleted
     /// * `Ok(false)` - Memory didn't exist
     /// * `Err(DomainError)` - If deletion fails
@@ -128,13 +128,13 @@ pub trait MemoryRepository: Send + Sync {
     /// =========================================================================
     /// Retrieves memories matching the given query parameters.
     /// Supports filtering by type, tags, importance, and time range.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `query` - Query parameters for filtering
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Vec<MemoryNode>)` - Matching memories (may be empty)
     /// * `Err(DomainError)` - If query fails
     /// =========================================================================
@@ -145,15 +145,15 @@ pub trait MemoryRepository: Send + Sync {
     /// =========================================================================
     /// Finds memories similar to the given query vector using cosine
     /// similarity or another vector distance metric.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `query_vector` - The embedding vector to search with
     /// * `limit` - Maximum number of results to return
     /// * `min_similarity` - Minimum similarity threshold (0.0 - 1.0)
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Vec<(MemoryNode, f64)>)` - Memories with similarity scores
     /// * `Err(DomainError)` - If search fails
     /// =========================================================================
@@ -169,14 +169,14 @@ pub trait MemoryRepository: Send + Sync {
     /// =========================================================================
     /// Retrieves all memories with optional limit and offset.
     /// Used for admin dashboard and bulk operations.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `limit` - Maximum number of memories to return
     /// * `offset` - Number of memories to skip
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Vec<MemoryNode>)` - List of memories
     /// * `Err(DomainError)` - If query fails
     /// =========================================================================
@@ -186,9 +186,9 @@ pub trait MemoryRepository: Send + Sync {
     /// Get total count of memories
     /// =========================================================================
     /// Returns the total number of memories in the database.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(usize)` - Total count
     /// * `Err(DomainError)` - If query fails
     /// =========================================================================
@@ -202,13 +202,13 @@ pub trait MemoryRepository: Send + Sync {
     /// Create a relation between two memories
     /// =========================================================================
     /// Adds a directed edge between two memory nodes in the graph.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `edge` - The graph edge defining the relation
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(GraphEdge)` - The created edge
     /// * `Err(DomainError)` - If creation fails
     /// =========================================================================
@@ -218,15 +218,15 @@ pub trait MemoryRepository: Send + Sync {
     /// Get relations for a memory
     /// =========================================================================
     /// Retrieves all relations (edges) connected to a memory node.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `memory_id` - The ID of the memory to get relations for
     /// * `relation_type` - Optional filter for relation type
     /// * `direction` - Whether to get outgoing, incoming, or both relations
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Vec<GraphEdge>)` - List of relations
     /// * `Err(DomainError)` - If query fails
     /// =========================================================================
@@ -242,15 +242,15 @@ pub trait MemoryRepository: Send + Sync {
     /// =========================================================================
     /// Traverses the graph to find memories related to the given node.
     /// Supports multi-hop traversal with depth limit.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `memory_id` - The starting memory node
     /// * `max_depth` - Maximum graph traversal depth
     /// * `relation_types` - Optional filter for relation types
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Vec<(MemoryNode, GraphEdge)>)` - Related memories with their edges
     /// * `Err(DomainError)` - If traversal fails
     /// =========================================================================
@@ -265,15 +265,15 @@ pub trait MemoryRepository: Send + Sync {
     /// Delete a relation between memories
     /// =========================================================================
     /// Removes an edge from the graph.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `from_id` - Source memory ID
     /// * `to_id` - Target memory ID
     /// * `relation` - Type of relation to delete
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(true)` - Relation was deleted
     /// * `Ok(false)` - Relation didn't exist
     /// * `Err(DomainError)` - If deletion fails
@@ -293,9 +293,9 @@ pub trait MemoryRepository: Send + Sync {
     /// Get graph statistics
     /// =========================================================================
     /// Returns statistics about the memory graph for admin dashboard.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(GraphStats)` - Statistics about nodes and edges
     /// * `Err(DomainError)` - If query fails
     /// =========================================================================
@@ -305,9 +305,9 @@ pub trait MemoryRepository: Send + Sync {
     /// Export full graph structure
     /// =========================================================================
     /// Exports all nodes and edges for visualization or backup.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(GraphExport)` - Full graph data
     /// * `Err(DomainError)` - If export fails
     /// =========================================================================
