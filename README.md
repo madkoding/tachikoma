@@ -346,3 +346,6 @@ Contributions are welcome! Please read our contributing guidelines before submit
 ---
 
 Built with ❤️ using Rust, React, and AI
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=madkoding/tachikoma&type=Date)](https://star-history.com/#madkoding/tachikoma&Date)
