@@ -318,7 +318,6 @@ checksum = "edca88bc138befd0323b20752846e6587272d3b03b0343c8ea28a6f819e6e71f"
 dependencies = [
  "async-trait",
  "axum-core 0.4.5",
- "axum-macros",
  "bytes",
  "futures-util",
  "http 1.5.0",
@@ -352,6 +351,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31b698c5f9a010f6573133b09e0de5408834d0c82f8d7475a89fc1867a71cd90"
 dependencies = [
  "axum-core 0.5.6",
+ "axum-macros",
  "bytes",
  "form_urlencoded",
  "futures-util",
@@ -420,9 +420,9 @@ dependencies = [
 
 [[package]]
 name = "axum-macros"
-version = "0.4.2"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57d123550fa8d071b7255cb0cc04dc302baa6c8c4a79f55701552684d8399bce"
+checksum = "7aa268c23bfbbd2c4363b9cd302a4f504fb2a9dfe7e3451d66f35dd392e20aca"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1272,7 +1272,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2023,7 +2023,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.5",
+ "socket2 0.5.10",
  "system-configuration 0.7.0",
  "tokio",
  "tower-service",
@@ -2678,7 +2678,7 @@ name = "neuro-common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "axum 0.7.9",
+ "axum 0.8.9",
  "dotenvy",
  "futures",
  "reqwest 0.12.28",
@@ -3855,7 +3855,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4749,7 +4749,7 @@ name = "tachikoma-agent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "axum 0.7.9",
+ "axum 0.8.9",
  "axum-test",
  "neuro-common",
  "reqwest 0.12.28",
@@ -4773,7 +4773,7 @@ dependencies = [
  "anyhow",
  "async-stream",
  "async-trait",
- "axum 0.7.9",
+ "axum 0.8.9",
  "axum-test",
  "chrono",
  "dotenvy",
@@ -4805,7 +4805,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-stream",
- "axum 0.7.9",
+ "axum 0.8.9",
  "axum-test",
  "chrono",
  "futures",
@@ -4829,7 +4829,7 @@ dependencies = [
 name = "tachikoma-checklists"
 version = "0.1.0"
 dependencies = [
- "axum 0.7.9",
+ "axum 0.8.9",
  "axum-test",
  "chrono",
  "neuro-common",
@@ -4850,7 +4850,7 @@ dependencies = [
 name = "tachikoma-kanban"
 version = "0.1.0"
 dependencies = [
- "axum 0.7.9",
+ "axum 0.8.9",
  "axum-test",
  "chrono",
  "dotenvy",
@@ -4873,7 +4873,7 @@ name = "tachikoma-memory"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "axum 0.7.9",
+ "axum 0.8.9",
  "axum-test",
  "chrono",
  "futures",
@@ -4896,7 +4896,7 @@ dependencies = [
 name = "tachikoma-music"
 version = "0.1.0"
 dependencies = [
- "axum 0.7.9",
+ "axum 0.8.9",
  "axum-test",
  "chrono",
  "futures",
@@ -4923,7 +4923,7 @@ dependencies = [
 name = "tachikoma-pomodoro"
 version = "0.1.0"
 dependencies = [
- "axum 0.7.9",
+ "axum 0.8.9",
  "axum-test",
  "chrono",
  "neuro-common",
@@ -4944,7 +4944,7 @@ name = "tachikoma-voice"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "axum 0.7.9",
+ "axum 0.8.9",
  "base64 0.22.1",
  "dotenvy",
  "futures",
@@ -4984,7 +4984,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5765,7 +5765,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
