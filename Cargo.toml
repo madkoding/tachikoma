@@ -24,7 +24,7 @@ doc_lazy_continuation = "allow"
 empty_line_after_doc_comments = "allow"
 
 [workspace.dependencies]
-axum = { version = "0.7", features = ["macros", "json"] }
+axum = { version = "0.8", features = ["macros", "json"] }
 tokio = { version = "1.40", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
