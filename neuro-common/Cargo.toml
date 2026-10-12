@@ -17,4 +17,4 @@ reqwest = { workspace = true }
 futures = "0.3"
 anyhow = { workspace = true }
 dotenvy = { workspace = true }
-surrealdb = { version = "1.5", features = ["kv-mem"] }
+surrealdb = { version = "3.2", features = ["kv-mem"] }
