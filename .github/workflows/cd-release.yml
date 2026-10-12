@@ -20,7 +20,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --release -p ${{ matrix.service }}
       - run: mkdir -p artifacts && cp target/release/${{ matrix.service }} artifacts/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.service }}-${{ github.ref_name }}
           path: artifacts/${{ matrix.service }}
@@ -113,7 +113,7 @@ jobs:
           mkdir -p installers
           find src-tauri/target/release/bundle -type f \( -name "*.msi" -o -name "*.AppImage" -o -name "*.dmg" -o -name "*.deb" -o -name "*.rpm" \) -exec cp {} installers/ \;
           ls -la installers/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tachikoma-desktop-${{ matrix.target }}-${{ github.ref_name }}
           path: apps/tachikoma-desktop/installers/
