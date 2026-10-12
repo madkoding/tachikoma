@@ -11,6 +11,6 @@
     "tauri:build:mac": "tauri build --target aarch64-apple-darwin"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.4"
+    "@tauri-apps/cli": "^2.12.1"
   }
 }
