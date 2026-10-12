@@ -10,7 +10,7 @@ neuro-common = { path = "../neuro-common" }
 axum = { workspace = true }
 tokio = { workspace = true }
 tower-http = { workspace = true }
-surrealdb = { version = "1.5", features = ["kv-mem"] }
+surrealdb = { version = "3.2", features = ["kv-mem"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 futures = "0.3"
