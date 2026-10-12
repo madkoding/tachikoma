@@ -37,7 +37,7 @@ uuid = { version = "1.10", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1.0"
 dotenvy = "0.15"
-mockall = "0.13"
+mockall = "0.15"
 wiremock = "0.6"
 axum-test = "17"
 tokio-test = "0.4"
