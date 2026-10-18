@@ -11,7 +11,7 @@ axum = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = "0.1"
 tower-http = { workspace = true }
-surrealdb = { version = "1.5", features = ["kv-mem"] }
+surrealdb = { version = "3.3", features = ["kv-mem"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 futures = "0.3"
